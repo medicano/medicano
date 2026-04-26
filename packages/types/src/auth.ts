@@ -1,3 +1,6 @@
+/**
+ * User roles in the Medicano platform
+ */
 export enum UserRole {
   PATIENT = 'patient',
   CLINIC = 'clinic',
@@ -5,49 +8,61 @@ export enum UserRole {
   ATTENDANT = 'attendant',
 }
 
+/**
+ * Base user interface
+ */
 export interface IUser {
-  _id: string;
+  id: string;
   role: UserRole;
   email?: string;
   username?: string;
-  clinicId?: string;
   createdAt: Date;
-  updatedAt: Date;
 }
 
+/**
+ * Clinic interface
+ */
 export interface IClinic {
-  _id: string;
+  id: string;
   name: string;
   subscriptionStatus: string;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
+/**
+ * Professional interface
+ */
 export interface IProfessional {
-  _id: string;
+  id: string;
   specialty: string;
   userId: string;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
+/**
+ * Clinic-Professional relationship interface
+ */
 export interface IClinicProfessional {
-  _id: string;
   clinicId: string;
   professionalId: string;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
+/**
+ * Auth tokens response interface
+ */
 export interface IAuthTokens {
   accessToken: string;
 }
 
+/**
+ * Standard login DTO interface (for patient, clinic, professional)
+ */
 export interface ILoginStandardDto {
   email: string;
   password: string;
 }
 
+/**
+ * Attendant login DTO interface (clinic-scoped login)
+ */
 export interface ILoginAttendantDto {
   clinicId: string;
   username: string;
