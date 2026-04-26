@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { SubscriptionStatus } from '../schemas/clinic.schema';
 
 export class UpdateClinicDto {

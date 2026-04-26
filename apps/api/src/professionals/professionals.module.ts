@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+
 import { ProfessionalsController } from './professionals.controller';
 import { ProfessionalsService } from './professionals.service';
 import {
@@ -10,7 +11,10 @@ import {
 @Module({
   imports: [
     MongooseModule.forFeature([
-      { name: Professional.name, schema: ProfessionalSchema },
+      {
+        name: Professional.name,
+        schema: ProfessionalSchema,
+      },
     ]),
   ],
   controllers: [ProfessionalsController],

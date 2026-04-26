@@ -1,10 +1,10 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { SubscriptionStatus } from '../schemas/clinic.schema';
 
 export class CreateClinicDto {
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsEnum(SubscriptionStatus)
   @IsOptional()
