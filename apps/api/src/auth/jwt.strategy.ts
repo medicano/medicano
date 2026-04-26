@@ -5,28 +5,23 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { RedisService } from '../redis/redis.service';
 import { Role } from '../common/enums/role.enum';
 
-interface JwtPayload {
-  sub: string;
-  role: Role;
-}
-
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    private readonly redisService: RedisService,
-    configService: ConfigService,
+    private configService: ConfigService,
+    private redisService: RedisService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET') ?? 'default-secret',
+      secretOrKey: configService.get('JWT_SECRET'),
+      passReqToCallback: false,
     });
   }
 
-  async validate(payload: JwtPayload): Promise<{ userId: string; role: Role }> {
-    const storedToken = await this.redisService.getToken(payload.sub);
-    if (!storedToken) {
-      throw new UnauthorizedException('Token has been revoked');
+  async validate(payload: { sub: string; role: Role }): Promise<{ userId: string; role: Role }> {
+    const token = await this.redisService.getToken(payload.sub);
+    if (!token) {
+      throw new UnauthorizedException('Session expired or revoked');
     }
     return { userId: payload.sub, role: payload.role };
   }
