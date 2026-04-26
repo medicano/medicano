@@ -1,42 +1,38 @@
+import { IAuthTokens } from '@medicano/types';
 import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { LoginAttendantDto } from './dto/login-attendant.dto';
 import { LoginStandardDto } from './dto/login-standard.dto';
 import { SignupDto } from './dto/signup.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-
-interface AuthTokens {
-  accessToken: string;
-}
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('signup')
-  async signup(@Body() signupDto: SignupDto): Promise<AuthTokens> {
-    return this.authService.signup(signupDto);
+  @HttpCode(201)
+  async signup(@Body() dto: SignupDto): Promise<IAuthTokens> {
+    return this.authService.signup(dto);
   }
 
   @Post('login')
   @HttpCode(200)
-  async login(@Body() loginDto: LoginStandardDto): Promise<AuthTokens> {
-    return this.authService.loginStandard(loginDto);
+  async loginStandard(@Body() dto: LoginStandardDto): Promise<IAuthTokens> {
+    return this.authService.loginStandard(dto);
   }
 
   @Post('login/attendant')
   @HttpCode(200)
-  async loginAttendant(
-    @Body() loginDto: LoginAttendantDto,
-  ): Promise<AuthTokens> {
-    return this.authService.loginAttendant(loginDto);
+  async loginAttendant(@Body() dto: LoginAttendantDto): Promise<IAuthTokens> {
+    return this.authService.loginAttendant(dto);
   }
 
   @Post('logout')
-  @HttpCode(204)
   @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
   async logout(@CurrentUser() userId: string): Promise<void> {
-    return this.authService.logout(userId);
+    await this.authService.logout(userId);
   }
 }

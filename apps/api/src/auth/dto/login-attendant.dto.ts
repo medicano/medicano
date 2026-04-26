@@ -2,12 +2,12 @@ import { IsMongoId, IsString, MinLength } from 'class-validator';
 
 export class LoginAttendantDto {
   @IsMongoId()
-  clinicId: string;
+  readonly clinicId: string;
 
   @IsString()
-  username: string;
+  readonly username: string;
 
   @IsString()
   @MinLength(8)
-  password: string;
+  readonly password: string;
 }
