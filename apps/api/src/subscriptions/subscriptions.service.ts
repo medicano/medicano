@@ -1,5 +1,5 @@
 import {
-  ConflictException,
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,34 +7,19 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
-import {
-  PLAN_PROFESSIONAL_LIMITS,
-  Subscription,
-  SubscriptionDocument,
-  SubscriptionPlan,
-} from './schemas/subscription.schema';
-import { SubscriptionStatus } from '../clinics/schemas/clinic.schema';
-import { ClinicsService } from '../clinics/clinics.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
+import {
+  Subscription,
+  SubscriptionDocument,
+} from './schemas/subscription.schema';
 
-const ALLOWED_TRANSITIONS: Record<SubscriptionStatus, SubscriptionStatus[]> = {
-  [SubscriptionStatus.TRIAL]: [
-    SubscriptionStatus.ACTIVE,
-    SubscriptionStatus.CANCELED,
-    SubscriptionStatus.INACTIVE,
-  ],
-  [SubscriptionStatus.ACTIVE]: [
-    SubscriptionStatus.CANCELED,
-    SubscriptionStatus.EXPIRED,
-    SubscriptionStatus.INACTIVE,
-  ],
-  [SubscriptionStatus.INACTIVE]: [
-    SubscriptionStatus.ACTIVE,
-    SubscriptionStatus.CANCELED,
-  ],
-  [SubscriptionStatus.CANCELED]: [],
-  [SubscriptionStatus.EXPIRED]: [],
+type SubscriptionOwnerType = 'clinic' | 'professional';
+
+type SubscriptionCreateInput = CreateSubscriptionDto & {
+  ownerType?: SubscriptionOwnerType;
+  ownerId?: string;
+  clinicId?: string;
 };
 
 @Injectable()
@@ -42,143 +27,156 @@ export class SubscriptionsService {
   constructor(
     @InjectModel(Subscription.name)
     private readonly subscriptionModel: Model<SubscriptionDocument>,
-    private readonly clinicsService: ClinicsService,
   ) {}
 
-  async create(dto: CreateSubscriptionDto): Promise<SubscriptionDocument> {
-    if (!Types.ObjectId.isValid(dto.clinicId)) {
-      throw new NotFoundException(`Invalid clinic ID: ${dto.clinicId}`);
+  async create(
+    createSubscriptionDto: CreateSubscriptionDto,
+  ): Promise<SubscriptionDocument> {
+    const subscriptionData: SubscriptionCreateInput = {
+      ...(createSubscriptionDto as SubscriptionCreateInput),
+    };
+
+    if (
+      !subscriptionData.ownerType &&
+      !subscriptionData.ownerId &&
+      subscriptionData.clinicId
+    ) {
+      subscriptionData.ownerType = 'clinic';
+      subscriptionData.ownerId = subscriptionData.clinicId;
     }
 
-    await this.clinicsService.findById(dto.clinicId);
-
-    try {
-      return await this.subscriptionModel.create({
-        ...dto,
-        clinicId: new Types.ObjectId(dto.clinicId),
-        expiresAt: new Date(dto.expiresAt),
-      });
-    } catch (error: unknown) {
-      if ((error as { code?: number }).code === 11000) {
-        throw new ConflictException(
-          'Subscription already exists for this clinic',
-        );
-      }
-      throw error;
-    }
+    const createdSubscription = new this.subscriptionModel(subscriptionData);
+    return createdSubscription.save();
   }
 
-  async findByClinicId(clinicId: string): Promise<SubscriptionDocument | null> {
-    if (!Types.ObjectId.isValid(clinicId)) {
-      return null;
-    }
-
-    return this.subscriptionModel
-      .findOne({ clinicId: new Types.ObjectId(clinicId) })
-      .exec();
+  async findAll(): Promise<SubscriptionDocument[]> {
+    return this.subscriptionModel.find().exec();
   }
 
-  async findByClinic(clinicId: string): Promise<SubscriptionDocument> {
-    const subscription = await this.findByClinicId(clinicId);
-    if (!subscription) {
-      throw new NotFoundException(
-        `Subscription for clinic ${clinicId} not found`,
-      );
-    }
-    return subscription;
-  }
-
-  async findById(id: string): Promise<SubscriptionDocument> {
+  async findOne(id: string): Promise<SubscriptionDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid subscription ID: ${id}`);
+      throw new BadRequestException('Invalid subscription id');
     }
 
     const subscription = await this.subscriptionModel.findById(id).exec();
 
     if (!subscription) {
-      throw new NotFoundException(`Subscription with ID ${id} not found`);
+      throw new NotFoundException(`Subscription ${id} not found`);
     }
 
     return subscription;
   }
 
-  async findOne(id: string): Promise<SubscriptionDocument> {
-    return this.findById(id);
+  async findByOwner(
+    ownerType: SubscriptionOwnerType,
+    ownerId: string,
+  ): Promise<SubscriptionDocument | null> {
+    if (!Types.ObjectId.isValid(ownerId)) {
+      throw new BadRequestException('Invalid ownerId');
+    }
+
+    return this.subscriptionModel
+      .findOne({
+        ownerType,
+        ownerId: new Types.ObjectId(ownerId),
+      })
+      .exec();
+  }
+
+  async findActiveOwnerIds(
+    ownerType: SubscriptionOwnerType,
+  ): Promise<Types.ObjectId[]> {
+    const subs = await this.subscriptionModel
+      .find({
+        ownerType,
+        status: 'active',
+        expiresAt: { $gt: new Date() },
+      })
+      .select('ownerId')
+      .exec();
+
+    return subs.map((s) => s.ownerId as Types.ObjectId);
+  }
+
+  /**
+   * @deprecated use findByOwner('clinic', clinicId) instead
+   */
+  async findByClinicId(
+    clinicId: string,
+  ): Promise<SubscriptionDocument | null> {
+    return this.findByOwner('clinic', clinicId);
   }
 
   async update(
     id: string,
-    dto: UpdateSubscriptionDto,
+    updateSubscriptionDto: UpdateSubscriptionDto,
   ): Promise<SubscriptionDocument> {
-    const existing = await this.findById(id);
-
-    if (dto.status && dto.status !== existing.status) {
-      const allowed = ALLOWED_TRANSITIONS[existing.status] ?? [];
-      if (!allowed.includes(dto.status)) {
-        throw new ConflictException(
-          `Invalid status transition from ${existing.status} to ${dto.status}`,
-        );
-      }
-    }
-
-    const updateData: Record<string, unknown> = { ...dto };
-    if (dto.expiresAt) {
-      updateData.expiresAt = new Date(dto.expiresAt);
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid subscription id');
     }
 
     const updated = await this.subscriptionModel
-      .findByIdAndUpdate(id, updateData, { new: true })
+      .findByIdAndUpdate(id, updateSubscriptionDto, { new: true })
       .exec();
 
     if (!updated) {
-      throw new NotFoundException(`Subscription with ID ${id} not found`);
+      throw new NotFoundException(`Subscription ${id} not found`);
     }
 
     return updated;
   }
 
-  async cancel(id: string): Promise<SubscriptionDocument> {
-    return this.update(id, { status: SubscriptionStatus.INACTIVE });
-  }
-
-  async cancelByClinic(clinicId: string): Promise<SubscriptionDocument> {
-    const existing = await this.findByClinic(clinicId);
-    if (
-      existing.status === SubscriptionStatus.CANCELED ||
-      existing.status === SubscriptionStatus.EXPIRED
-    ) {
-      throw new ConflictException(`Subscription already ${existing.status}`);
+  async remove(id: string): Promise<SubscriptionDocument> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid subscription id');
     }
-    return this.update(String(existing._id), {
-      status: SubscriptionStatus.CANCELED,
-    });
-  }
 
-  async getProfessionalLimit(clinicId: string): Promise<number> {
-    const subscription = await this.findByClinicId(clinicId);
-    const plan = subscription?.plan ?? SubscriptionPlan.FREE;
-    return PLAN_PROFESSIONAL_LIMITS[plan];
+    const removed = await this.subscriptionModel
+      .findByIdAndDelete(id)
+      .exec();
+
+    if (!removed) {
+      throw new NotFoundException(`Subscription ${id} not found`);
+    }
+
+    return removed;
   }
 
   async enforceClinicProfessionalLimit(
     clinicId: string,
-    currentCount: number,
+    currentProfessionalCount: number,
   ): Promise<void> {
-    const subscription = await this.findByClinicId(clinicId);
-    const plan = subscription?.plan ?? SubscriptionPlan.FREE;
-    const limit = PLAN_PROFESSIONAL_LIMITS[plan];
+    const subscription = await this.findByOwner('clinic', clinicId);
 
-    if (limit !== -1 && currentCount >= limit) {
+    if (!subscription) {
       throw new ForbiddenException(
-        `Professional limit reached for current subscription plan (${plan}): max ${limit}`,
+        'Clinic does not have an active subscription',
       );
     }
-  }
 
-  async ensureCanAddProfessional(
-    clinicId: string,
-    currentCount: number,
-  ): Promise<void> {
-    return this.enforceClinicProfessionalLimit(clinicId, currentCount);
+    if (subscription.status !== 'active') {
+      throw new ForbiddenException('Clinic subscription is not active');
+    }
+
+    if (
+      subscription.expiresAt &&
+      subscription.expiresAt.getTime() <= Date.now()
+    ) {
+      throw new ForbiddenException('Clinic subscription has expired');
+    }
+
+    const maxProfessionals =
+      (subscription as unknown as { maxProfessionals?: number })
+        .maxProfessionals ?? 0;
+
+    if (
+      typeof maxProfessionals === 'number' &&
+      maxProfessionals > 0 &&
+      currentProfessionalCount >= maxProfessionals
+    ) {
+      throw new ForbiddenException(
+        'Professional limit reached for current subscription plan',
+      );
+    }
   }
 }
