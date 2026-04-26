@@ -3,25 +3,22 @@ import { Document } from 'mongoose';
 
 export type ClinicDocument = Clinic & Document;
 
-export enum SubscriptionStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  TRIAL = 'trial',
-  CANCELED = 'canceled',
-  EXPIRED = 'expired',
-}
-
 @Schema({ timestamps: true })
 export class Clinic {
-  @Prop({ type: String, required: true })
+  @Prop({ required: true })
   name: string;
 
-  @Prop({
-    type: String,
-    enum: SubscriptionStatus,
-    default: SubscriptionStatus.TRIAL,
-  })
-  subscriptionStatus: SubscriptionStatus;
+  @Prop()
+  address: string;
+
+  @Prop()
+  phone: string;
+
+  @Prop()
+  email: string;
+
+  @Prop({ type: Boolean, default: false })
+  linkedScheduling: boolean;
 }
 
 export const ClinicSchema = SchemaFactory.createForClass(Clinic);
