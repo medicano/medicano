@@ -1,25 +1,30 @@
 import {
   IsDateString,
-  IsEnum,
+  IsIn,
   IsMongoId,
   IsNotEmpty,
   IsOptional,
+  IsString,
 } from 'class-validator';
-import { SubscriptionPlan } from '../schemas/subscription.schema';
 
-/**
- * DTO: CreateSubscriptionDto
- * All properties are readonly to guarantee immutability.
- */
 export class CreateSubscriptionDto {
-  @IsMongoId()
-  @IsNotEmpty()
-  readonly clinicId!: string;
+  @IsIn(['clinic', 'professional'])
+  ownerType: 'clinic' | 'professional';
 
-  @IsEnum(SubscriptionPlan)
+  @IsMongoId()
+  ownerId: string;
+
+  /**
+   * @deprecated Use ownerType='clinic' and ownerId instead.
+   */
+  @IsMongoId()
   @IsOptional()
-  readonly plan?: SubscriptionPlan;
+  clinicId?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  plan: string;
 
   @IsDateString()
-  readonly expiresAt!: string;
+  expiresAt: string;
 }
