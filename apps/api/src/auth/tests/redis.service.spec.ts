@@ -1,123 +1,115 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { RedisService } from '../../redis/redis.service';
-
 const mockRedisClient = {
   setex: jest.fn(),
   get: jest.fn(),
   del: jest.fn(),
-  quit: jest.fn().mockResolvedValue(undefined),
-  on: jest.fn(),
+  quit: jest.fn(),
 };
 
-jest.mock('ioredis', () => {
-  return jest.fn().mockImplementation(() => mockRedisClient);
-});
+jest.mock('ioredis', () =>
+  jest.fn().mockImplementation(() => mockRedisClient),
+);
 
-const mockConfigService = {
-  get: jest.fn().mockReturnValue(undefined),
-};
+import { RedisService } from '../../redis/redis.service';
 
 describe('RedisService', () => {
-  let redisService: RedisService;
+  let service: RedisService;
+  const userId = 'user-id-1';
+  const token = 'jwt-token-value';
+  const ttl = 7 * 24 * 3600;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        RedisService,
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
-    }).compile();
-
-    redisService = module.get<RedisService>(RedisService);
-    // RedisService creates the ioredis client in the constructor.
-    // No onModuleInit() call needed.
+  beforeEach(() => {
+    service = new RedisService();
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
   describe('saveToken', () => {
-    it('should save a token with correct key and TTL', async () => {
-      await redisService.saveToken('userId1', 'jwt.token', 3600);
+    it('should call setex with correct key format, ttl, and token', async () => {
+      mockRedisClient.setex.mockResolvedValue('OK');
+
+      await service.saveToken(userId, token, ttl);
 
       expect(mockRedisClient.setex).toHaveBeenCalledWith(
-        'auth:token:userId1',
-        3600,
-        'jwt.token',
+        `auth:token:${userId}`,
+        ttl,
+        token,
       );
     });
 
-    it('should overwrite existing token for same userId', async () => {
-      await redisService.saveToken('userId1', 'first.token', 3600);
-      await redisService.saveToken('userId1', 'second.token', 3600);
+    it('should overwrite existing token when called twice with same userId', async () => {
+      mockRedisClient.setex.mockResolvedValue('OK');
 
-      expect(mockRedisClient.setex).toHaveBeenCalledTimes(2);
-      expect(mockRedisClient.setex).toHaveBeenLastCalledWith(
-        'auth:token:userId1',
-        3600,
-        'second.token',
+      await service.saveToken(userId, 'first-token', ttl);
+      await service.saveToken(userId, 'second-token', ttl);
+
+      expect(mockRedisClient.setex).toHaveBeenNthCalledWith(
+        1,
+        `auth:token:${userId}`,
+        ttl,
+        'first-token',
+      );
+      expect(mockRedisClient.setex).toHaveBeenNthCalledWith(
+        2,
+        `auth:token:${userId}`,
+        ttl,
+        'second-token',
       );
     });
   });
 
   describe('getToken', () => {
-    it('should retrieve a stored token', async () => {
-      mockRedisClient.get.mockResolvedValue('jwt.token');
+    it('should return the stored token', async () => {
+      mockRedisClient.get.mockResolvedValue(token);
 
-      const result = await redisService.getToken('userId1');
-
-      expect(mockRedisClient.get).toHaveBeenCalledWith('auth:token:userId1');
-      expect(result).toBe('jwt.token');
+      await expect(service.getToken(userId)).resolves.toBe(token);
+      expect(mockRedisClient.get).toHaveBeenCalledWith(`auth:token:${userId}`);
     });
 
-    it('should return null if token does not exist', async () => {
+    it('should return null when no token exists for the user', async () => {
       mockRedisClient.get.mockResolvedValue(null);
 
-      const result = await redisService.getToken('nonexistent');
-
-      expect(result).toBeNull();
+      await expect(service.getToken(userId)).resolves.toBeNull();
+      expect(mockRedisClient.get).toHaveBeenCalledWith(`auth:token:${userId}`);
     });
   });
 
   describe('validateToken', () => {
-    it('should return true when stored token matches', async () => {
-      mockRedisClient.get.mockResolvedValue('jwt.token');
+    it('should return true when stored token matches provided token', async () => {
+      mockRedisClient.get.mockResolvedValue(token);
 
-      const result = await redisService.validateToken('userId1', 'jwt.token');
-
-      expect(result).toBe(true);
+      await expect(service.validateToken(userId, token)).resolves.toBe(true);
+      expect(mockRedisClient.get).toHaveBeenCalledWith(`auth:token:${userId}`);
     });
 
-    it('should return false when stored token does not match', async () => {
-      mockRedisClient.get.mockResolvedValue('jwt.token');
+    it('should return false when stored token differs from provided token', async () => {
+      mockRedisClient.get.mockResolvedValue('different-token');
 
-      const result = await redisService.validateToken('userId1', 'wrong.token');
-
-      expect(result).toBe(false);
+      await expect(service.validateToken(userId, token)).resolves.toBe(false);
     });
 
     it('should return false when no token is stored', async () => {
       mockRedisClient.get.mockResolvedValue(null);
 
-      const result = await redisService.validateToken('userId1', 'jwt.token');
-
-      expect(result).toBe(false);
+      await expect(service.validateToken(userId, token)).resolves.toBe(false);
     });
   });
 
   describe('removeToken', () => {
-    it('should delete the token with correct key', async () => {
-      await redisService.removeToken('userId1');
+    it('should call del with the correct key format', async () => {
+      mockRedisClient.del.mockResolvedValue(1);
 
-      expect(mockRedisClient.del).toHaveBeenCalledWith('auth:token:userId1');
+      await service.removeToken(userId);
+
+      expect(mockRedisClient.del).toHaveBeenCalledWith(`auth:token:${userId}`);
     });
 
-    it('should not throw if token does not exist', async () => {
+    it('should not throw when the key does not exist', async () => {
       mockRedisClient.del.mockResolvedValue(0);
 
-      await expect(
-        redisService.removeToken('nonexistent'),
-      ).resolves.not.toThrow();
+      await expect(service.removeToken(userId)).resolves.not.toThrow();
+      expect(mockRedisClient.del).toHaveBeenCalledWith(`auth:token:${userId}`);
     });
   });
 });

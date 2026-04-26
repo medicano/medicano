@@ -1,53 +1,54 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtStrategy } from '../jwt.strategy';
-import { RedisService } from '../../redis/redis.service';
 import { Role } from '../../common/enums/role.enum';
-
-const mockRedisService = {
-  getToken: jest.fn(),
-};
-
-const mockConfigService = {
-  get: jest.fn().mockReturnValue('test-secret'),
-};
+import { RedisService } from '../../redis/redis.service';
 
 describe('JwtStrategy', () => {
-  let jwtStrategy: JwtStrategy;
+  let strategy: JwtStrategy;
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        JwtStrategy,
-        { provide: RedisService, useValue: mockRedisService },
-        { provide: ConfigService, useValue: mockConfigService },
-      ],
-    }).compile();
+  const redisService = {
+    getToken: jest.fn(),
+  };
 
-    jwtStrategy = module.get<JwtStrategy>(JwtStrategy);
+  const configService = {
+    get: jest.fn().mockReturnValue('test-secret'),
+  };
+
+  beforeEach(() => {
+    strategy = new JwtStrategy(
+      configService as unknown as ConfigService,
+      redisService as unknown as RedisService,
+    );
   });
 
-  afterEach(() => jest.clearAllMocks());
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
   describe('validate', () => {
-    const payload = { sub: '507f1f77bcf86cd799439011', role: Role.PATIENT };
+    const payload = {
+      sub: 'user-id-1',
+      role: Role.PATIENT,
+    };
 
-    it('should return user payload when token is in Redis', async () => {
-      mockRedisService.getToken.mockResolvedValue('some.stored.token');
+    it('should return authenticated user when token exists in redis', async () => {
+      redisService.getToken.mockResolvedValue('stored-token');
 
-      const result = await jwtStrategy.validate(payload);
-
-      expect(mockRedisService.getToken).toHaveBeenCalledWith(payload.sub);
-      expect(result).toEqual({ userId: payload.sub, role: payload.role });
+      await expect(strategy.validate(payload)).resolves.toEqual({
+        userId: payload.sub,
+        role: payload.role,
+      });
+      expect(redisService.getToken).toHaveBeenCalledWith(payload.sub);
     });
 
-    it('should throw UnauthorizedException when no token in Redis', async () => {
-      mockRedisService.getToken.mockResolvedValue(null);
+    it('should throw UnauthorizedException when redis has no token', async () => {
+      redisService.getToken.mockResolvedValue(null);
 
-      await expect(jwtStrategy.validate(payload)).rejects.toThrow(
+      await expect(strategy.validate(payload)).rejects.toThrow(
         UnauthorizedException,
       );
+      expect(redisService.getToken).toHaveBeenCalledWith(payload.sub);
     });
   });
 });
