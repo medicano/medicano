@@ -1,13 +1,10 @@
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { loadAwsSecrets } from './common/config/aws-secrets.loader';
 
-async function bootstrap() {
-  const secrets = await loadAwsSecrets();
-  Object.assign(process.env, secrets);
-
+async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   app.useGlobalPipes(
@@ -23,9 +20,10 @@ async function bootstrap() {
   app.enableCors();
 
   const port = process.env.PORT ?? 3000;
+
   await app.listen(port);
 
   Logger.log(`Application running on port ${port}`, 'Bootstrap');
 }
 
-void bootstrap();
+bootstrap();
