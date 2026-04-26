@@ -1,34 +1,73 @@
 import {
-  ConflictException,
   Injectable,
+  BadRequestException,
+  ConflictException,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import { UsersRepository } from './users.repository';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { Role } from '../common/enums/role.enum';
-import { CreateUserDto } from './dto/create-user.dto';
 
-const BCRYPT_COST = 12;
+interface CreateUserDto {
+  role: Role;
+  email?: string;
+  username?: string;
+  clinicId?: string;
+  password: string;
+}
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-  ) {}
+  constructor(private readonly usersRepository: UsersRepository) {}
+
+  async hashPassword(plain: string): Promise<string> {
+    return bcrypt.hash(plain, 12);
+  }
+
+  async comparePassword(plain: string, hash: string): Promise<boolean> {
+    return bcrypt.compare(plain, hash);
+  }
 
   async createUser(dto: CreateUserDto): Promise<UserDocument> {
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
-    const newUser = new this.userModel({
-      role: dto.role,
-      email: dto.email,
-      username: dto.username,
-      clinicId: dto.clinicId,
+    const { role, email, username, clinicId, password } = dto;
+
+    if (role === Role.ATTENDANT) {
+      if (!username) {
+        throw new BadRequestException('Attendant requires username');
+      }
+      if (!clinicId) {
+        throw new BadRequestException('Attendant requires clinicId');
+      }
+      if (email) {
+        throw new BadRequestException('Attendant cannot have email');
+      }
+    }
+
+    if (role !== Role.ATTENDANT) {
+      if (!email) {
+        throw new BadRequestException('Email is required');
+      }
+      if (username) {
+        throw new BadRequestException('Username not allowed for this role');
+      }
+      if (clinicId) {
+        throw new BadRequestException('ClinicId not allowed for this role');
+      }
+    }
+
+    const passwordHash = await this.hashPassword(password);
+
+    const userData: Partial<User> = {
+      role,
       passwordHash,
-    });
+      ...(email && { email }),
+      ...(username && { username }),
+      ...(clinicId && { clinicId }),
+    };
+
     try {
-      return await newUser.save();
+      return await this.usersRepository.create(userData);
     } catch (error: unknown) {
       if ((error as { code?: number }).code === 11000) {
         throw new ConflictException('User already exists');
@@ -37,41 +76,25 @@ export class UsersService {
     }
   }
 
-  async comparePassword(
-    password: string,
-    passwordHash: string,
-  ): Promise<boolean> {
-    return bcrypt.compare(password, passwordHash);
-  }
-
-  async getById(id: string): Promise<UserDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Invalid user ID: ${id}`);
-    }
-    const user = await this.userModel.findById(id).exec();
-    if (!user) {
-      throw new NotFoundException(`User with ID ${id} not found`);
-    }
-    return user;
-  }
-
   async findByEmailAndRole(
     email: string,
     role: Role,
   ): Promise<UserDocument | null> {
-    return this.userModel
-      .findOne({ email, role })
-      .select('+passwordHash')
-      .exec();
+    return this.usersRepository.findByEmailAndRole(email, role);
   }
 
   async findByClinicIdAndUsername(
     clinicId: string,
     username: string,
   ): Promise<UserDocument | null> {
-    return this.userModel
-      .findOne({ clinicId: new Types.ObjectId(clinicId), username })
-      .select('+passwordHash')
-      .exec();
+    return this.usersRepository.findByClinicIdAndUsername(clinicId, username);
+  }
+
+  async getById(id: string): Promise<UserDocument> {
+    const user = await this.usersRepository.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
   }
 }
