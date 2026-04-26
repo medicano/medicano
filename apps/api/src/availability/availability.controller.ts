@@ -1,104 +1,42 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  Patch,
-  Post,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AvailabilityService } from './availability.service';
-import { CreateProfessionalAvailabilityDto } from './dto/create-professional-availability.dto';
-import { UpdateProfessionalAvailabilityDto } from './dto/update-professional-availability.dto';
+import { ScheduleService } from './services/schedule.service';
 import { GetAvailabilityQueryDto } from './dto/get-availability-query.dto';
-import { AvailableSlotDto } from './dto/available-slot.dto';
+import { GetScheduleQueryDto } from './dto/get-schedule-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { CurrentUserRole } from '../common/decorators/current-user-role.decorator';
 import { ParseMongoIdPipe } from '../common/pipes/parse-mongo-id.pipe';
-import {
-  ProfessionalAvailability,
-  ProfessionalAvailabilityDocument,
-} from './schemas/professional-availability.schema';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Controller()
+@Controller('availability')
 export class AvailabilityController {
-  constructor(private readonly availabilityService: AvailabilityService) {}
+  constructor(
+    private readonly availabilityService: AvailabilityService,
+    private readonly scheduleService: ScheduleService,
+  ) {}
 
-  @Post('professionals/:professionalId/availability')
-  @Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)
-  @HttpCode(201)
-  async create(
-    @Param('professionalId', ParseMongoIdPipe) professionalId: string,
-    @Body() createDto: CreateProfessionalAvailabilityDto,
-    @CurrentUser() currentUserId: string,
-    @CurrentUserRole() currentUserRole: Role,
-  ): Promise<ProfessionalAvailabilityDocument> {
-    return this.availabilityService.create(
-      professionalId,
-      createDto,
-      currentUserId,
-      currentUserRole,
-    );
-  }
-
-  @Get('professionals/:professionalId/availability')
-  async findByProfessionalAndDate(
+  @Get('professionals/:professionalId')
+  getAvailability(
     @Param('professionalId', ParseMongoIdPipe) professionalId: string,
     @Query() query: GetAvailabilityQueryDto,
-  ): Promise<ProfessionalAvailability | null> {
-    return this.availabilityService.findByProfessionalAndDate(
-      professionalId,
-      query.date,
-    );
+  ) {
+    return this.availabilityService.getAvailableSlots(professionalId, query);
   }
 
-  @Get('professionals/:professionalId/availability/slots')
-  async getAvailableSlots(
+  @Get('schedule/professionals/:professionalId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)
+  getProviderSchedule(
     @Param('professionalId', ParseMongoIdPipe) professionalId: string,
-    @Query() query: GetAvailabilityQueryDto,
-  ): Promise<AvailableSlotDto[]> {
-    return this.availabilityService.getAvailableSlots(
+    @Query() query: GetScheduleQueryDto,
+    @CurrentUser() userId: string,
+  ) {
+    return this.scheduleService.getProviderSchedule(
       professionalId,
-      query.date,
-    );
-  }
-
-  @Patch('availability/:availabilityId')
-  @Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)
-  async update(
-    @Param('availabilityId', ParseMongoIdPipe) availabilityId: string,
-    @Body() updateDto: UpdateProfessionalAvailabilityDto,
-    @CurrentUser() currentUserId: string,
-    @CurrentUserRole() currentUserRole: Role,
-  ): Promise<ProfessionalAvailabilityDocument> {
-    return this.availabilityService.update(
-      availabilityId,
-      updateDto,
-      currentUserId,
-      currentUserRole,
-    );
-  }
-
-  @Delete('availability/:availabilityId')
-  @Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)
-  @HttpCode(204)
-  async remove(
-    @Param('availabilityId', ParseMongoIdPipe) availabilityId: string,
-    @CurrentUser() currentUserId: string,
-    @CurrentUserRole() currentUserRole: Role,
-  ): Promise<void> {
-    await this.availabilityService.remove(
-      availabilityId,
-      currentUserId,
-      currentUserRole,
+      query,
+      userId,
     );
   }
 }
