@@ -1,75 +1,77 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-
-import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
+import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { SearchQueryDto } from './dto/search-query.dto';
 import { SearchResult } from './interfaces/search-result.interface';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class SearchService {
   constructor(
-    @InjectModel(Clinic.name) private readonly clinicModel: Model<ClinicDocument>,
-    @InjectModel(Professional.name) private readonly professionalModel: Model<ProfessionalDocument>,
+    @InjectModel(Professional.name)
+    private readonly professionalModel: Model<ProfessionalDocument>,
+    @InjectModel(Clinic.name)
+    private readonly clinicModel: Model<ClinicDocument>,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async search(query: SearchQueryDto): Promise<SearchResult> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
-    const skip = (page - 1) * limit;
+    const { type, q, specialty, city } = query;
 
-    const clinicFilter: Record<string, unknown> = {};
-    const professionalFilter: Record<string, unknown> = {};
+    const result: SearchResult = {
+      professionals: [],
+      clinics: [],
+    };
 
-    if (query.specialty) {
-      clinicFilter['specialties'] = { $in: [query.specialty] };
-      professionalFilter.specialty = query.specialty;
-    }
-    if (query.city) {
-      clinicFilter['address.city'] = query.city;
-      professionalFilter['address.city'] = query.city;
-    }
+    if (type !== 'clinic') {
+      // RN20: only show professionals with active subscription
+      const activeProfIds =
+        await this.subscriptionsService.findActiveOwnerIds('professional');
 
-    let clinics: ClinicDocument[] = [];
-    let professionals: ProfessionalDocument[] = [];
+      const professionalFilter: Record<string, unknown> = {
+        _id: { $in: activeProfIds },
+      };
 
-    if (!query.type || query.type === 'clinic' || query.type === 'all') {
-      clinics = await this.clinicModel.find(clinicFilter).skip(skip).limit(limit).exec();
-    }
+      if (q) {
+        professionalFilter.$or = [
+          { name: { $regex: q, $options: 'i' } },
+          { bio: { $regex: q, $options: 'i' } },
+        ];
+      }
 
-    if (!query.type || query.type === 'professional' || query.type === 'all') {
-      professionals = await this.professionalModel
+      if (specialty) {
+        professionalFilter.specialty = { $regex: specialty, $options: 'i' };
+      }
+
+      if (city) {
+        professionalFilter.city = { $regex: city, $options: 'i' };
+      }
+
+      result.professionals = await this.professionalModel
         .find(professionalFilter)
-        .skip(skip)
-        .limit(limit)
+        .lean()
         .exec();
     }
 
-    // TODO (Sprint 09): when professional subscriptions are added, filter by active plan (RN20)
+    if (type !== 'professional') {
+      const clinicFilter: Record<string, unknown> = {};
 
-    return {
-      clinics,
-      professionals,
-      total: clinics.length + professionals.length,
-      page,
-      limit,
-    };
-  }
+      if (q) {
+        clinicFilter.$or = [
+          { name: { $regex: q, $options: 'i' } },
+          { description: { $regex: q, $options: 'i' } },
+        ];
+      }
 
-  async findClinicById(id: string): Promise<ClinicDocument> {
-    const clinic = await this.clinicModel.findById(id).exec();
-    if (!clinic) {
-      throw new NotFoundException(`Clinic with id "${id}" not found`);
+      if (city) {
+        clinicFilter.city = { $regex: city, $options: 'i' };
+      }
+
+      result.clinics = await this.clinicModel.find(clinicFilter).lean().exec();
     }
-    return clinic;
-  }
 
-  async findProfessionalById(id: string): Promise<ProfessionalDocument> {
-    const professional = await this.professionalModel.findById(id).exec();
-    if (!professional) {
-      throw new NotFoundException(`Professional with id "${id}" not found`);
-    }
-    return professional;
+    return result;
   }
 }
