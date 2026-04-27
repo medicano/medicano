@@ -1,17 +1,13 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-
-import { ClinicsService } from '../clinics/clinics.service';
-import { ProfessionalsService } from './professionals.service';
 import {
   ClinicProfessional,
   ClinicProfessionalDocument,
 } from './schemas/clinic-professional.schema';
+import { ClinicsService } from '../clinics/clinics.service';
+import { ProfessionalsService } from './professionals.service';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ClinicProfessionalsService {
@@ -20,33 +16,33 @@ export class ClinicProfessionalsService {
     private readonly clinicProfessionalModel: Model<ClinicProfessionalDocument>,
     private readonly clinicsService: ClinicsService,
     private readonly professionalsService: ProfessionalsService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async assignProfessionalToClinic(
     clinicId: string,
     professionalId: string,
   ): Promise<ClinicProfessionalDocument> {
-    if (!Types.ObjectId.isValid(clinicId)) {
-      throw new NotFoundException(`Clinic with id ${clinicId} not found`);
-    }
-    if (!Types.ObjectId.isValid(professionalId)) {
-      throw new NotFoundException(
-        `Professional with id ${professionalId} not found`,
-      );
-    }
-
     await this.clinicsService.findById(clinicId);
     await this.professionalsService.findById(professionalId);
 
+    const currentCount = await this.clinicProfessionalModel.countDocuments({
+      clinicId: new Types.ObjectId(clinicId),
+    });
+
+    await this.subscriptionsService.enforceClinicProfessionalLimit(
+      clinicId,
+      currentCount,
+    );
+
     try {
-      const assignment = new this.clinicProfessionalModel({
-        clinicId,
-        professionalId,
+      const clinicProfessional = new this.clinicProfessionalModel({
+        clinicId: new Types.ObjectId(clinicId),
+        professionalId: new Types.ObjectId(professionalId),
       });
-      return await assignment.save();
-    } catch (error: unknown) {
-      const err = error as { code?: number };
-      if (err?.code === 11000) {
+      return await clinicProfessional.save();
+    } catch (error: any) {
+      if (error?.code === 11000) {
         throw new ConflictException(
           'Professional is already assigned to this clinic',
         );
@@ -57,44 +53,22 @@ export class ClinicProfessionalsService {
 
   async getProfessionalsByClinic(
     clinicId: string,
-  ): Promise<unknown[]> {
-    if (!Types.ObjectId.isValid(clinicId)) {
-      throw new NotFoundException(`Clinic with id ${clinicId} not found`);
-    }
-
+  ): Promise<ClinicProfessionalDocument[]> {
     await this.clinicsService.findById(clinicId);
-
-    const assignments = await this.clinicProfessionalModel
-      .find({ clinicId })
-      .populate('professionalId')
+    return this.clinicProfessionalModel
+      .find({ clinicId: new Types.ObjectId(clinicId) })
       .exec();
-
-    return assignments.map(
-      (assignment) => (assignment as unknown as { professionalId: unknown }).professionalId,
-    );
   }
 
   async removeProfessionalFromClinic(
     clinicId: string,
     professionalId: string,
-  ): Promise<ClinicProfessionalDocument> {
-    if (!Types.ObjectId.isValid(clinicId)) {
-      throw new NotFoundException(`Clinic with id ${clinicId} not found`);
-    }
-    if (!Types.ObjectId.isValid(professionalId)) {
-      throw new NotFoundException(
-        `Professional with id ${professionalId} not found`,
-      );
-    }
-
-    const assignment = await this.clinicProfessionalModel
-      .findOneAndDelete({ clinicId, professionalId })
-      .exec();
-
-    if (!assignment) {
-      throw new NotFoundException('Professional assignment not found');
-    }
-
-    return assignment as unknown as ClinicProfessionalDocument;
+  ): Promise<void> {
+    await this.clinicsService.findById(clinicId);
+    await this.professionalsService.findById(professionalId);
+    await this.clinicProfessionalModel.deleteOne({
+      clinicId: new Types.ObjectId(clinicId),
+      professionalId: new Types.ObjectId(professionalId),
+    });
   }
 }
