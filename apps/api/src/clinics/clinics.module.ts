@@ -3,10 +3,10 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { AttendantsController } from './controllers/attendants.controller';
-import { ClinicsController } from './controllers/clinics.controller';
+import { ClinicsController } from './clinics.controller';
 import { Clinic, ClinicSchema } from './schemas/clinic.schema';
 import { AttendantsService } from './services/attendants.service';
-import { ClinicsService } from './services/clinics.service';
+import { ClinicsService } from './clinics.service';
 
 @Module({
   imports: [

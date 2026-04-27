@@ -43,16 +43,17 @@ export class AppointmentsService {
   ) {}
 
   async create(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
-    await this.validateDateRange(dto.startAt, dto.endAt);
-    await this.validateAvailability(dto.professionalId, dto.startAt, dto.endAt);
-    await this.checkConflict(dto.professionalId, dto.startAt, dto.endAt);
+    const endAt = this.computeEndAt(dto.startAt, dto.durationMinutes);
+    await this.validateDateRange(dto.startAt, endAt);
+    await this.validateAvailability(dto.professionalId, dto.startAt, endAt);
+    await this.checkConflict(dto.professionalId, dto.startAt, endAt);
     await this.checkCrossClinicInterval(
       dto.professionalId,
       dto.startAt,
-      dto.endAt,
+      endAt,
     );
 
-    const appointment = new this.appointmentModel(dto);
+    const appointment = new this.appointmentModel({ ...dto, endAt });
     const createdAppointment = await appointment.save();
 
     void this.notificationsService
@@ -70,17 +71,19 @@ export class AppointmentsService {
     dto: CreateAppointmentDto,
     patientId: string,
   ): Promise<AppointmentDocument> {
-    await this.validateDateRange(dto.startAt, dto.endAt);
-    await this.validateAvailability(dto.professionalId, dto.startAt, dto.endAt);
-    await this.checkConflict(dto.professionalId, dto.startAt, dto.endAt);
+    const endAt = this.computeEndAt(dto.startAt, dto.durationMinutes);
+    await this.validateDateRange(dto.startAt, endAt);
+    await this.validateAvailability(dto.professionalId, dto.startAt, endAt);
+    await this.checkConflict(dto.professionalId, dto.startAt, endAt);
     await this.checkCrossClinicInterval(
       dto.professionalId,
       dto.startAt,
-      dto.endAt,
+      endAt,
     );
 
     const appointment = new this.appointmentModel({
       ...dto,
+      endAt,
       patientId,
     });
     const createdAppointment = await appointment.save();
@@ -135,9 +138,10 @@ export class AppointmentsService {
   ): Promise<AppointmentDocument> {
     const appointment = await this.findById(id);
 
-    if (dto.startAt || dto.endAt) {
+    if (dto.startAt || dto.durationMinutes) {
       const startAt = dto.startAt ?? appointment.startAt.toISOString();
-      const endAt = dto.endAt ?? appointment.endAt.toISOString();
+      const durationMinutes = dto.durationMinutes ?? appointment.durationMinutes;
+      const endAt = this.computeEndAt(startAt, durationMinutes);
       await this.validateDateRange(startAt, endAt);
       await this.checkConflict(
         appointment.professionalId.toString(),
@@ -151,9 +155,10 @@ export class AppointmentsService {
         endAt,
         id,
       );
+      Object.assign(appointment, dto, { endAt });
+    } else {
+      Object.assign(appointment, dto);
     }
-
-    Object.assign(appointment, dto);
     return appointment.save();
   }
 
@@ -329,6 +334,10 @@ export class AppointmentsService {
         `Professional needs at least ${INTERVAL_MINUTES} minutes between appointments at different clinics`,
       );
     }
+  }
+
+  private computeEndAt(startAt: string, durationMinutes: number): string {
+    return new Date(new Date(startAt).getTime() + durationMinutes * 60 * 1000).toISOString();
   }
 
   validateDateRange(startAt: string, endAt: string): void {
