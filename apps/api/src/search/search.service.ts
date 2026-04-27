@@ -1,20 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import {
-  Professional,
-  ProfessionalDocument,
-} from '../professionals/schemas/professional.schema';
-import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
-import { SearchQueryDto } from './dto/search-query.dto';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { FilterQuery, Model } from 'mongoose';
+import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
+import { Specialty } from '../common/enums/specialty.enum';
+
+export interface SearchQueryParams {
+  city?: string;
+  state?: string;
+  specialty?: Specialty;
+  name?: string;
+}
 
 export interface SearchResult {
   id: string;
   name: string;
-  type: 'professional' | 'clinic';
-  specialty?: string;
-  address?: string;
+  specialty: Specialty;
+  city: string;
+  state: string;
+  phone?: string;
+  description?: string;
+  autoConfirm: boolean;
 }
 
 @Injectable()
@@ -22,85 +27,50 @@ export class SearchService {
   constructor(
     @InjectModel(Professional.name)
     private readonly professionalModel: Model<ProfessionalDocument>,
-    @InjectModel(Clinic.name)
-    private readonly clinicModel: Model<ClinicDocument>,
-    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
-  async findClinicById(id: string): Promise<ClinicDocument | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    return this.clinicModel.findById(id).exec();
-  }
+  async search(params: SearchQueryParams): Promise<SearchResult[]> {
+    const filter: FilterQuery<ProfessionalDocument> = {};
 
-  async findProfessionalById(id: string): Promise<ProfessionalDocument | null> {
-    if (!Types.ObjectId.isValid(id)) return null;
-    return this.professionalModel.findById(id).exec();
-  }
-
-  async search(query: SearchQueryDto): Promise<SearchResult[]> {
-    const { type, name, specialty, address } = query;
-
-    const results: SearchResult[] = [];
-
-    if (type === 'clinic' || type === undefined) {
-      const clinicFilter: Record<string, unknown> = {};
-
-      if (name) {
-        clinicFilter.name = { $regex: name, $options: 'i' };
-      }
-
-      if (address) {
-        clinicFilter.address = { $regex: address, $options: 'i' };
-      }
-
-      const clinics = await this.clinicModel.find(clinicFilter).lean().exec();
-
-      for (const clinic of clinics) {
-        results.push({
-          id: (clinic._id as Types.ObjectId).toString(),
-          name: clinic.name,
-          type: 'clinic',
-          address: clinic.address,
-        });
-      }
+    if (params.city) {
+      filter['address.city'] = { $regex: new RegExp(params.city, 'i') };
     }
 
-    if (type === 'professional' || type === undefined) {
-      const professionalFilter: Record<string, unknown> = {};
-
-      if (name) {
-        professionalFilter.name = { $regex: name, $options: 'i' };
-      }
-
-      if (specialty) {
-        professionalFilter.specialty = { $regex: specialty, $options: 'i' };
-      }
-
-      if (address) {
-        professionalFilter.address = { $regex: address, $options: 'i' };
-      }
-
-      // RN20: only show professionals with active subscription
-      const activeProfIds =
-        await this.subscriptionsService.findActiveOwnerIds('professional');
-      professionalFilter._id = { $in: activeProfIds };
-
-      const professionals = await this.professionalModel
-        .find(professionalFilter)
-        .lean()
-        .exec();
-
-      for (const professional of professionals) {
-        results.push({
-          id: (professional._id as Types.ObjectId).toString(),
-          name: professional.name ?? '',
-          type: 'professional',
-          specialty: professional.specialty,
-          address: professional.address,
-        });
-      }
+    if (params.state) {
+      filter['address.state'] = { $regex: new RegExp(params.state, 'i') };
     }
 
-    return results;
+    if (params.specialty) {
+      filter['specialty'] = params.specialty;
+    }
+
+    if (params.name) {
+      filter['name'] = { $regex: new RegExp(params.name, 'i') };
+    }
+
+    const professionals = await this.professionalModel.find(filter).exec();
+
+    return professionals.map((p) => ({
+      id: (p._id as any).toString(),
+      name: p.name,
+      specialty: p.specialty,
+      city: p.address?.city ?? '',
+      state: p.address?.state ?? '',
+      phone: p.phone,
+      description: p.description,
+      autoConfirm: p.autoConfirm,
+    }));
+  }
+
+  async findBySpecialtyAndCity(
+    specialty: Specialty,
+    city: string,
+  ): Promise<ProfessionalDocument[]> {
+    return this.professionalModel
+      .find({
+        specialty,
+        'address.city': { $regex: new RegExp(city, 'i') },
+      })
+      .exec();
   }
 }

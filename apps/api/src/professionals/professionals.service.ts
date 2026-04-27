@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { Professional, ProfessionalDocument } from './schemas/professional.schema';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { UpdateProfessionalDto } from './dto/update-professional.dto';
+import { UpdateWeeklySlotsDto } from './dto/update-weekly-slots.dto';
 
 @Injectable()
 export class ProfessionalsService {
@@ -13,66 +18,107 @@ export class ProfessionalsService {
   ) {}
 
   async create(createProfessionalDto: CreateProfessionalDto): Promise<ProfessionalDocument> {
-    const created = new this.professionalModel(createProfessionalDto);
-    return created.save();
+    try {
+      const professional = new this.professionalModel(createProfessionalDto);
+      return await professional.save();
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const keyPattern = error?.keyPattern ?? {};
+        if (keyPattern['cpf']) {
+          throw new ConflictException('A professional with this CPF already exists');
+        }
+        if (keyPattern['userId']) {
+          throw new ConflictException('A professional profile already exists for this user');
+        }
+        throw new ConflictException('Duplicate key error');
+      }
+      throw error;
+    }
   }
 
   async findAll(): Promise<ProfessionalDocument[]> {
     return this.professionalModel.find().exec();
   }
 
-  async findOne(id: string): Promise<ProfessionalDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Professional ${id} not found`);
-    }
+  async findById(id: string): Promise<ProfessionalDocument> {
     const professional = await this.professionalModel.findById(id).exec();
     if (!professional) {
-      throw new NotFoundException(`Professional ${id} not found`);
+      throw new NotFoundException(`Professional with id ${id} not found`);
     }
     return professional;
   }
 
-  async update(
-    id: string,
-    updateProfessionalDto: UpdateProfessionalDto,
-  ): Promise<ProfessionalDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Professional ${id} not found`);
-    }
-    const updated = await this.professionalModel
-      .findByIdAndUpdate(id, updateProfessionalDto, { new: true })
-      .exec();
-    if (!updated) {
-      throw new NotFoundException(`Professional ${id} not found`);
-    }
-    return updated;
+  async findByUserId(userId: string): Promise<ProfessionalDocument | null> {
+    return this.professionalModel.findOne({ userId }).exec();
   }
 
-  async remove(id: string): Promise<ProfessionalDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Professional ${id} not found`);
+  async update(id: string, updateProfessionalDto: UpdateProfessionalDto): Promise<ProfessionalDocument> {
+    try {
+      const professional = await this.professionalModel
+        .findByIdAndUpdate(id, { $set: updateProfessionalDto }, { new: true, runValidators: true })
+        .exec();
+      if (!professional) {
+        throw new NotFoundException(`Professional with id ${id} not found`);
+      }
+      return professional;
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const keyPattern = error?.keyPattern ?? {};
+        if (keyPattern['cpf']) {
+          throw new ConflictException('A professional with this CPF already exists');
+        }
+        if (keyPattern['userId']) {
+          throw new ConflictException('A professional profile already exists for this user');
+        }
+        throw new ConflictException('Duplicate key error');
+      }
+      throw error;
     }
-    const removed = await this.professionalModel.findByIdAndDelete(id).exec();
-    if (!removed) {
-      throw new NotFoundException(`Professional ${id} not found`);
-    }
-    return removed;
   }
 
-  async findById(id: string): Promise<ProfessionalDocument> {
-    return this.findOne(id);
+  async remove(id: string): Promise<{ deleted: boolean }> {
+    const result = await this.professionalModel.findByIdAndDelete(id).exec();
+    if (!result) {
+      throw new NotFoundException(`Professional with id ${id} not found`);
+    }
+    return { deleted: true };
   }
 
-  async findByUserId(userId: string): Promise<ProfessionalDocument> {
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new NotFoundException(`Professional for user ${userId} not found`);
-    }
+  async updateWeeklySlots(id: string, updateWeeklySlotsDto: UpdateWeeklySlotsDto): Promise<ProfessionalDocument> {
     const professional = await this.professionalModel
-      .findOne({ userId: new Types.ObjectId(userId) })
+      .findByIdAndUpdate(
+        id,
+        { $set: { weeklySlots: updateWeeklySlotsDto.weeklySlots } },
+        { new: true, runValidators: true },
+      )
       .exec();
     if (!professional) {
-      throw new NotFoundException(`Professional for user ${userId} not found`);
+      throw new NotFoundException(`Professional with id ${id} not found`);
     }
     return professional;
+  }
+
+  async updateByUserId(
+    userId: string,
+    updateData: Partial<UpdateProfessionalDto>,
+  ): Promise<ProfessionalDocument> {
+    try {
+      const professional = await this.professionalModel
+        .findOneAndUpdate({ userId }, { $set: updateData }, { new: true, runValidators: true })
+        .exec();
+      if (!professional) {
+        throw new NotFoundException(`Professional profile for user ${userId} not found`);
+      }
+      return professional;
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        const keyPattern = error?.keyPattern ?? {};
+        if (keyPattern['cpf']) {
+          throw new ConflictException('A professional with this CPF already exists');
+        }
+        throw new ConflictException('Duplicate key error');
+      }
+      throw error;
+    }
   }
 }

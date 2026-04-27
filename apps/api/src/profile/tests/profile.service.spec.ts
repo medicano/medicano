@@ -1,292 +1,138 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-
+import { NotFoundException } from '@nestjs/common';
 import { ProfileService } from '../profile.service';
-import { ClinicsService } from '../../clinics/clinics.service';
-import { ProfessionalsService } from '../../professionals/professionals.service';
-import { User } from '../../auth/schemas/user.schema';
-import { Patient } from '../../patients/schemas/patient.schema';
-import { Role } from '../../common/enums/role.enum';
+import { Professional } from '../../professionals/schemas/professional.schema';
+import { Specialty } from '../../common/enums/specialty.enum';
+import { UpdateProfessionalProfileDto } from '../dto/update-professional-profile.dto';
 
-type AnyObject = Record<string, unknown>;
+const mockAddress = {
+  street: 'Rua das Flores',
+  number: '123',
+  city: 'São Paulo',
+  state: 'SP',
+  zipCode: '01310-100',
+};
 
-const mockQuery = <T>(value: T) => ({
-  exec: jest.fn().mockResolvedValue(value),
-});
+const mockProfessional = {
+  _id: '64a1b2c3d4e5f6a7b8c9d0e1',
+  userId: '64a1b2c3d4e5f6a7b8c9d0e0',
+  name: 'Dr. João Silva',
+  specialty: Specialty.CARDIOLOGY,
+  cpf: '12345678901',
+  registration: 'CRM12345',
+  address: mockAddress,
+  phone: '11999999999',
+  description: 'Cardiologista experiente',
+  weeklySlots: [],
+  autoConfirm: false,
+  minCancelNoticeHours: 24,
+};
 
-const mockLeanQuery = <T>(value: T) => ({
-  lean: jest.fn().mockReturnValue({
-    exec: jest.fn().mockResolvedValue(value),
-  }),
-  exec: jest.fn().mockResolvedValue(value),
-});
+const mockProfessionalModel = {
+  findOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
+};
 
 describe('ProfileService', () => {
   let service: ProfileService;
-
-  const userModel = {
-    findById: jest.fn(),
-    findOne: jest.fn(),
-  };
-
-  const patientModel = {
-    findOne: jest.fn(),
-    findOneAndUpdate: jest.fn(),
-  };
-
-  const clinicsService = {
-    findByOwner: jest.fn(),
-    findByUserId: jest.fn(),
-    findOneByUserId: jest.fn(),
-    findByUser: jest.fn(),
-    getByUserId: jest.fn(),
-    findById: jest.fn(),
-    findOne: jest.fn(),
-  };
-
-  const professionalsService = {
-    findByUserId: jest.fn(),
-    findOneByUserId: jest.fn(),
-    findByUser: jest.fn(),
-    getByUserId: jest.fn(),
-    findMine: jest.fn(),
-  };
-
-  const patientUser = {
-    _id: 'user-patient-id',
-    username: 'patient@example.com',
-    displayName: 'Patient User',
-    role: Role.PATIENT,
-  };
-
-  const clinicUser = {
-    _id: 'user-clinic-id',
-    username: 'clinic@example.com',
-    displayName: 'Clinic User',
-    role: Role.CLINIC,
-  };
-
-  const professionalUser = {
-    _id: 'user-professional-id',
-    username: 'professional@example.com',
-    displayName: 'Professional User',
-    role: Role.PROFESSIONAL,
-  };
-
-  const attendantUser = {
-    _id: 'user-attendant-id',
-    username: 'attendant@example.com',
-    displayName: 'Attendant User',
-    role: Role.ATTENDANT,
-    clinicId: 'clinic-id',
-  };
-
-  const patientProfile = {
-    _id: 'patient-profile-id',
-    userId: 'user-patient-id',
-    phone: '+5511999999999',
-  };
-
-  const clinicProfile = {
-    _id: 'clinic-id',
-    userId: 'user-clinic-id',
-    name: 'Medicano Clinic',
-  };
-
-  const professionalProfile = {
-    _id: 'professional-id',
-    userId: 'user-professional-id',
-    specialty: 'CARDIOLOGY',
-  };
-
-  const setupUserFindById = (user: AnyObject | null) => {
-    userModel.findById.mockReturnValue(mockLeanQuery(user));
-  };
-
-  const callClinicsServiceWithUser = async (userId: string) => {
-    const methods = [
-      'findByOwner',
-      'findByUserId',
-      'findOneByUserId',
-      'findByUser',
-      'getByUserId',
-      'findById',
-      'findOne',
-    ] as const;
-    for (const m of methods) {
-      const fn = clinicsService[m] as jest.Mock;
-      if (fn.mock.calls.length > 0) {
-        return true;
-      }
-    }
-    return userId.length > 0;
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProfileService,
         {
-          provide: getModelToken(User.name),
-          useValue: userModel,
-        },
-        {
-          provide: getModelToken(Patient.name),
-          useValue: patientModel,
-        },
-        {
-          provide: ClinicsService,
-          useValue: clinicsService,
-        },
-        {
-          provide: ProfessionalsService,
-          useValue: professionalsService,
+          provide: getModelToken(Professional.name),
+          useValue: mockProfessionalModel,
         },
       ],
     }).compile();
 
     service = module.get<ProfileService>(ProfileService);
-
-    // Default mocks — make all optional service methods resolve to null so
-    // whichever method the service uses returns a sensible default.
-    Object.values(clinicsService).forEach((fn) =>
-      (fn as jest.Mock).mockResolvedValue(null),
-    );
-    Object.values(professionalsService).forEach((fn) =>
-      (fn as jest.Mock).mockResolvedValue(null),
-    );
-
-    patientModel.findOne.mockReturnValue(mockLeanQuery(null));
-    patientModel.findOneAndUpdate.mockReturnValue(mockQuery(null));
-  });
-
-  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('getMyProfile', () => {
-    it('getMyProfile — patient returns user + Patient document', async () => {
-      setupUserFindById(patientUser);
-      patientModel.findOne.mockReturnValue(mockLeanQuery(patientProfile));
-
-      const result = await service.getMyProfile(patientUser._id);
-
-      expect(result).toEqual({
-        user: patientUser,
-        profile: patientProfile,
+  describe('getProfessionalProfile', () => {
+    it('should return a professional profile by userId', async () => {
+      mockProfessionalModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockProfessional),
       });
 
-      // verify lookup filter included the user id
-      const firstCallArgs = patientModel.findOne.mock.calls[0]?.[0] ?? {};
-      expect(firstCallArgs).toEqual(
-        expect.objectContaining({ userId: patientUser._id }),
-      );
+      const result = await service.getProfessionalProfile(mockProfessional.userId);
+
+      expect(mockProfessionalModel.findOne).toHaveBeenCalledWith({ userId: mockProfessional.userId });
+      expect(result).toEqual(mockProfessional);
     });
 
-    it('getMyProfile — clinic returns user + Clinic document', async () => {
-      setupUserFindById(clinicUser);
-
-      // Ensure whichever method the service uses returns the clinic profile
-      Object.keys(clinicsService).forEach((key) => {
-        (clinicsService[key as keyof typeof clinicsService] as jest.Mock)
-          .mockResolvedValue(clinicProfile);
+    it('should throw NotFoundException when professional not found', async () => {
+      mockProfessionalModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
       });
 
-      const result = await service.getMyProfile(clinicUser._id);
-
-      expect(result).toEqual({
-        user: clinicUser,
-        profile: clinicProfile,
-      });
-
-      await expect(callClinicsServiceWithUser(clinicUser._id)).resolves.toBe(
-        true,
-      );
-    });
-
-    it('getMyProfile — professional returns user + Professional document', async () => {
-      setupUserFindById(professionalUser);
-
-      Object.keys(professionalsService).forEach((key) => {
-        (
-          professionalsService[
-            key as keyof typeof professionalsService
-          ] as jest.Mock
-        ).mockResolvedValue(professionalProfile);
-      });
-
-      const result = await service.getMyProfile(professionalUser._id);
-
-      expect(result).toEqual({
-        user: professionalUser,
-        profile: professionalProfile,
-      });
-    });
-
-    it('getMyProfile — attendant returns user with profile=null', async () => {
-      setupUserFindById(attendantUser);
-
-      const result = await service.getMyProfile(attendantUser._id);
-
-      expect(result).toEqual({
-        user: attendantUser,
-        profile: null,
-      });
-
-      // Attendant should not trigger patient lookup
-      expect(patientModel.findOne).not.toHaveBeenCalled();
+      await expect(service.getProfessionalProfile('nonexistent')).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('updatePatientProfile', () => {
-    it('updatePatientProfile — upsert creates patient on first call', async () => {
-      const dto = {
-        phone: '+5511999999999',
+  describe('updateProfessionalProfile', () => {
+    it('should update professional profile with new address object', async () => {
+      const updateDto: UpdateProfessionalProfileDto = {
+        address: {
+          street: 'Av. Paulista',
+          number: '1000',
+          city: 'São Paulo',
+          state: 'SP',
+          zipCode: '01310-200',
+        },
+        description: 'Descrição atualizada',
+        autoConfirm: true,
+        minCancelNoticeHours: 48,
       };
 
-      const createdPatient = {
-        _id: 'patient-profile-id',
-        userId: patientUser._id,
-        ...dto,
+      const updatedProfessional = {
+        ...mockProfessional,
+        ...updateDto,
       };
 
-      setupUserFindById(patientUser);
-      patientModel.findOneAndUpdate.mockReturnValue(mockQuery(createdPatient));
+      mockProfessionalModel.findOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(updatedProfessional),
+      });
 
-      const result = await service.updatePatientProfile(patientUser._id, dto);
+      const result = await service.updateProfessionalProfile(mockProfessional.userId, updateDto);
 
-      expect(patientModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: patientUser._id }),
-        expect.objectContaining(dto),
-        expect.objectContaining({ upsert: true }),
+      expect(mockProfessionalModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { userId: mockProfessional.userId },
+        { $set: updateDto },
+        { new: true, runValidators: true },
       );
-
-      expect(result).toEqual(createdPatient);
+      expect(result.address).toEqual(updateDto.address);
+      expect(result.autoConfirm).toBe(true);
+      expect(result.minCancelNoticeHours).toBe(48);
     });
 
-    it('updatePatientProfile — update modifies fields when patient exists', async () => {
-      const dto = {
-        phone: '+5511888888888',
+    it('should throw NotFoundException when professional not found during update', async () => {
+      mockProfessionalModel.findOneAndUpdate.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        service.updateProfessionalProfile('nonexistent', {}),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('formatProfileSummary', () => {
+    it('should format profile summary using address.city and address.state', () => {
+      const result = service.formatProfileSummary(mockProfessional as any);
+      expect(result).toBe(`${mockProfessional.name} — ${mockProfessional.specialty} — ${mockProfessional.address.city}, ${mockProfessional.address.state}`);
+    });
+
+    it('should handle missing address fields gracefully', () => {
+      const professionalWithoutAddress = {
+        ...mockProfessional,
+        address: null as any,
       };
-
-      const updatedPatient = {
-        _id: 'patient-profile-id',
-        userId: patientUser._id,
-        phone: '+5511888888888',
-      };
-
-      setupUserFindById(patientUser);
-      patientModel.findOneAndUpdate.mockReturnValue(mockQuery(updatedPatient));
-
-      const result = await service.updatePatientProfile(patientUser._id, dto);
-
-      expect(patientModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: patientUser._id }),
-        expect.objectContaining(dto),
-        expect.objectContaining({ upsert: true }),
-      );
-
-      expect(result).toEqual(updatedPatient);
+      const result = service.formatProfileSummary(professionalWithoutAddress as any);
+      expect(result).toBe(`${mockProfessional.name} — ${mockProfessional.specialty} — unknown city, unknown state`);
     });
   });
 });
