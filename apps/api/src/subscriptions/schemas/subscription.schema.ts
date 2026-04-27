@@ -1,27 +1,29 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
-export type SubscriptionDocument = Subscription & Document;
+export type SubscriptionOwnerType = 'clinic' | 'professional';
+
+export type SubscriptionDocument = HydratedDocument<Subscription>;
 
 @Schema({ timestamps: true })
 export class Subscription {
-  @Prop({ type: String, enum: ['clinic', 'professional'], required: true })
-  ownerType: 'clinic' | 'professional';
+  @Prop({ required: true, enum: ['clinic', 'professional'] })
+  ownerType: SubscriptionOwnerType;
 
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({ required: true, type: Types.ObjectId })
   ownerId: Types.ObjectId;
 
   /**
-   * @deprecated Use ownerType='clinic' and ownerId instead.
-   * Retained for backward compatibility.
+   * @deprecated Use `ownerId` + `ownerType` instead.
+   * Retained for backward compatibility with historical documents only.
    */
-  @Prop({ type: Types.ObjectId, ref: 'Clinic' })
+  @Prop({ required: false, type: Types.ObjectId, ref: 'Clinic' })
   clinicId?: Types.ObjectId;
 
-  @Prop({ type: String, required: true })
+  @Prop({ required: true })
   plan: string;
 
-  @Prop({ type: Date, required: true })
+  @Prop({ required: true })
   expiresAt: Date;
 }
 

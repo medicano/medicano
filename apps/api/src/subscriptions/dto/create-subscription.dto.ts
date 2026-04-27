@@ -1,30 +1,26 @@
-import {
-  IsDateString,
-  IsIn,
-  IsMongoId,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsIn, IsMongoId, IsNotEmpty, IsOptional, IsDateString } from 'class-validator';
 
 export class CreateSubscriptionDto {
   @IsIn(['clinic', 'professional'])
+  @IsNotEmpty()
   ownerType: 'clinic' | 'professional';
 
   @IsMongoId()
+  @IsNotEmpty()
   ownerId: string;
 
   /**
-   * @deprecated Use ownerType='clinic' and ownerId instead.
+   * @deprecated Use `ownerId` + `ownerType` instead.
+   * Kept for backward compatibility during transition. Will be removed in a future sprint.
    */
   @IsMongoId()
   @IsOptional()
   clinicId?: string;
 
-  @IsString()
   @IsNotEmpty()
   plan: string;
 
   @IsDateString()
-  expiresAt: string;
+  @IsNotEmpty()
+  expiresAt: Date;
 }
