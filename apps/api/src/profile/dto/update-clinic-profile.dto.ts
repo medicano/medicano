@@ -1,3 +1,39 @@
-import { UpdateClinicDto } from '../../clinics/dto/update-clinic.dto';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsEnum,
+  IsEmail,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { AddressDto } from '../../common/dto/address.dto';
+import { Specialty } from '../../common/enums/specialty.enum';
 
-export class UpdateClinicProfileDto extends UpdateClinicDto {}
+export class UpdateClinicProfileDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  description?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+
+  @ValidateNested()
+  @Type(() => AddressDto)
+  @IsOptional()
+  address?: AddressDto;
+
+  @IsArray()
+  @IsEnum(Specialty, { each: true })
+  @IsOptional()
+  specialties?: Specialty[];
+}

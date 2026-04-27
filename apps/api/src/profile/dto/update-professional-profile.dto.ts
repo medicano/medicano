@@ -1,48 +1,41 @@
 import {
-  IsBoolean,
-  IsInt,
-  IsOptional,
   IsString,
-  Max,
-  MaxLength,
-  Min,
+  IsOptional,
+  IsEnum,
+  IsEmail,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AddressDto } from '../../common/dto/address.dto';
-import { WeeklySlotDto } from '../../common/dto/weekly-slot.dto';
+import { Specialty } from '../../common/enums/specialty.enum';
 
 export class UpdateProfessionalProfileDto {
-  @IsOptional()
   @IsString()
+  @IsOptional()
   name?: string;
 
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => AddressDto)
-  address?: AddressDto;
-
-  @IsOptional()
   @IsString()
+  @IsOptional()
+  bio?: string;
+
+  @IsString()
+  @IsOptional()
   phone?: string;
 
+  @IsEmail()
   @IsOptional()
+  email?: string;
+
+  @IsEnum(Specialty)
+  @IsOptional()
+  specialty?: Specialty;
+
   @IsString()
-  @MaxLength(1000)
-  description?: string;
-
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => WeeklySlotDto)
-  weeklySlots?: WeeklySlotDto[];
+  crm?: string;
 
+  @ValidateNested()
+  @Type(() => AddressDto)
   @IsOptional()
-  @IsBoolean()
-  autoConfirm?: boolean;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(168)
-  minCancelNoticeHours?: number;
+  address?: AddressDto;
 }

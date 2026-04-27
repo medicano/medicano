@@ -1,19 +1,13 @@
-import {
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import {
-  Subscription,
-  SubscriptionDocument,
-  SubscriptionPlan,
-  SubscriptionStatus,
-  PLAN_PROFESSIONAL_LIMITS,
-} from './schemas/subscription.schema';
+import { Subscription, SubscriptionDocument } from './schemas/subscription.schema';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
+import {
+  SubscriptionPlan,
+  SUBSCRIPTION_PLAN_LIMITS,
+} from './constants/subscription.constants';
 
 @Injectable()
 export class SubscriptionsService {
@@ -23,86 +17,84 @@ export class SubscriptionsService {
   ) {}
 
   async create(
+    userId: string,
     createSubscriptionDto: CreateSubscriptionDto,
   ): Promise<SubscriptionDocument> {
-    const subscription = new this.subscriptionModel({
-      ...createSubscriptionDto,
-      ownerId: new Types.ObjectId(createSubscriptionDto.ownerId),
-      status: SubscriptionStatus.ACTIVE,
+    const existing = await this.subscriptionModel.findOne({
+      userId: new Types.ObjectId(userId),
+      isActive: true,
     });
+
+    if (existing) {
+      throw new BadRequestException('User already has an active subscription');
+    }
+
+    const limits = SUBSCRIPTION_PLAN_LIMITS[createSubscriptionDto.plan];
+
+    const subscription = new this.subscriptionModel({
+      userId: new Types.ObjectId(userId),
+      plan: createSubscriptionDto.plan,
+      clinicLimit: limits.clinicLimit,
+      appointmentLimit: limits.appointmentLimit,
+      aiTriageEnabled: limits.aiTriageEnabled,
+      prioritySupport: limits.prioritySupport,
+      isActive: true,
+      expiresAt: createSubscriptionDto.expiresAt,
+    });
+
     return subscription.save();
   }
 
-  async findAll(): Promise<SubscriptionDocument[]> {
-    return this.subscriptionModel.find().exec();
+  async findByUserId(userId: string): Promise<SubscriptionDocument | null> {
+    return this.subscriptionModel
+      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
+      .exec();
   }
 
   async findById(id: string): Promise<SubscriptionDocument> {
-    const subscription = await this.subscriptionModel
-      .findById(new Types.ObjectId(id))
-      .exec();
+    const subscription = await this.subscriptionModel.findById(id).exec();
     if (!subscription) {
       throw new NotFoundException(`Subscription with id ${id} not found`);
     }
     return subscription;
   }
 
-  async findByOwner(
-    ownerType: 'clinic' | 'professional',
-    ownerId: string,
-  ): Promise<SubscriptionDocument | null> {
-    return this.subscriptionModel
-      .findOne({ ownerType, ownerId: new Types.ObjectId(ownerId) })
-      .exec();
-  }
-
   async update(
     id: string,
     updateSubscriptionDto: UpdateSubscriptionDto,
   ): Promise<SubscriptionDocument> {
-    const updated = await this.subscriptionModel
-      .findByIdAndUpdate(
-        new Types.ObjectId(id),
-        { $set: updateSubscriptionDto },
-        { new: true },
-      )
-      .exec();
-    if (!updated) {
-      throw new NotFoundException(`Subscription with id ${id} not found`);
+    const subscription = await this.findById(id);
+
+    if (updateSubscriptionDto.plan) {
+      const limits = SUBSCRIPTION_PLAN_LIMITS[updateSubscriptionDto.plan];
+      subscription.plan = updateSubscriptionDto.plan;
+      subscription.clinicLimit = limits.clinicLimit;
+      subscription.appointmentLimit = limits.appointmentLimit;
+      subscription.aiTriageEnabled = limits.aiTriageEnabled;
+      subscription.prioritySupport = limits.prioritySupport;
     }
-    return updated;
+
+    if (updateSubscriptionDto.isActive !== undefined) {
+      subscription.isActive = updateSubscriptionDto.isActive;
+    }
+
+    if (updateSubscriptionDto.expiresAt !== undefined) {
+      subscription.expiresAt = updateSubscriptionDto.expiresAt;
+    }
+
+    return subscription.save();
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.subscriptionModel
-      .findByIdAndDelete(new Types.ObjectId(id))
-      .exec();
-    if (!result) {
-      throw new NotFoundException(`Subscription with id ${id} not found`);
+  async hasReachedClinicLimit(userId: string, currentClinicCount: number): Promise<boolean> {
+    const subscription = await this.findByUserId(userId);
+    if (!subscription) {
+      return true;
     }
+    return currentClinicCount >= subscription.clinicLimit;
   }
 
-  async enforceClinicProfessionalLimit(
-    clinicId: string,
-    currentProfessionalCount: number,
-  ): Promise<void> {
-    const subscription = await this.findByOwner('clinic', clinicId);
-
-    // Default to FREE when no subscription (e.g., trial).
-    const planValue = subscription?.plan ?? SubscriptionPlan.FREE;
-    const plan = (Object.values(SubscriptionPlan) as string[]).includes(
-      planValue,
-    )
-      ? (planValue as SubscriptionPlan)
-      : SubscriptionPlan.FREE;
-
-    const limit = PLAN_PROFESSIONAL_LIMITS[plan];
-    if (limit === -1) return; // unlimited
-
-    if (currentProfessionalCount >= limit) {
-      throw new ForbiddenException(
-        `Professional limit reached for current subscription plan (${plan}). Limit: ${limit}.`,
-      );
-    }
+  async getActivePlan(userId: string): Promise<SubscriptionPlan | null> {
+    const subscription = await this.findByUserId(userId);
+    return subscription ? subscription.plan : null;
   }
 }

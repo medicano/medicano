@@ -1,48 +1,38 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { Specialty } from '../../common/enums/specialty.enum';
 import { Address, AddressSchema } from '../../common/schemas/address.schema';
-import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
+import { Specialty } from '../../common/enums/specialty.enum';
 
 export type ProfessionalDocument = Professional & Document;
 
 @Schema({ timestamps: true })
 export class Professional {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ required: true, enum: Specialty })
+  @Prop({ type: String, required: false })
+  bio?: string;
+
+  @Prop({ type: String, required: false })
+  phone?: string;
+
+  @Prop({ type: String, required: false })
+  email?: string;
+
+  @Prop({ type: String, enum: Specialty, required: true })
   specialty: Specialty;
 
-  @Prop({ required: true })
-  cpf: string;
-
-  @Prop({ required: true })
-  registration: string;
+  @Prop({ type: String, required: false })
+  crm?: string;
 
   @Prop({ type: AddressSchema, required: true })
   address: Address;
 
-  @Prop()
-  phone?: string;
-
-  @Prop({ maxlength: 1000 })
-  description?: string;
-
-  @Prop({ type: [WeeklySlotSchema], default: [] })
-  weeklySlots: WeeklySlot[];
-
-  @Prop({ default: false })
-  autoConfirm: boolean;
-
-  @Prop({ default: 24, min: 0, max: 168 })
-  minCancelNoticeHours: number;
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean;
 }
 
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional);
-
-ProfessionalSchema.index({ cpf: 1 }, { unique: true });
-ProfessionalSchema.index({ 'address.city': 1, specialty: 1 });

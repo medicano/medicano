@@ -1,59 +1,74 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { NotFoundException } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { ProfileService } from '../profile.service';
-import { Patient } from '../schemas/patient.schema';
-import { Professional } from '../schemas/professional.schema';
+import { Clinic } from '../../clinics/schemas/clinic.schema';
+import { Professional } from '../../professionals/schemas/professional.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
+import { Address } from '../../common/schemas/address.schema';
 
-const addressFixture = {
-  street: 'Rua Teste',
-  number: '123',
-  neighborhood: 'Centro',
-  city: 'Campinas',
+const mockAddress: Address = {
+  street: 'Avenida Paulista',
+  number: '1000',
+  complement: 'Andar 5',
+  neighborhood: 'Bela Vista',
+  city: 'São Paulo',
   state: 'SP',
-  zipCode: '13000000',
+  zipCode: '01310-100',
+  country: 'BR',
 };
 
-const patientFixture = {
-  _id: 'patient-1',
-  userId: 'user-1',
-  address: { ...addressFixture },
+const mockUserId = new Types.ObjectId().toHexString();
+
+const mockClinic = {
+  _id: new Types.ObjectId(),
+  userId: new Types.ObjectId(mockUserId),
+  name: 'Clínica Teste',
+  address: mockAddress,
+  specialties: [Specialty.CARDIOLOGY, Specialty.DERMATOLOGY],
+  isActive: true,
+  save: jest.fn(),
 };
 
-const professionalFixture = {
-  _id: 'prof-1',
+const mockProfessional = {
+  _id: new Types.ObjectId(),
+  userId: new Types.ObjectId(mockUserId),
   name: 'Dr. Teste',
-  cpf: '12345678901',
-  registration: 'CRM/SP 123456',
-  specialty: Specialty.MEDICINE,
-  address: { ...addressFixture },
-};
-
-const mockPatientModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findOneAndUpdate: jest.fn(),
-};
-
-const mockProfessionalModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findOneAndUpdate: jest.fn(),
-  findById: jest.fn(),
-  find: jest.fn(),
+  address: mockAddress,
+  specialty: Specialty.PSYCHIATRY,
+  isActive: true,
+  save: jest.fn(),
 };
 
 describe('ProfileService', () => {
   let service: ProfileService;
 
   beforeEach(async () => {
+    const mockClinicModel = {
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockClinic),
+      }),
+      findOneAndUpdate: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockClinic),
+      }),
+    };
+
+    const mockProfessionalModel = {
+      findOne: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockProfessional),
+      }),
+      findOneAndUpdate: jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue(mockProfessional),
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProfileService,
         {
-          provide: getModelToken(Patient.name),
-          useValue: mockPatientModel,
+          provide: getModelToken(Clinic.name),
+          useValue: mockClinicModel,
         },
         {
           provide: getModelToken(Professional.name),
@@ -63,154 +78,82 @@ describe('ProfileService', () => {
     }).compile();
 
     service = module.get<ProfileService>(ProfileService);
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('getPatientProfile', () => {
-    it('returns patient profile when found', async () => {
-      mockPatientModel.findOne.mockResolvedValue(patientFixture);
-
-      const result = await service.getPatientProfile('user-1');
-      expect(result).toEqual(patientFixture);
-      expect(mockPatientModel.findOne).toHaveBeenCalledWith({ userId: 'user-1' });
-    });
-
-    it('throws NotFoundException when patient not found', async () => {
-      mockPatientModel.findOne.mockResolvedValue(null);
-
-      await expect(service.getPatientProfile('user-1')).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('createOrUpdatePatientProfile', () => {
-    it('creates patient profile with structured address', async () => {
-      const dto = {
-        userId: 'user-1',
-        address: { ...addressFixture },
-      };
-
-      mockPatientModel.findOneAndUpdate.mockResolvedValue({ _id: 'patient-1', ...dto });
-
-      const result = await service.createOrUpdatePatientProfile('user-1', dto as any);
-      expect(result).toBeDefined();
-      expect(mockPatientModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { userId: 'user-1' },
-        expect.objectContaining({
-          address: expect.objectContaining({
-            street: 'Rua Teste',
-            city: 'Campinas',
-            state: 'SP',
-          }),
-        }),
-        expect.any(Object),
-      );
-    });
-
-    it('updates patient with partial address fields', async () => {
-      const partialAddress = {
-        street: 'Nova Rua',
-        number: '456',
-        neighborhood: 'Bairro Novo',
-        city: 'São Paulo',
-        state: 'SP',
-        zipCode: '01000000',
-      };
-
-      mockPatientModel.findOneAndUpdate.mockResolvedValue({
-        _id: 'patient-1',
-        userId: 'user-1',
-        address: partialAddress,
-      });
-
-      const result = await service.createOrUpdatePatientProfile('user-1', {
-        address: partialAddress,
-      } as any);
+  describe('getClinicProfile', () => {
+    it('should return clinic profile with Address subdocument', async () => {
+      const result = await service.getClinicProfile(mockUserId);
 
       expect(result).toBeDefined();
+      expect(result?.address).toEqual(mockAddress);
+      expect(typeof result?.address).toBe('object');
+      expect(result?.address).toHaveProperty('street');
+      expect(result?.address).toHaveProperty('zipCode');
     });
   });
 
   describe('getProfessionalProfile', () => {
-    it('returns professional profile when found', async () => {
-      mockProfessionalModel.findOne.mockResolvedValue(professionalFixture);
+    it('should return professional profile with Address subdocument', async () => {
+      const result = await service.getProfessionalProfile(mockUserId);
 
-      const result = await service.getProfessionalProfile('user-1');
-      expect(result).toEqual(professionalFixture);
-    });
-
-    it('throws NotFoundException when professional not found', async () => {
-      mockProfessionalModel.findOne.mockResolvedValue(null);
-
-      await expect(service.getProfessionalProfile('user-1')).rejects.toThrow(NotFoundException);
+      expect(result).toBeDefined();
+      expect(result?.address).toEqual(mockAddress);
+      expect(typeof result?.address).toBe('object');
+      expect(result?.specialty).toBe(Specialty.PSYCHIATRY);
     });
   });
 
-  describe('createOrUpdateProfessionalProfile', () => {
-    it('creates professional profile with all required fields', async () => {
-      const dto = {
-        name: 'Dr. Teste',
-        cpf: '12345678901',
-        registration: 'CRM/SP 123456',
-        specialty: Specialty.MEDICINE,
-        address: { ...addressFixture },
+  describe('updateClinicProfile', () => {
+    it('should update clinic with new Address subdocument', async () => {
+      const newAddress: Address = {
+        street: 'Rua Nova',
+        number: '200',
+        neighborhood: 'Jardins',
+        city: 'São Paulo',
+        state: 'SP',
+        zipCode: '01425-000',
+        country: 'BR',
       };
 
-      mockProfessionalModel.findOneAndUpdate.mockResolvedValue({
-        _id: 'prof-1',
-        userId: 'user-1',
-        ...dto,
+      (service as any).clinicModel.findOneAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ ...mockClinic, address: newAddress }),
       });
 
-      const result = await service.createOrUpdateProfessionalProfile('user-1', dto as any);
-      expect(result).toBeDefined();
-      expect(mockProfessionalModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { userId: 'user-1' },
-        expect.objectContaining({
-          name: 'Dr. Teste',
-          cpf: '12345678901',
-          registration: 'CRM/SP 123456',
-          specialty: Specialty.MEDICINE,
-          address: expect.objectContaining({
-            street: 'Rua Teste',
-            city: 'Campinas',
-          }),
-        }),
-        expect.any(Object),
-      );
-    });
+      const result = await service.updateClinicProfile(mockUserId, { address: newAddress });
 
-    it('professional fixture has all strict schema fields', () => {
-      expect(professionalFixture).toMatchObject({
-        name: expect.any(String),
-        cpf: expect.any(String),
-        registration: expect.any(String),
-        specialty: expect.any(String),
-        address: expect.objectContaining({
-          street: expect.any(String),
-          number: expect.any(String),
-          neighborhood: expect.any(String),
-          city: expect.any(String),
-          state: expect.any(String),
-          zipCode: expect.any(String),
-        }),
-      });
+      expect(result?.address).toEqual(newAddress);
+      expect(typeof result?.address).not.toBe('string');
     });
   });
 
-  describe('findProfessionalsBySpecialty', () => {
-    it('returns professionals filtered by specialty', async () => {
-      mockProfessionalModel.find.mockResolvedValue([professionalFixture]);
+  describe('updateProfessionalProfile', () => {
+    it('should update professional specialty', async () => {
+      (service as any).professionalModel.findOneAndUpdate = jest.fn().mockReturnValue({
+        exec: jest.fn().mockResolvedValue({
+          ...mockProfessional,
+          specialty: Specialty.CARDIOLOGY,
+        }),
+      });
 
-      const result = await service.findProfessionalsBySpecialty(Specialty.MEDICINE);
-      expect(result).toHaveLength(1);
-      expect(result[0].specialty).toBe(Specialty.MEDICINE);
+      const result = await service.updateProfessionalProfile(mockUserId, {
+        specialty: Specialty.CARDIOLOGY,
+      });
+
+      expect(result?.specialty).toBe(Specialty.CARDIOLOGY);
     });
+  });
 
-    it('returns empty array when no professionals found', async () => {
-      mockProfessionalModel.find.mockResolvedValue([]);
+  describe('address validation', () => {
+    it('address should always be an object, never a string', async () => {
+      const clinic = await service.getClinicProfile(mockUserId);
+      const professional = await service.getProfessionalProfile(mockUserId);
 
-      const result = await service.findProfessionalsBySpecialty(Specialty.MEDICINE);
-      expect(result).toEqual([]);
+      expect(typeof clinic?.address).toBe('object');
+      expect(typeof professional?.address).toBe('object');
     });
   });
 });

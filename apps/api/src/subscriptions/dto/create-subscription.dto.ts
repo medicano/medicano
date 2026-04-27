@@ -1,17 +1,14 @@
-import { IsEnum, IsMongoId, IsOptional, IsIn, IsDateString } from 'class-validator';
-import { SubscriptionPlan } from '../schemas/subscription.schema';
+import { IsEnum, IsNotEmpty, IsOptional, IsDate } from 'class-validator';
+import { Type } from 'class-transformer';
+import { SubscriptionPlan } from '../constants/subscription.constants';
 
 export class CreateSubscriptionDto {
-  @IsIn(['clinic', 'professional'])
-  ownerType: 'clinic' | 'professional';
-
-  @IsMongoId()
-  ownerId: string;
-
   @IsEnum(SubscriptionPlan)
+  @IsNotEmpty()
   plan: SubscriptionPlan;
 
   @IsOptional()
-  @IsDateString()
-  expiresAt?: string;
+  @IsDate()
+  @Type(() => Date)
+  expiresAt?: Date;
 }

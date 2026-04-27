@@ -1,46 +1,39 @@
-/* eslint-disable @typescript-eslint/naming-convention */
-
 export enum MessageRole {
   USER = 'user',
   ASSISTANT = 'assistant',
+  SYSTEM = 'system',
 }
 
-/**
- * Public representation of a chat session (sent to React UI).
- */
-export interface IChatSession {
+export interface ChatMessage {
+  role: MessageRole;
+  content: string;
+  timestamp?: Date;
+}
+
+export interface ChatSession {
   _id: string;
   userId: string;
-  clinicId?: string;
+  messages: ChatMessage[];
+  triageCompleted: boolean;
   recommendedSpecialty?: string;
-  disclaimerShown: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-/**
- * Public representation of an individual chat message.
- */
-export interface IChatMessage {
-  _id: string;
+export interface SendMessageRequest {
+  message: string;
+  sessionId?: string;
+}
+
+export interface SendMessageResponse {
   sessionId: string;
-  role: MessageRole;
-  content: string;
-  createdAt: Date;
+  message: ChatMessage;
+  triageCompleted?: boolean;
+  recommendedSpecialty?: string;
 }
 
-/**
- * UI-level recommendation object.
- */
-export interface ITriageRecommendation {
+export interface TriageResult {
   specialty: string;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   reasoning: string;
-}
-
-/**
- * Response type for `POST /chat/sessions/:id/messages` as consumed by the web-app.
- */
-export interface ISendMessageResponse {
-  message: IChatMessage;
-  recommendation: ITriageRecommendation | null;
 }

@@ -1,56 +1,48 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-
-import configuration from './config/configuration';
-
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-
-import { RedisModule } from './redis/redis.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
+import { PatientsModule } from './patients/patients.module';
 import { ClinicsModule } from './clinics/clinics.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
-import { ClinicProfessionalsModule } from './professionals/clinic-professionals.module';
-
-// Newly wired (sprints 03–10)
+import { ClinicProfessionalsModule } from './clinic-professionals/clinic-professionals.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { AvailabilityModule } from './availability/availability.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { ProfileModule } from './profile/profile.module';
 import { ChatModule } from './chat/chat.module';
 import { SearchModule } from './search/search.module';
-import { AvailabilityModule } from './availability/availability.module';
-import { PatientsModule } from './patients/patients.module';
-import { ProfileModule } from './profile/profile.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [configuration],
+      envFilePath: '.env',
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        uri: config.get<string>('database.uri'),
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGODB_URI'),
       }),
+      inject: [ConfigService],
     }),
-    RedisModule,
     AuthModule,
     UsersModule,
+    PatientsModule,
     ClinicsModule,
     ProfessionalsModule,
     ClinicProfessionalsModule,
     AppointmentsModule,
+    AvailabilityModule,
     SubscriptionsModule,
+    ProfileModule,
     ChatModule,
     SearchModule,
-    AvailabilityModule,
-    PatientsModule,
-    ProfileModule,
+    NotificationsModule,
+    RedisModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}

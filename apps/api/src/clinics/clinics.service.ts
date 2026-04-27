@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Clinic, ClinicDocument } from './schemas/clinic.schema';
@@ -8,67 +12,62 @@ import { UpdateClinicDto } from './dto/update-clinic.dto';
 @Injectable()
 export class ClinicsService {
   constructor(
-    @InjectModel(Clinic.name) private readonly clinicModel: Model<ClinicDocument>,
+    @InjectModel(Clinic.name)
+    private readonly clinicModel: Model<ClinicDocument>,
   ) {}
 
-  async create(createClinicDto: CreateClinicDto): Promise<ClinicDocument> {
-    const created = new this.clinicModel(createClinicDto);
-    return created.save();
+  async create(userId: string, createClinicDto: CreateClinicDto): Promise<ClinicDocument> {
+    const clinic = new this.clinicModel({
+      ...createClinicDto,
+      userId: new Types.ObjectId(userId),
+    });
+    return clinic.save();
   }
 
-  async findAll(): Promise<ClinicDocument[]> {
-    return this.clinicModel.find().exec();
-  }
-
-  async findOne(id: string): Promise<ClinicDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Clinic ${id} not found`);
-    }
-    const clinic = await this.clinicModel.findById(id).exec();
-    if (!clinic) {
-      throw new NotFoundException(`Clinic ${id} not found`);
-    }
-    return clinic;
-  }
-
-  async update(id: string, updateClinicDto: UpdateClinicDto): Promise<ClinicDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Clinic ${id} not found`);
-    }
-    const updated = await this.clinicModel
-      .findByIdAndUpdate(id, updateClinicDto, { new: true })
+  async findAllByUser(userId: string): Promise<ClinicDocument[]> {
+    return this.clinicModel
+      .find({ userId: new Types.ObjectId(userId), isActive: true })
       .exec();
-    if (!updated) {
-      throw new NotFoundException(`Clinic ${id} not found`);
-    }
-    return updated;
-  }
-
-  async remove(id: string): Promise<ClinicDocument> {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Clinic ${id} not found`);
-    }
-    const removed = await this.clinicModel.findByIdAndDelete(id).exec();
-    if (!removed) {
-      throw new NotFoundException(`Clinic ${id} not found`);
-    }
-    return removed;
   }
 
   async findById(id: string): Promise<ClinicDocument> {
-    return this.findOne(id);
-  }
-
-  async findByUserId(userId: string): Promise<ClinicDocument> {
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new NotFoundException(`Clinic for user ${userId} not found`);
-    }
-    const clinic = await this.clinicModel
-      .findOne({ userId: new Types.ObjectId(userId) })
-      .exec();
+    const clinic = await this.clinicModel.findById(id).exec();
     if (!clinic) {
-      throw new NotFoundException(`Clinic for user ${userId} not found`);
+      throw new NotFoundException(`Clinic with id ${id} not found`);
     }
     return clinic;
+  }
+
+  async update(
+    id: string,
+    userId: string,
+    updateClinicDto: UpdateClinicDto,
+  ): Promise<ClinicDocument> {
+    const clinic = await this.findById(id);
+
+    if (clinic.userId.toString() !== userId) {
+      throw new ForbiddenException('You do not have permission to update this clinic');
+    }
+
+    Object.assign(clinic, updateClinicDto);
+    return clinic.save();
+  }
+
+  async remove(id: string, userId: string): Promise<void> {
+    const clinic = await this.findById(id);
+
+    if (clinic.userId.toString() !== userId) {
+      throw new ForbiddenException('You do not have permission to delete this clinic');
+    }
+
+    clinic.isActive = false;
+    await clinic.save();
+  }
+
+  async countByUser(userId: string): Promise<number> {
+    return this.clinicModel.countDocuments({
+      userId: new Types.ObjectId(userId),
+      isActive: true,
+    });
   }
 }

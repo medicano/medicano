@@ -1,113 +1,43 @@
-export enum UserRole {
-  PATIENT = 'patient',
-  CLINIC = 'clinic',
-  PROFESSIONAL = 'professional',
-  ATTENDANT = 'attendant',
-}
-
-export type Specialty =
-  | 'medicine'
-  | 'psychology'
-  | 'psychiatry'
-  | 'dentistry'
-  | 'nutrition';
-
-export type SubscriptionPlan = 'free' | 'basic' | 'pro';
-
-export interface IAddress {
-  street: string;
-  number: string;
-  complement?: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  zipCode: string;
-}
-
-export interface IWeeklySlot {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  slotDurationMinutes: number;
-}
-
-export interface IUser {
-  _id: string;
-  role: UserRole;
-  email?: string;
-  username?: string;
-  clinicId?: string;
-  displayName?: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IClinic {
-  _id: string;
-  name: string;
-  cnpj: string;
+export interface LoginRequest {
   email: string;
-  phone: string;
-  address: IAddress;
-  specialties: Specialty[];
-  description?: string;
-  userId?: string;
-  subscriptionStatus?: string;
-  weeklySlots: IWeeklySlot[];
-  autoConfirm: boolean;
-  minCancelNoticeHours: number;
-  linkedScheduling: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  password: string;
 }
 
-export interface IProfessional {
-  _id: string;
-  userId: string;
-  name: string;
-  specialty: Specialty;
-  cpf: string;
-  registration: string;
-  address: IAddress;
-  phone?: string;
-  description?: string;
-  weeklySlots: IWeeklySlot[];
-  autoConfirm: boolean;
-  minCancelNoticeHours: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ISubscription {
-  _id: string;
-  ownerType: 'clinic' | 'professional';
-  ownerId: string;
-  plan: SubscriptionPlan;
-  status?: string;
-  expiresAt: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface IClinicProfessional {
-  clinicId: string;
-  professionalId: string;
-  isActive: boolean;
-}
-
-export interface IAuthTokens {
+export interface LoginResponse {
   accessToken: string;
+  refreshToken?: string;
+  user: AuthUser;
+}
+
+export interface AuthUser {
+  _id: string;
+  email: string;
+  role: UserRole;
+  name: string;
+}
+
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  CLINIC = 'CLINIC',
+  PROFESSIONAL = 'PROFESSIONAL',
+  PATIENT = 'PATIENT',
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+  role: UserRole;
+}
+
+export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-export interface ILoginStandardDto {
+export interface JwtPayload {
+  sub: string;
   email: string;
-  password: string;
-}
-
-export interface ILoginAttendantDto {
-  username: string;
-  password: string;
-  clinicId: string;
+  role: UserRole;
+  iat?: number;
+  exp?: number;
 }

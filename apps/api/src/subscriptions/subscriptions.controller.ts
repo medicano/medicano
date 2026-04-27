@@ -1,61 +1,40 @@
 import {
-  Body,
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Param,
-  HttpCode,
+  Body,
+  Request,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '../common/enums/role.enum';
-
 import { SubscriptionsService } from './subscriptions.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
-import { SubscriptionDocument } from './schemas/subscription.schema';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('subscriptions')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
   @Post()
-  @Roles(Role.CLINIC)
-  async create(
-    @Body() dto: CreateSubscriptionDto,
-  ): Promise<SubscriptionDocument> {
-    return this.subscriptionsService.create(dto);
+  create(@Request() req: any, @Body() createSubscriptionDto: CreateSubscriptionDto) {
+    return this.subscriptionsService.create(req.user.userId, createSubscriptionDto);
   }
 
-  @Get('clinic/:clinicId')
-  async findByClinicId(
-    @Param('clinicId') clinicId: string,
-  ): Promise<SubscriptionDocument | null> {
-    return this.subscriptionsService.findByClinicId(clinicId);
+  @Get('me')
+  findMine(@Request() req: any) {
+    return this.subscriptionsService.findByUserId(req.user.userId);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<SubscriptionDocument> {
-    return this.subscriptionsService.findOne(id);
+  findOne(@Param('id') id: string) {
+    return this.subscriptionsService.findById(id);
   }
 
-  @Put(':id')
-  @Roles(Role.CLINIC)
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateSubscriptionDto,
-  ): Promise<SubscriptionDocument> {
-    return this.subscriptionsService.update(id, dto);
-  }
-
-  @Post(':id/cancel')
-  @Roles(Role.CLINIC)
-  @HttpCode(200)
-  async cancel(@Param('id') id: string): Promise<SubscriptionDocument> {
-    return this.subscriptionsService.cancel(id);
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() updateSubscriptionDto: UpdateSubscriptionDto) {
+    return this.subscriptionsService.update(id, updateSubscriptionDto);
   }
 }
