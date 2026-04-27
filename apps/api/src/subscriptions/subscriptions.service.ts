@@ -7,6 +7,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import {
   Subscription,
   SubscriptionDocument,
@@ -143,6 +144,31 @@ export class SubscriptionsService {
    * @throws {NotFoundException}    When no subscription is found for the clinic.
    * @throws {BadRequestException}  When the professional limit has been reached.
    */
+  async findOne(id: string): Promise<SubscriptionDocument> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid subscription ID');
+    }
+    const subscription = await this.subscriptionModel.findById(id).exec();
+    if (!subscription) {
+      throw new NotFoundException(`Subscription ${id} not found`);
+    }
+    return subscription;
+  }
+
+  async update(id: string, dto: UpdateSubscriptionDto): Promise<SubscriptionDocument> {
+    const subscription = await this.findOne(id);
+    if (dto.plan !== undefined) subscription.plan = dto.plan;
+    if (dto.status !== undefined) subscription.status = dto.status;
+    if (dto.expiresAt !== undefined) subscription.expiresAt = new Date(dto.expiresAt);
+    return subscription.save();
+  }
+
+  async cancel(id: string): Promise<SubscriptionDocument> {
+    const subscription = await this.findOne(id);
+    subscription.status = 'cancelled';
+    return subscription.save();
+  }
+
   async enforceClinicProfessionalLimit(
     clinicId: string,
     currentProfessionalCount: number,

@@ -3,6 +3,18 @@ import { HydratedDocument, Types } from 'mongoose';
 
 export type SubscriptionOwnerType = 'clinic' | 'professional';
 
+export enum SubscriptionPlan {
+  BASIC = 'basic',
+  PROFESSIONAL = 'professional',
+  ENTERPRISE = 'enterprise',
+}
+
+export const PLAN_PROFESSIONAL_LIMITS: Record<SubscriptionPlan, number> = {
+  [SubscriptionPlan.BASIC]: 1,
+  [SubscriptionPlan.PROFESSIONAL]: 5,
+  [SubscriptionPlan.ENTERPRISE]: Infinity,
+};
+
 export type SubscriptionDocument = HydratedDocument<Subscription>;
 
 @Schema({ timestamps: true })
@@ -22,6 +34,9 @@ export class Subscription {
 
   @Prop({ required: true })
   plan: string;
+
+  @Prop({ type: String })
+  status?: string;
 
   @Prop({ required: true })
   expiresAt: Date;
