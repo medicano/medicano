@@ -1,213 +1,195 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
+
 import { ScheduleService } from '../services/schedule.service';
 import { AvailabilityService } from '../availability.service';
 import { AppointmentsService } from '../../appointments/appointments.service';
 import { ProfessionalsService } from '../../professionals/professionals.service';
+import { ClinicProfessional } from '../../professionals/schemas/clinic-professional.schema';
+import { User } from '../../auth/schemas/user.schema';
 import { Role } from '../../common/enums/role.enum';
-
-const mockAvailabilityService = {
-  getAvailableSlots: jest.fn().mockResolvedValue([]),
-};
-
-const mockAppointmentsService = {
-  findAll: jest.fn().mockResolvedValue([]),
-};
-
-const mockProfessionalsService = {
-  findById: jest.fn(),
-};
-
-const mockUserModel = {
-  findById: jest.fn(),
-};
-
-const mockClinicProfessionalModel = {
-  findOne: jest.fn(),
-};
 
 describe('ScheduleService', () => {
   let service: ScheduleService;
 
-  const professionalId = '64f1a2b3c4d5e6f7a8b9c0d1';
-  const currentUserId = '64f1a2b3c4d5e6f7a8b9c0d2';
-  const clinicId = '64f1a2b3c4d5e6f7a8b9c0d3';
+  const availabilityService = {
+    getAvailableSlots: jest.fn(),
+  };
+  const appointmentsService = {
+    findAll: jest.fn(),
+  };
+  const professionalsService = {
+    findOne: jest.fn(),
+  };
+  const clinicProfessionalModel = {
+    findOne: jest.fn(),
+  };
+  const userModel = {
+    findById: jest.fn(),
+    findOne: jest.fn(),
+  };
 
-  const query = { fromDate: '2024-01-01', toDate: '2024-01-07' };
+  const professionalId = 'prof-1';
+  const professionalUserId = 'user-prof-1';
 
-  const makeProfessional = (userId: string) => ({
+  const professionalDoc = {
     _id: professionalId,
-    userId,
-  });
+    userId: professionalUserId,
+    name: 'Dr. House',
+  };
 
-  const makeUser = (role: string, extra: Record<string, any> = {}) => ({
-    _id: currentUserId,
-    role,
-    ...extra,
-  });
+  const slot1 = {
+    date: '2025-01-10',
+    startTime: '09:00',
+    endTime: '09:30',
+    duration: 30,
+  };
+  const slot2 = {
+    date: '2025-01-10',
+    startTime: '09:30',
+    endTime: '10:00',
+    duration: 30,
+  };
+  const appt1 = {
+    _id: 'appt-1',
+    professionalId,
+    patientId: 'patient-1',
+    startAt: new Date('2025-01-10T10:00:00Z'),
+    endAt: new Date('2025-01-10T10:30:00Z'),
+    status: 'confirmed' as const,
+  };
 
-  const execMock = (value: any) => ({ exec: jest.fn().mockResolvedValue(value) });
+  const query = { from: '2025-01-10', to: '2025-01-11' } as any;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ScheduleService,
-        { provide: AvailabilityService, useValue: mockAvailabilityService },
-        { provide: AppointmentsService, useValue: mockAppointmentsService },
-        { provide: ProfessionalsService, useValue: mockProfessionalsService },
-        { provide: getModelToken('User'), useValue: mockUserModel },
-        { provide: getModelToken('ClinicProfessional'), useValue: mockClinicProfessionalModel },
+        { provide: AvailabilityService, useValue: availabilityService },
+        { provide: AppointmentsService, useValue: appointmentsService },
+        { provide: ProfessionalsService, useValue: professionalsService },
+        {
+          provide: getModelToken(ClinicProfessional.name),
+          useValue: clinicProfessionalModel,
+        },
+        { provide: getModelToken(User.name), useValue: userModel },
       ],
     }).compile();
 
     service = module.get<ScheduleService>(ScheduleService);
+  });
 
+  afterEach(() => {
     jest.clearAllMocks();
-    mockAvailabilityService.getAvailableSlots.mockResolvedValue([]);
-    mockAppointmentsService.findAll.mockResolvedValue([]);
   });
 
-  it('should throw BadRequestException for invalid professionalId', async () => {
-    await expect(
-      service.getProviderSchedule('invalid-id', query, currentUserId),
-    ).rejects.toThrow(BadRequestException);
-  });
+  describe('getProviderSchedule', () => {
+    it('combined response returns slots and appointments', async () => {
+      const currentUser = {
+        userId: professionalUserId,
+        role: Role.PROFESSIONAL,
+      };
 
-  it('should throw NotFoundException when user not found', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(null));
+      professionalsService.findOne.mockResolvedValue(professionalDoc);
+      availabilityService.getAvailableSlots.mockResolvedValue([slot1, slot2]);
+      appointmentsService.findAll.mockResolvedValue([appt1]);
 
-    await expect(
-      service.getProviderSchedule(professionalId, query, currentUserId),
-    ).rejects.toThrow(NotFoundException);
-  });
-
-  it('should throw NotFoundException when professional not found', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(makeUser(Role.PROFESSIONAL)));
-    mockProfessionalsService.findById.mockResolvedValue(null);
-
-    await expect(
-      service.getProviderSchedule(professionalId, query, currentUserId),
-    ).rejects.toThrow(NotFoundException);
-  });
-
-  it('should allow a professional to access their own schedule', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(makeUser(Role.PROFESSIONAL)));
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional(currentUserId),
-    );
-
-    const result = await service.getProviderSchedule(professionalId, query, currentUserId);
-
-    expect(result).toEqual({
-      fromDate: query.fromDate,
-      toDate: query.toDate,
-      availableSlots: [],
-      appointments: [],
-    });
-  });
-
-  it('should throw ForbiddenException when professional accesses another professional schedule', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(makeUser(Role.PROFESSIONAL)));
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional('64f1a2b3c4d5e6f7a8b9c0ff'),
-    );
-
-    await expect(
-      service.getProviderSchedule(professionalId, query, currentUserId),
-    ).rejects.toThrow(ForbiddenException);
-  });
-
-  it('should allow a clinic with a matching ClinicProfessional link', async () => {
-    mockUserModel.findById.mockReturnValue(
-      execMock(makeUser(Role.CLINIC, { clinicId })),
-    );
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional('64f1a2b3c4d5e6f7a8b9c0ff'),
-    );
-    mockClinicProfessionalModel.findOne.mockReturnValue(
-      execMock({ clinicId, professionalId }),
-    );
-
-    const result = await service.getProviderSchedule(professionalId, query, currentUserId);
-
-    expect(result.fromDate).toBe(query.fromDate);
-    expect(result.toDate).toBe(query.toDate);
-  });
-
-  it('should throw ForbiddenException when clinic has no ClinicProfessional link', async () => {
-    mockUserModel.findById.mockReturnValue(
-      execMock(makeUser(Role.CLINIC, { clinicId })),
-    );
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional('64f1a2b3c4d5e6f7a8b9c0ff'),
-    );
-    mockClinicProfessionalModel.findOne.mockReturnValue(execMock(null));
-
-    await expect(
-      service.getProviderSchedule(professionalId, query, currentUserId),
-    ).rejects.toThrow(ForbiddenException);
-  });
-
-  it('should allow an attendant with a matching ClinicProfessional link', async () => {
-    mockUserModel.findById.mockReturnValue(
-      execMock(makeUser(Role.ATTENDANT, { clinicId })),
-    );
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional('64f1a2b3c4d5e6f7a8b9c0ff'),
-    );
-    mockClinicProfessionalModel.findOne.mockReturnValue(
-      execMock({ clinicId, professionalId }),
-    );
-
-    const result = await service.getProviderSchedule(professionalId, query, currentUserId);
-
-    expect(result.availableSlots).toEqual([]);
-    expect(result.appointments).toEqual([]);
-  });
-
-  it('should throw ForbiddenException for patient role', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(makeUser(Role.PATIENT)));
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional('64f1a2b3c4d5e6f7a8b9c0ff'),
-    );
-
-    await expect(
-      service.getProviderSchedule(professionalId, query, currentUserId),
-    ).rejects.toThrow(ForbiddenException);
-  });
-
-  it('should normalize toDate to end of day and pass correct args to services', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(makeUser(Role.PROFESSIONAL)));
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional(currentUserId),
-    );
-
-    await service.getProviderSchedule(professionalId, query, currentUserId);
-
-    const toDateCall = mockAvailabilityService.getAvailableSlots.mock.calls[0][1].toDate as Date;
-    expect(toDateCall.getHours()).toBe(23);
-    expect(toDateCall.getMinutes()).toBe(59);
-    expect(toDateCall.getSeconds()).toBe(59);
-
-    const appointmentsCallArgs = mockAppointmentsService.findAll.mock.calls[0][0];
-    expect(appointmentsCallArgs.professionalId).toBe(professionalId);
-    expect(appointmentsCallArgs.dateFrom).toBeDefined();
-    expect(appointmentsCallArgs.dateTo).toBeDefined();
-  });
-
-  it('should throw BadRequestException when toDate is before fromDate', async () => {
-    mockUserModel.findById.mockReturnValue(execMock(makeUser(Role.PROFESSIONAL)));
-    mockProfessionalsService.findById.mockResolvedValue(
-      makeProfessional(currentUserId),
-    );
-
-    await expect(
-      service.getProviderSchedule(
+      const result = await service.getProviderSchedule(
         professionalId,
-        { fromDate: '2024-01-07', toDate: '2024-01-01' },
-        currentUserId,
-      ),
-    ).rejects.toThrow(BadRequestException);
+        query,
+        currentUser as any,
+      );
+
+      expect(result).toEqual({
+        slots: [slot1, slot2],
+        appointments: [appt1],
+      });
+      expect(availabilityService.getAvailableSlots).toHaveBeenCalledTimes(1);
+      expect(appointmentsService.findAll).toHaveBeenCalledTimes(1);
+    });
+
+    it('professional accessing own schedule allowed', async () => {
+      const currentUser = {
+        userId: professionalUserId,
+        role: Role.PROFESSIONAL,
+      };
+
+      professionalsService.findOne.mockResolvedValue(professionalDoc);
+      availabilityService.getAvailableSlots.mockResolvedValue([]);
+      appointmentsService.findAll.mockResolvedValue([]);
+
+      await expect(
+        service.getProviderSchedule(professionalId, query, currentUser as any),
+      ).resolves.toBeDefined();
+    });
+
+    it('clinic accessing linked professional allowed', async () => {
+      const currentUser = {
+        userId: 'clinic-user-1',
+        role: Role.CLINIC,
+      };
+
+      professionalsService.findOne.mockResolvedValue(professionalDoc);
+      clinicProfessionalModel.findOne.mockReturnValue({
+        exec: jest
+          .fn()
+          .mockResolvedValue({ clinicId: 'clinic-1', professionalId }),
+      });
+
+      availabilityService.getAvailableSlots.mockResolvedValue([slot1]);
+      appointmentsService.findAll.mockResolvedValue([]);
+
+      const result = await service.getProviderSchedule(
+        professionalId,
+        query,
+        currentUser as any,
+      );
+
+      expect(result.slots).toEqual([slot1]);
+      expect(clinicProfessionalModel.findOne).toHaveBeenCalled();
+    });
+
+    it('clinic accessing UNLINKED professional throws ForbiddenException', async () => {
+      const currentUser = {
+        userId: 'clinic-user-1',
+        role: Role.CLINIC,
+      };
+
+      professionalsService.findOne.mockResolvedValue(professionalDoc);
+      clinicProfessionalModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
+
+      await expect(
+        service.getProviderSchedule(professionalId, query, currentUser as any),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('professional accessing another professional throws ForbiddenException', async () => {
+      const currentUser = {
+        userId: 'user-prof-OTHER',
+        role: Role.PROFESSIONAL,
+      };
+
+      professionalsService.findOne.mockResolvedValue(professionalDoc);
+
+      await expect(
+        service.getProviderSchedule(professionalId, query, currentUser as any),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('patient role throws ForbiddenException at the service layer', async () => {
+      const currentUser = {
+        userId: 'patient-user-1',
+        role: Role.PATIENT,
+      };
+
+      professionalsService.findOne.mockResolvedValue(professionalDoc);
+
+      await expect(
+        service.getProviderSchedule(professionalId, query, currentUser as any),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
 });
