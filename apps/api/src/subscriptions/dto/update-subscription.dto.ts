@@ -1,22 +1,16 @@
-import { IsDateString, IsEnum, IsOptional } from 'class-validator';
-import { SubscriptionPlan } from '../schemas/subscription.schema';
-import { SubscriptionStatus } from '../../clinics/schemas/clinic.schema';
+import { IsEnum, IsOptional, IsDateString } from 'class-validator';
+import { SubscriptionPlan, SubscriptionStatus } from '../schemas/subscription.schema';
 
-/**
- * DTO: UpdateSubscriptionDto
- * All properties are readonly to guarantee immutability.
- * Not using PartialType(CreateSubscriptionDto) per project conventions.
- */
 export class UpdateSubscriptionDto {
+  @IsOptional()
   @IsEnum(SubscriptionPlan)
-  @IsOptional()
-  readonly plan?: SubscriptionPlan;
+  plan?: SubscriptionPlan;
 
+  @IsOptional()
   @IsEnum(SubscriptionStatus)
-  @IsOptional()
-  readonly status?: SubscriptionStatus;
+  status?: SubscriptionStatus;
 
-  @IsDateString()
   @IsOptional()
-  readonly expiresAt?: string;
+  @IsDateString()
+  expiresAt?: string;
 }

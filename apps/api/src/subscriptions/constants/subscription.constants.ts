@@ -1,6 +1,5 @@
-export {
-  SubscriptionPlan,
-  PLAN_PROFESSIONAL_LIMITS,
-} from '../schemas/subscription.schema';
+import { SubscriptionPlan, PLAN_PROFESSIONAL_LIMITS } from '../schemas/subscription.schema';
 
-export { SubscriptionStatus } from '../../clinics/schemas/clinic.schema';
+export { SubscriptionPlan, PLAN_PROFESSIONAL_LIMITS };
+
+export const DEFAULT_SUBSCRIPTION_PLAN = SubscriptionPlan.FREE;

@@ -1,45 +1,51 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
-
-export type SubscriptionOwnerType = 'clinic' | 'professional';
+import { Document, Types } from 'mongoose';
 
 export enum SubscriptionPlan {
+  FREE = 'free',
   BASIC = 'basic',
-  PROFESSIONAL = 'professional',
-  ENTERPRISE = 'enterprise',
+  PRO = 'pro',
+}
+
+export enum SubscriptionStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+  CANCELLED = 'cancelled',
+  EXPIRED = 'expired',
 }
 
 export const PLAN_PROFESSIONAL_LIMITS: Record<SubscriptionPlan, number> = {
-  [SubscriptionPlan.BASIC]: 1,
-  [SubscriptionPlan.PROFESSIONAL]: 5,
-  [SubscriptionPlan.ENTERPRISE]: Infinity,
+  [SubscriptionPlan.FREE]: 2,
+  [SubscriptionPlan.BASIC]: 10,
+  [SubscriptionPlan.PRO]: -1, // -1 = unlimited
 };
 
-export type SubscriptionDocument = HydratedDocument<Subscription>;
+export type SubscriptionDocument = Subscription & Document;
 
 @Schema({ timestamps: true })
 export class Subscription {
   @Prop({ required: true, enum: ['clinic', 'professional'] })
-  ownerType: SubscriptionOwnerType;
+  ownerType: 'clinic' | 'professional';
 
   @Prop({ required: true, type: Types.ObjectId })
   ownerId: Types.ObjectId;
 
-  /**
-   * @deprecated Use `ownerId` + `ownerType` instead.
-   * Retained for backward compatibility with historical documents only.
-   */
-  @Prop({ required: false, type: Types.ObjectId, ref: 'Clinic' })
+  @Prop({ type: Types.ObjectId })
   clinicId?: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ required: true, type: String })
   plan: string;
 
-  @Prop({ type: String })
-  status?: string;
+  @Prop({
+    required: true,
+    type: String,
+    enum: Object.values(SubscriptionStatus),
+    default: SubscriptionStatus.ACTIVE,
+  })
+  status: SubscriptionStatus;
 
-  @Prop({ required: true })
-  expiresAt: Date;
+  @Prop({ type: Date })
+  expiresAt?: Date;
 }
 
 export const SubscriptionSchema = SchemaFactory.createForClass(Subscription);

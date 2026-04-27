@@ -1,139 +1,185 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { Types } from 'mongoose';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { SubscriptionsService } from '../subscriptions.service';
-import { Subscription } from '../schemas/subscription.schema';
+import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../schemas/subscription.schema';
 
-interface SubscriptionFixture {
-  _id: Types.ObjectId;
-  ownerType: 'clinic' | 'professional';
-  ownerId: Types.ObjectId;
-  plan: string;
-  status: 'active' | 'inactive' | 'expired' | 'cancelled';
-  expiresAt: Date;
-  createdAt?: Date;
-  updatedAt?: Date;
+const mockSubscriptionModel = {
+  find: jest.fn(),
+  findById: jest.fn(),
+  findOne: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
+  save: jest.fn(),
+};
+
+function createMockConstructor(saveResult: any) {
+  return jest.fn().mockImplementation(() => ({
+    save: jest.fn().mockResolvedValue(saveResult),
+  }));
 }
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
-  let model: any;
-
-  const makeSubscription = (overrides: Partial<SubscriptionFixture> = {}): SubscriptionFixture => ({
-    _id: new Types.ObjectId(),
-    ownerType: 'clinic',
-    ownerId: new Types.ObjectId(),
-    plan: 'basic',
-    status: 'active',
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    ...overrides,
-  });
-
-  const mockModel = {
-    findOne: jest.fn(),
-    find: jest.fn(),
-    create: jest.fn(),
-    findById: jest.fn(),
-    findByIdAndUpdate: jest.fn(),
-    findByIdAndDelete: jest.fn(),
-  };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SubscriptionsService,
         {
           provide: getModelToken(Subscription.name),
-          useValue: mockModel,
+          useValue: mockSubscriptionModel,
         },
       ],
     }).compile();
 
     service = module.get<SubscriptionsService>(SubscriptionsService);
-    model = mockModel;
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('findByClinicId — returns subscription for given clinic id', async () => {
-    const clinicId = new Types.ObjectId();
-    const doc = makeSubscription({ ownerType: 'clinic', ownerId: clinicId });
+  describe('enforceClinicProfessionalLimit', () => {
+    const clinicId = '507f1f77bcf86cd799439011';
 
-    model.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(doc) });
+    it('should throw ForbiddenException when no subscription and currentCount equals FREE limit (2)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue(null);
 
-    const result = await service.findByClinicId(clinicId.toString());
-
-    expect(result).toEqual(doc);
-  });
-
-  it('findByOwner(clinic, id) — returns clinic subscription', async () => {
-    const clinicId = new Types.ObjectId();
-    const doc = makeSubscription({ ownerType: 'clinic', ownerId: clinicId });
-    model.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(doc) });
-
-    const result = await service.findByOwner('clinic', clinicId.toString());
-
-    expect(model.findOne).toHaveBeenCalledWith({
-      ownerType: 'clinic',
-      ownerId: expect.anything(),
-    });
-    expect(result).toEqual(doc);
-  });
-
-  it('findByOwner(professional, id) — returns professional subscription', async () => {
-    const profId = new Types.ObjectId();
-    const doc = makeSubscription({ ownerType: 'professional', ownerId: profId });
-    model.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(doc) });
-
-    const result = await service.findByOwner('professional', profId.toString());
-
-    expect(model.findOne).toHaveBeenCalledWith({
-      ownerType: 'professional',
-      ownerId: expect.anything(),
-    });
-    expect(result).toEqual(doc);
-  });
-
-  it('findActiveOwnerIds — filters by status=active and expiresAt > now', async () => {
-    const activeProfId = new Types.ObjectId();
-    const expiredProfId = new Types.ObjectId();
-    const inactiveProfId = new Types.ObjectId();
-
-    const expectedDocs = [
-      { ownerId: activeProfId, ownerType: 'professional' },
-    ];
-
-    model.find = jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnThis(),
-      lean: jest.fn().mockReturnThis(),
-      exec: jest.fn().mockResolvedValue(expectedDocs),
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 2),
+      ).rejects.toThrow(ForbiddenException);
     });
 
-    const ids = await service.findActiveOwnerIds('professional');
+    it('should pass when no subscription and currentCount is below FREE limit (1)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue(null);
 
-    expect(model.find).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ownerType: 'professional',
-        status: 'active',
-        expiresAt: expect.objectContaining({ $gt: expect.any(Date) }),
-      }),
-    );
-    expect(ids.map(String)).toEqual([activeProfId.toString()]);
-    expect(ids.map(String)).not.toContain(expiredProfId.toString());
-    expect(ids.map(String)).not.toContain(inactiveProfId.toString());
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 1),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should throw ForbiddenException for FREE plan when currentCount equals limit (2)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: SubscriptionPlan.FREE,
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 2),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should pass for FREE plan when currentCount is below limit (1)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: SubscriptionPlan.FREE,
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 1),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should throw ForbiddenException for BASIC plan when currentCount equals limit (10)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: SubscriptionPlan.BASIC,
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 10),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should pass for BASIC plan when currentCount is below limit (9)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: SubscriptionPlan.BASIC,
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 9),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should pass for PRO plan regardless of currentCount (unlimited)', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: SubscriptionPlan.PRO,
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 9999),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should fall back to FREE and pass when legacy plan value "professional" and currentCount is 0', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: 'professional',
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 0),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should fall back to FREE and throw ForbiddenException when legacy plan value "professional" and currentCount is 5', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: 'professional',
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 5),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should include plan name and limit in the ForbiddenException message', async () => {
+      jest.spyOn(service, 'findByOwner').mockResolvedValue({
+        plan: SubscriptionPlan.FREE,
+        status: SubscriptionStatus.ACTIVE,
+      } as any);
+
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, 2),
+      ).rejects.toThrow(
+        `Professional limit reached for current subscription plan (free). Limit: 2.`,
+      );
+    });
   });
 
-  it('findByClinicId — backward compat alias delegates to findByOwner(clinic, id)', async () => {
-    const clinicId = new Types.ObjectId().toString();
-    const spy = jest.spyOn(service, 'findByOwner').mockResolvedValue(null as any);
+  describe('findById', () => {
+    it('should throw NotFoundException when subscription is not found', async () => {
+      const execMock = jest.fn().mockResolvedValue(null);
+      mockSubscriptionModel.findById.mockReturnValue({ exec: execMock });
 
-    await service.findByClinicId(clinicId);
+      await expect(
+        service.findById('507f1f77bcf86cd799439011'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith('clinic', clinicId);
+  describe('update', () => {
+    it('should throw NotFoundException when subscription to update is not found', async () => {
+      const execMock = jest.fn().mockResolvedValue(null);
+      mockSubscriptionModel.findByIdAndUpdate.mockReturnValue({ exec: execMock });
+
+      await expect(
+        service.update('507f1f77bcf86cd799439011', { plan: SubscriptionPlan.BASIC }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('remove', () => {
+    it('should throw NotFoundException when subscription to remove is not found', async () => {
+      const execMock = jest.fn().mockResolvedValue(null);
+      mockSubscriptionModel.findByIdAndDelete.mockReturnValue({ exec: execMock });
+
+      await expect(
+        service.remove('507f1f77bcf86cd799439011'),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });
