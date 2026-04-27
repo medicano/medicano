@@ -55,6 +55,10 @@ export class ClinicsService {
     return removed;
   }
 
+  async findById(id: string): Promise<ClinicDocument> {
+    return this.findOne(id);
+  }
+
   async findByUserId(userId: string): Promise<ClinicDocument> {
     if (!Types.ObjectId.isValid(userId)) {
       throw new NotFoundException(`Clinic for user ${userId} not found`);
