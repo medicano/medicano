@@ -1,20 +1,26 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
-export enum SubscriptionStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
-  TRIAL = 'trial',
-}
+export type ClinicDocument = HydratedDocument<Clinic>;
 
 @Schema({ timestamps: true })
 export class Clinic {
-  @Prop({ type: String, required: true })
+  @Prop({ required: true })
   name: string;
 
-  @Prop({ type: String, enum: SubscriptionStatus, default: SubscriptionStatus.TRIAL })
-  subscriptionStatus: SubscriptionStatus;
+  @Prop({ required: true })
+  email: string;
+
+  @Prop({ required: true })
+  phone: string;
+
+  @Prop({ required: true })
+  address: string;
+
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  userId?: Types.ObjectId;
 }
 
-export type ClinicDocument = Clinic & Document;
 export const ClinicSchema = SchemaFactory.createForClass(Clinic);
+
+ClinicSchema.index({ userId: 1 }, { sparse: true });

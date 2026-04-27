@@ -1,17 +1,9 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-
+import { Professional, ProfessionalDocument } from './schemas/professional.schema';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { UpdateProfessionalDto } from './dto/update-professional.dto';
-import {
-  Professional,
-  ProfessionalDocument,
-} from './schemas/professional.schema';
 
 @Injectable()
 export class ProfessionalsService {
@@ -20,41 +12,23 @@ export class ProfessionalsService {
     private readonly professionalModel: Model<ProfessionalDocument>,
   ) {}
 
-  async create(
-    createProfessionalDto: CreateProfessionalDto,
-  ): Promise<ProfessionalDocument> {
-    if (!Types.ObjectId.isValid(createProfessionalDto.userId)) {
-      throw new NotFoundException(
-        `User with id ${createProfessionalDto.userId} not found`,
-      );
-    }
-
-    try {
-      const professional = new this.professionalModel(createProfessionalDto);
-      return await professional.save();
-    } catch (error: unknown) {
-      const err = error as { code?: number };
-      if (err?.code === 11000) {
-        throw new ConflictException('Professional already exists');
-      }
-      throw error;
-    }
+  async create(createProfessionalDto: CreateProfessionalDto): Promise<ProfessionalDocument> {
+    const created = new this.professionalModel(createProfessionalDto);
+    return created.save();
   }
 
   async findAll(): Promise<ProfessionalDocument[]> {
     return this.professionalModel.find().exec();
   }
 
-  async findById(id: string): Promise<ProfessionalDocument> {
+  async findOne(id: string): Promise<ProfessionalDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Professional with id ${id} not found`);
+      throw new NotFoundException(`Professional ${id} not found`);
     }
-
     const professional = await this.professionalModel.findById(id).exec();
     if (!professional) {
-      throw new NotFoundException(`Professional with id ${id} not found`);
+      throw new NotFoundException(`Professional ${id} not found`);
     }
-
     return professional;
   }
 
@@ -63,30 +37,38 @@ export class ProfessionalsService {
     updateProfessionalDto: UpdateProfessionalDto,
   ): Promise<ProfessionalDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Professional with id ${id} not found`);
+      throw new NotFoundException(`Professional ${id} not found`);
     }
-
     const updated = await this.professionalModel
       .findByIdAndUpdate(id, updateProfessionalDto, { new: true })
       .exec();
-
     if (!updated) {
-      throw new NotFoundException(`Professional with id ${id} not found`);
+      throw new NotFoundException(`Professional ${id} not found`);
     }
-
     return updated;
   }
 
   async remove(id: string): Promise<ProfessionalDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Professional with id ${id} not found`);
+      throw new NotFoundException(`Professional ${id} not found`);
     }
-
-    const deleted = await this.professionalModel.findByIdAndDelete(id).exec();
-    if (!deleted) {
-      throw new NotFoundException(`Professional with id ${id} not found`);
+    const removed = await this.professionalModel.findByIdAndDelete(id).exec();
+    if (!removed) {
+      throw new NotFoundException(`Professional ${id} not found`);
     }
+    return removed;
+  }
 
-    return deleted;
+  async findByUserId(userId: string): Promise<ProfessionalDocument> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new NotFoundException(`Professional for user ${userId} not found`);
+    }
+    const professional = await this.professionalModel
+      .findOne({ userId: new Types.ObjectId(userId) })
+      .exec();
+    if (!professional) {
+      throw new NotFoundException(`Professional for user ${userId} not found`);
+    }
+    return professional;
   }
 }
