@@ -3,16 +3,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
 import { Appointment, AppointmentSchema } from './schemas/appointment.schema';
-import { AvailabilityModule } from '../availability/availability.module';
-import { NotificationsModule } from '../notifications/notifications.module';
+import { ClinicsModule } from '../clinics/clinics.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Appointment.name, schema: AppointmentSchema },
     ]),
-    AvailabilityModule,
-    NotificationsModule,
+    ClinicsModule,
   ],
   controllers: [AppointmentsController],
   providers: [AppointmentsService],

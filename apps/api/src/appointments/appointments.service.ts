@@ -1,13 +1,12 @@
 import {
-  Injectable,
-  NotFoundException,
+  BadRequestException,
   ConflictException,
   ForbiddenException,
-  Logger,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
-
 import {
   Appointment,
   AppointmentDocument,
@@ -15,278 +14,181 @@ import {
 } from './schemas/appointment.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
-import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
-import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
-import { AvailabilityService } from '../availability/availability.service';
-import { NotificationsService } from '../notifications/notifications.service';
-
-const VALID_TRANSITIONS: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
-  [AppointmentStatus.SCHEDULED]: [
-    AppointmentStatus.CONFIRMED,
-    AppointmentStatus.CANCELLED,
-  ],
-  [AppointmentStatus.CONFIRMED]: [
-    AppointmentStatus.COMPLETED,
-    AppointmentStatus.CANCELLED,
-  ],
-};
+import { ClinicsService } from '../clinics/clinics.service';
+import { Role } from '../common/enums/role.enum';
 
 @Injectable()
 export class AppointmentsService {
-  private readonly logger = new Logger(AppointmentsService.name);
-
   constructor(
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<AppointmentDocument>,
-    private readonly availabilityService: AvailabilityService,
-    private readonly notificationsService: NotificationsService,
+    private readonly clinicsService: ClinicsService,
   ) {}
 
-  async create(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
-    const endAt = this.computeEndAt(dto.startAt, dto.durationMinutes);
-    await this.validateDateRange(dto.startAt, endAt);
-    await this.validateAvailability(dto.professionalId, dto.startAt, endAt);
-    await this.checkConflict(dto.professionalId, dto.startAt, endAt);
-    await this.checkCrossClinicInterval(
+  async create(dto: CreateAppointmentDto, userId: string): Promise<AppointmentDocument> {
+    await this.checkConflict(
       dto.professionalId,
       dto.startAt,
-      endAt,
-    );
-
-    const appointment = new this.appointmentModel({ ...dto, endAt });
-    const createdAppointment = await appointment.save();
-
-    void this.notificationsService
-      .notifyAppointmentCreated(createdAppointment)
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to send appointment created notification: ${error instanceof Error ? error.message : 'unknown error'}`,
-        ),
-      );
-
-    return createdAppointment;
-  }
-
-  async createForPatient(
-    dto: CreateAppointmentDto,
-    patientId: string,
-  ): Promise<AppointmentDocument> {
-    const endAt = this.computeEndAt(dto.startAt, dto.durationMinutes);
-    await this.validateDateRange(dto.startAt, endAt);
-    await this.validateAvailability(dto.professionalId, dto.startAt, endAt);
-    await this.checkConflict(dto.professionalId, dto.startAt, endAt);
-    await this.checkCrossClinicInterval(
-      dto.professionalId,
-      dto.startAt,
-      endAt,
+      dto.endAt,
+      dto.clinicId,
     );
 
     const appointment = new this.appointmentModel({
       ...dto,
-      endAt,
-      patientId,
+      professionalId: new Types.ObjectId(dto.professionalId),
+      clinicId: new Types.ObjectId(dto.clinicId),
+      patientId: new Types.ObjectId(dto.patientId),
+      createdBy: new Types.ObjectId(userId),
+      status: AppointmentStatus.PENDING,
     });
-    const createdAppointment = await appointment.save();
 
-    void this.notificationsService
-      .notifyAppointmentCreated(createdAppointment)
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to send appointment created notification: ${error instanceof Error ? error.message : 'unknown error'}`,
-        ),
-      );
-
-    return createdAppointment;
+    return appointment.save();
   }
 
-  async findAll(query?: GetAppointmentsQueryDto): Promise<AppointmentDocument[]> {
+  async createForPatient(
+    dto: CreateAppointmentDto,
+    attendantUser: { userId: string; clinicId: string },
+  ): Promise<AppointmentDocument> {
+    await this.checkConflict(
+      dto.professionalId,
+      dto.startAt,
+      dto.endAt,
+      dto.clinicId,
+    );
+
+    const appointment = new this.appointmentModel({
+      ...dto,
+      professionalId: new Types.ObjectId(dto.professionalId),
+      clinicId: new Types.ObjectId(dto.clinicId),
+      patientId: new Types.ObjectId(dto.patientId),
+      createdBy: new Types.ObjectId(attendantUser.userId),
+      status: AppointmentStatus.PENDING,
+    });
+
+    return appointment.save();
+  }
+
+  async findAll(user: { userId: string; role: string; clinicId?: string }): Promise<AppointmentDocument[]> {
     const filter: FilterQuery<AppointmentDocument> = {};
 
-    if (query?.professionalId && Types.ObjectId.isValid(query.professionalId)) {
-      filter.professionalId = new Types.ObjectId(query.professionalId);
-    }
-    if (query?.clinicId && Types.ObjectId.isValid(query.clinicId)) {
-      filter.clinicId = new Types.ObjectId(query.clinicId);
-    }
-    if (query?.patientId && Types.ObjectId.isValid(query.patientId)) {
-      filter.patientId = new Types.ObjectId(query.patientId);
-    }
-    if (query?.status) {
-      filter.status = query.status;
-    }
-    if (query?.dateFrom || query?.dateTo) {
-      const startAt: { $gte?: Date; $lte?: Date } = {};
-      if (query.dateFrom) startAt.$gte = new Date(query.dateFrom);
-      if (query.dateTo) startAt.$lte = new Date(query.dateTo);
-      filter.startAt = startAt;
+    if (user.role === Role.CLINIC && user.clinicId) {
+      filter.clinicId = new Types.ObjectId(user.clinicId);
+    } else if (user.role === Role.PROFESSIONAL) {
+      filter.professionalId = new Types.ObjectId(user.userId);
+    } else if (user.role === Role.PATIENT) {
+      filter.patientId = new Types.ObjectId(user.userId);
     }
 
-    return this.appointmentModel.find(filter).exec();
+    return this.appointmentModel.find(filter).sort({ startAt: 1 }).exec();
   }
 
   async findById(id: string): Promise<AppointmentDocument> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid appointment ID');
+    }
+
     const appointment = await this.appointmentModel.findById(id).exec();
     if (!appointment) {
-      throw new NotFoundException(`Appointment with id ${id} not found`);
+      throw new NotFoundException('Appointment not found');
     }
+
     return appointment;
   }
 
   async update(
     id: string,
     dto: UpdateAppointmentDto,
+    user: { userId: string; role: string },
   ): Promise<AppointmentDocument> {
     const appointment = await this.findById(id);
 
-    if (dto.startAt || dto.durationMinutes) {
-      const startAt = dto.startAt ?? appointment.startAt.toISOString();
-      const durationMinutes = dto.durationMinutes ?? appointment.durationMinutes;
-      const endAt = this.computeEndAt(startAt, durationMinutes);
-      await this.validateDateRange(startAt, endAt);
+    if (
+      user.role === Role.PROFESSIONAL &&
+      appointment.professionalId.toString() !== user.userId
+    ) {
+      throw new ForbiddenException('You can only update your own appointments');
+    }
+
+    if (dto.startAt || dto.endAt) {
       await this.checkConflict(
         appointment.professionalId.toString(),
-        startAt,
-        endAt,
+        dto.startAt ?? appointment.startAt.toISOString(),
+        dto.endAt ?? appointment.endAt.toISOString(),
+        appointment.clinicId.toString(),
         id,
       );
-      await this.checkCrossClinicInterval(
-        appointment.professionalId.toString(),
-        startAt,
-        endAt,
-        id,
-      );
-      Object.assign(appointment, dto, { endAt });
-    } else {
-      Object.assign(appointment, dto);
     }
+
+    Object.assign(appointment, dto);
     return appointment.save();
   }
 
-  async updateStatus(
+  async cancel(
     id: string,
-    dto: UpdateAppointmentStatusDto,
+    user: { userId: string; role: string },
   ): Promise<AppointmentDocument> {
     const appointment = await this.findById(id);
 
-    if (
-      appointment.status === AppointmentStatus.COMPLETED ||
-      appointment.status === AppointmentStatus.CANCELLED
-    ) {
-      throw new ConflictException(`Appointment is already ${appointment.status}`);
+    if (appointment.status === AppointmentStatus.CANCELLED) {
+      throw new BadRequestException('Appointment is already cancelled');
     }
-
-    const allowed = VALID_TRANSITIONS[appointment.status] ?? [];
-    if (!allowed.includes(dto.status)) {
-      throw new ConflictException(
-        `Invalid status transition: ${appointment.status} → ${dto.status}`,
-      );
-    }
-
-    appointment.status = dto.status;
-    const updatedAppointment = await appointment.save();
-
-    if (dto.status === AppointmentStatus.CONFIRMED) {
-      void this.notificationsService
-        .notifyAppointmentConfirmed(updatedAppointment)
-        .catch((error: unknown) =>
-          this.logger.warn(
-            `Failed to send appointment confirmed notification: ${error instanceof Error ? error.message : 'unknown error'}`,
-          ),
-        );
-    }
-
-    if (dto.status === AppointmentStatus.CANCELLED) {
-      void this.notificationsService
-        .notifyAppointmentCancelled(updatedAppointment, 'provider')
-        .catch((error: unknown) =>
-          this.logger.warn(
-            `Failed to send appointment cancelled notification: ${error instanceof Error ? error.message : 'unknown error'}`,
-          ),
-        );
-    }
-
-    return updatedAppointment;
-  }
-
-  async cancel(id: string): Promise<AppointmentDocument> {
-    const appointment = await this.findById(id);
 
     if (
-      appointment.status === AppointmentStatus.CANCELLED ||
-      appointment.status === AppointmentStatus.COMPLETED
+      user.role === Role.PATIENT &&
+      appointment.patientId.toString() !== user.userId
     ) {
-      throw new ConflictException(
-        `Cannot cancel appointment with status ${appointment.status}`,
-      );
+      throw new ForbiddenException('You can only cancel your own appointments');
     }
 
     appointment.status = AppointmentStatus.CANCELLED;
-    const cancelledAppointment = await appointment.save();
-
-    void this.notificationsService
-      .notifyAppointmentCancelled(cancelledAppointment, 'provider')
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to send appointment cancelled notification: ${error instanceof Error ? error.message : 'unknown error'}`,
-        ),
-      );
-
-    return cancelledAppointment;
+    return appointment.save();
   }
 
-  async cancelAsPatient(
+  async confirm(
     id: string,
-    patientUserId: string,
+    user: { userId: string; role: string },
   ): Promise<AppointmentDocument> {
     const appointment = await this.findById(id);
 
-    if (appointment.patientId.toString() !== patientUserId) {
-      throw new ForbiddenException('You are not the patient of this appointment');
+    if (appointment.status !== AppointmentStatus.PENDING) {
+      throw new BadRequestException('Only pending appointments can be confirmed');
     }
 
     if (
-      appointment.status === AppointmentStatus.CANCELLED ||
-      appointment.status === AppointmentStatus.COMPLETED
+      user.role === Role.PROFESSIONAL &&
+      appointment.professionalId.toString() !== user.userId
     ) {
-      throw new ConflictException(
-        `Cannot cancel appointment with status ${appointment.status}`,
-      );
+      throw new ForbiddenException('You can only confirm your own appointments');
     }
 
-    appointment.status = AppointmentStatus.CANCELLED;
-    const cancelledAppointment = await appointment.save();
-
-    void this.notificationsService
-      .notifyAppointmentCancelled(cancelledAppointment, 'patient')
-      .catch((error: unknown) =>
-        this.logger.warn(
-          `Failed to send appointment cancelled notification: ${error instanceof Error ? error.message : 'unknown error'}`,
-        ),
-      );
-
-    return cancelledAppointment;
+    appointment.status = AppointmentStatus.CONFIRMED;
+    return appointment.save();
   }
 
-  async remove(id: string): Promise<void> {
-    const appointment = await this.findById(id);
-    await appointment.deleteOne();
-  }
-
-  async checkConflict(
+  private async checkConflict(
     professionalId: string,
     startAt: string,
     endAt: string,
+    clinicId: string,
     excludeId?: string,
   ): Promise<void> {
+    const clinic = await this.clinicsService.findById(clinicId);
+    const linkedScheduling = clinic?.linkedScheduling ?? false;
+
+    const startDate = new Date(startAt);
+    const endDate = new Date(endAt);
+
+    // RN03/RN25: linkedScheduling=true allows back-to-back appointments (strict overlap only).
+    // linkedScheduling=false blocks boundary-touching appointments as well (inclusive bounds).
+    const overlapFilter = linkedScheduling
+      ? { startAt: { $lt: endDate }, endAt: { $gt: startDate } }
+      : { startAt: { $lte: endDate }, endAt: { $gte: startDate } };
+
     const filter: FilterQuery<AppointmentDocument> = {
       professionalId: new Types.ObjectId(professionalId),
+      clinicId: new Types.ObjectId(clinicId),
       status: { $nin: [AppointmentStatus.CANCELLED] },
-      $or: [
-        {
-          startAt: { $lt: new Date(endAt) },
-          endAt: { $gt: new Date(startAt) },
-        },
-      ],
+      ...overlapFilter,
     };
 
     if (excludeId) {
@@ -297,85 +199,6 @@ export class AppointmentsService {
     if (conflict) {
       throw new ConflictException(
         'Professional already has an appointment in this time slot',
-      );
-    }
-  }
-
-  async checkCrossClinicInterval(
-    professionalId: string,
-    startAt: string,
-    endAt: string,
-    excludeId?: string,
-  ): Promise<void> {
-    const INTERVAL_MINUTES = 60;
-    const intervalMs = INTERVAL_MINUTES * 60 * 1000;
-
-    const rangeStart = new Date(new Date(startAt).getTime() - intervalMs);
-    const rangeEnd = new Date(new Date(endAt).getTime() + intervalMs);
-
-    const filter: FilterQuery<AppointmentDocument> = {
-      professionalId: new Types.ObjectId(professionalId),
-      status: { $nin: [AppointmentStatus.CANCELLED] },
-      $or: [
-        {
-          startAt: { $lt: rangeEnd },
-          endAt: { $gt: rangeStart },
-        },
-      ],
-    };
-
-    if (excludeId) {
-      filter._id = { $ne: new Types.ObjectId(excludeId) };
-    }
-
-    const nearby = await this.appointmentModel.findOne(filter).exec();
-    if (nearby) {
-      throw new ConflictException(
-        `Professional needs at least ${INTERVAL_MINUTES} minutes between appointments at different clinics`,
-      );
-    }
-  }
-
-  private computeEndAt(startAt: string, durationMinutes: number): string {
-    return new Date(new Date(startAt).getTime() + durationMinutes * 60 * 1000).toISOString();
-  }
-
-  validateDateRange(startAt: string, endAt: string): void {
-    const start = new Date(startAt);
-    const end = new Date(endAt);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      throw new ConflictException('Invalid date format for startAt or endAt');
-    }
-
-    if (start >= end) {
-      throw new ConflictException('startAt must be before endAt');
-    }
-  }
-
-  private async validateAvailability(
-    professionalId: string,
-    startAt: string,
-    endAt: string,
-  ): Promise<void> {
-    const requestedStartAt = new Date(startAt);
-    const requestedEndAt = new Date(endAt);
-    const dateString = requestedStartAt.toISOString().slice(0, 10);
-
-    const availableSlots = await this.availabilityService.getAvailableSlots(
-      professionalId,
-      dateString,
-    );
-
-    const hasExactSlot = availableSlots.some(
-      (slot) =>
-        slot.startAt.getTime() === requestedStartAt.getTime() &&
-        slot.endAt.getTime() === requestedEndAt.getTime(),
-    );
-
-    if (!hasExactSlot) {
-      throw new ConflictException(
-        'Selected time is not available for this professional',
       );
     }
   }
