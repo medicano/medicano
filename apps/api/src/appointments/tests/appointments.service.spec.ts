@@ -54,8 +54,8 @@ describe('AppointmentsService', () => {
         clinicId,
         professionalId,
         patientId,
-        startAt: new Date(),
-        endAt: new Date(),
+        startAt: new Date().toISOString(),
+        durationMinutes: 30,
       };
 
       mockClinicsService.findById.mockResolvedValue({ _id: clinicId });
@@ -71,8 +71,8 @@ describe('AppointmentsService', () => {
         clinicId,
         professionalId,
         patientId,
-        startAt: new Date(),
-        endAt: new Date(),
+        startAt: new Date().toISOString(),
+        durationMinutes: 30,
       };
 
       const saved = { ...dto, _id: new Types.ObjectId().toString(), status: AppointmentStatus.SCHEDULED };
