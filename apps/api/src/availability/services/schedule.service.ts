@@ -5,15 +5,19 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { AvailabilityService } from '../availability.service';
+import { isValidObjectId, Model } from 'mongoose';
 import { AppointmentsService } from '../../appointments/appointments.service';
+import { AvailabilityService } from '../availability.service';
 import { ProfessionalsService } from '../../professionals/professionals.service';
-import { ClinicProfessionalDocument } from '../../professionals/schemas/clinic-professional.schema';
-import { UserDocument } from '../../auth/schemas/user.schema';
-import { Role } from '../../common/enums/role.enum';
 import { GetScheduleQueryDto } from '../dto/get-schedule-query.dto';
-import type { IScheduleResponse as ScheduleResponse } from '@medicano/types';
+import { Role } from '../../common/enums/role.enum';
+
+export interface IScheduleResponse {
+  fromDate: string;
+  toDate: string;
+  availableSlots: any[];
+  appointments: any[];
+}
 
 @Injectable()
 export class ScheduleService {
@@ -21,22 +25,29 @@ export class ScheduleService {
     private readonly availabilityService: AvailabilityService,
     private readonly appointmentsService: AppointmentsService,
     private readonly professionalsService: ProfessionalsService,
+    @InjectModel('User') private readonly userModel: Model<any>,
     @InjectModel('ClinicProfessional')
-    private readonly clinicProfessionalModel: Model<ClinicProfessionalDocument>,
-    @InjectModel('User')
-    private readonly userModel: Model<UserDocument>,
+    private readonly clinicProfessionalModel: Model<any>,
   ) {}
 
   async getProviderSchedule(
     professionalId: string,
     query: GetScheduleQueryDto,
     currentUserId: string,
-  ): Promise<ScheduleResponse> {
-    if (!Types.ObjectId.isValid(professionalId)) {
+  ): Promise<IScheduleResponse> {
+    if (!isValidObjectId(professionalId)) {
       throw new BadRequestException('Invalid professionalId');
     }
 
-    const currentUser = await this.userModel.findById(currentUserId);
+    const fromDateObj = new Date(query.fromDate);
+    const toDateObj = new Date(query.toDate);
+    toDateObj.setHours(23, 59, 59, 999);
+
+    if (toDateObj < fromDateObj) {
+      throw new BadRequestException('toDate must be greater than or equal to fromDate');
+    }
+
+    const currentUser = await this.userModel.findById(currentUserId).exec();
     if (!currentUser) {
       throw new NotFoundException('User not found');
     }
@@ -46,81 +57,52 @@ export class ScheduleService {
       throw new NotFoundException('Professional not found');
     }
 
-    await this.authorize(currentUser, professional, professionalId);
+    const role: string = currentUser.role;
+
+    if (role === Role.PROFESSIONAL) {
+      const professionalUserId =
+        professional.userId?.toString?.() ?? professional.userId;
+      if (professionalUserId !== currentUserId) {
+        throw new ForbiddenException(
+          'You are not authorized to view this professional schedule',
+        );
+      }
+    } else if (role === Role.CLINIC || role === Role.ATTENDANT) {
+      const clinicId = currentUser.clinicId ?? currentUser._id;
+      const link = await this.clinicProfessionalModel
+        .findOne({
+          clinicId: clinicId,
+          professionalId: professionalId,
+        })
+        .exec();
+
+      if (!link) {
+        throw new ForbiddenException(
+          'You are not authorized to view this professional schedule',
+        );
+      }
+    } else {
+      throw new ForbiddenException(
+        'You are not authorized to view this professional schedule',
+      );
+    }
 
     const availableSlots = await this.availabilityService.getAvailableSlots(
       professionalId,
-      {
-        fromDate: query.fromDate,
-        toDate: query.toDate,
-      } as any,
+      { fromDate: fromDateObj, toDate: toDateObj },
     );
-
-    const fromDateObj = new Date(query.fromDate);
-    const toDateObj = new Date(query.toDate);
-    toDateObj.setHours(23, 59, 59, 999);
 
     const appointments = await this.appointmentsService.findAll({
       professionalId,
       dateFrom: fromDateObj.toISOString(),
       dateTo: toDateObj.toISOString(),
-    } as any);
+    });
 
     return {
       fromDate: query.fromDate,
       toDate: query.toDate,
       availableSlots,
-      appointments: appointments as any[],
+      appointments,
     };
-  }
-
-  private async authorize(
-    currentUser: UserDocument,
-    professional: any,
-    professionalId: string,
-  ): Promise<void> {
-    const role = (currentUser as any).role;
-
-    if (role === Role.PROFESSIONAL) {
-      const professionalUserId =
-        professional.userId ?? professional.user ?? professional._id;
-      if (String(professionalUserId) !== String((currentUser as any)._id)) {
-        throw new ForbiddenException();
-      }
-      return;
-    }
-
-    if (role === Role.CLINIC) {
-      const clinicId =
-        (currentUser as any).clinicId ?? (currentUser as any)._id;
-      if (!clinicId) {
-        throw new ForbiddenException();
-      }
-      const exists = await this.clinicProfessionalModel.exists({
-        clinicId,
-        professionalId,
-      });
-      if (!exists) {
-        throw new ForbiddenException();
-      }
-      return;
-    }
-
-    if (role === Role.ATTENDANT) {
-      const clinicId = (currentUser as any).clinicId;
-      if (!clinicId) {
-        throw new ForbiddenException();
-      }
-      const exists = await this.clinicProfessionalModel.exists({
-        clinicId,
-        professionalId,
-      });
-      if (!exists) {
-        throw new ForbiddenException();
-      }
-      return;
-    }
-
-    throw new ForbiddenException();
   }
 }
