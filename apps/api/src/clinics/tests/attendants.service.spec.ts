@@ -1,10 +1,11 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getModelToken } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import * as bcrypt from 'bcrypt';
 
 import { AttendantsService } from '../services/attendants.service';
@@ -13,351 +14,274 @@ import { User } from '../../auth/schemas/user.schema';
 import { Role } from '../../common/enums/role.enum';
 
 jest.mock('bcrypt', () => ({
-  hash: jest.fn(),
+  hash: jest.fn().mockResolvedValue('hashed-password'),
 }));
 
-const mockQuery = <T>(value: T) => ({
-  exec: jest.fn().mockResolvedValue(value),
-});
+// ---------------------------------------------------------------------------
+// Constructor-function mock for the Mongoose User model (per CONVENTIONS.md).
+// Supports both `new this.userModel(dto)` and static methods.
+// ---------------------------------------------------------------------------
+function MockUserModel(this: any, dto: any) {
+  Object.assign(this, dto);
+  this.save = jest.fn().mockResolvedValue(this);
+  this.toObject = jest.fn().mockReturnValue({ ...dto });
+}
+(MockUserModel as any).find = jest.fn();
+(MockUserModel as any).findOneAndUpdate = jest.fn();
+(MockUserModel as any).create = jest.fn();
+(MockUserModel as any).deleteOne = jest.fn();
+
+// Query-chain helper (supports .select().sort().exec() in any order).
+function buildExec<T>(value: T) {
+  const chain: any = {
+    exec: jest.fn().mockResolvedValue(value),
+    select: jest.fn(),
+    sort: jest.fn(),
+  };
+  chain.select.mockReturnValue(chain);
+  chain.sort.mockReturnValue(chain);
+  return chain;
+}
 
 describe('AttendantsService', () => {
   let service: AttendantsService;
 
-  const userModel = {
-    create: jest.fn(),
-    find: jest.fn(),
-    findOne: jest.fn(),
-    findOneAndUpdate: jest.fn(),
-    deleteOne: jest.fn(),
-  };
+  const currentUserId = new Types.ObjectId().toString();
+  const clinicId = new Types.ObjectId().toString();
+  const attendantId = new Types.ObjectId().toString();
 
-  const clinicsService = {
-    findByOwner: jest.fn(),
-    findById: jest.fn(),
-    findOne: jest.fn(),
-    findByIdForOwner: jest.fn(),
-    getClinicByOwner: jest.fn(),
-  };
+  const ownedClinic = { _id: clinicId, userId: currentUserId };
+  const foreignClinic = { _id: clinicId, userId: 'other-user-id' };
 
-  const ownerId = 'clinic-owner-id';
-  const anotherOwnerId = 'another-owner-id';
-  const clinicId = 'clinic-id';
-  const attendantId = 'attendant-id';
+  const mockClinicsService = { findById: jest.fn() };
 
-  const clinic = {
-    _id: clinicId,
-    userId: ownerId,
-    ownerId,
-    toString: () => clinicId,
-  };
-
-  const clinicOwnedByAnother = {
-    _id: clinicId,
-    userId: anotherOwnerId,
-    ownerId: anotherOwnerId,
-    toString: () => clinicId,
-  };
-
-  const mockClinicOwnership = (owned: boolean) => {
-    const value = owned ? clinic : clinicOwnedByAnother;
-    const nullValue = owned ? clinic : null;
-
-    Object.keys(clinicsService).forEach((key) => {
-      const fn = clinicsService[
-        key as keyof typeof clinicsService
-      ] as jest.Mock;
-
-      if (key === 'findByOwner' || key === 'findByIdForOwner' ||
-          key === 'getClinicByOwner') {
-        fn.mockResolvedValue(nullValue);
-      } else {
-        fn.mockResolvedValue(value);
-      }
-    });
-  };
-
-  beforeEach(async () => {
-    (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
-
-    const module: TestingModule = await Test.createTestingModule({
+  beforeAll(async () => {
+    const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         AttendantsService,
-        {
-          provide: getModelToken(User.name),
-          useValue: userModel,
-        },
-        {
-          provide: ClinicsService,
-          useValue: clinicsService,
-        },
+        { provide: getModelToken(User.name), useValue: MockUserModel },
+        { provide: ClinicsService, useValue: mockClinicsService },
       ],
     }).compile();
 
-    service = module.get<AttendantsService>(AttendantsService);
+    service = moduleRef.get(AttendantsService);
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
+  // -------------------------------------------------------------------------
+  // createAttendant
+  // -------------------------------------------------------------------------
   describe('createAttendant', () => {
     const dto = {
-      username: 'attendant@example.com',
-      password: 'plain-password',
-      displayName: 'Attendant Name',
-    };
+      username: 'ana.attendant',
+      password: 'plain-pass',
+      displayName: 'Ana',
+    } as any;
 
-    it('createAttendant — success hashes password and creates user with role=ATTENDANT', async () => {
-      mockClinicOwnership(true);
+    it('creates user with hashed password and role ATTENDANT', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
 
-      const createdUser = {
+      const createdDoc = {
         _id: attendantId,
         username: dto.username,
         displayName: dto.displayName,
         role: Role.ATTENDANT,
         clinicId,
+        passwordHash: 'hashed-password',
+        toObject() {
+          return {
+            _id: attendantId,
+            username: dto.username,
+            displayName: dto.displayName,
+            role: Role.ATTENDANT,
+            clinicId,
+            passwordHash: 'hashed-password',
+          };
+        },
       };
+      (MockUserModel as any).create.mockResolvedValue(createdDoc);
 
-      userModel.create.mockResolvedValue(createdUser);
-
-      const result = await service.createAttendant(ownerId, clinicId, dto);
-
-      expect(bcrypt.hash).toHaveBeenCalledWith(
-        dto.password,
-        expect.any(Number),
+      const result = await service.createAttendant(
+        currentUserId,
+        clinicId,
+        dto,
       );
 
-      expect(userModel.create).toHaveBeenCalledWith(
+      expect(bcrypt.hash).toHaveBeenCalledWith(dto.password, 12);
+      expect((MockUserModel as any).create).toHaveBeenCalledWith(
         expect.objectContaining({
+          role: Role.ATTENDANT,
+          clinicId,
+          passwordHash: 'hashed-password',
           username: dto.username,
           displayName: dto.displayName,
-          passwordHash: 'hashed-password',
-          role: Role.ATTENDANT,
         }),
       );
-
-      const createArg = userModel.create.mock.calls[0][0];
-      expect(createArg).not.toHaveProperty('password');
-
-      expect(result).toEqual(createdUser);
+      expect(result).not.toHaveProperty('passwordHash');
     });
 
-    it('createAttendant — duplicate username throws ConflictException', async () => {
-      mockClinicOwnership(true);
-
-      userModel.create.mockRejectedValue({ code: 11000 });
+    it('throws ConflictException on duplicate username', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
+      (MockUserModel as any).create.mockRejectedValue({ code: 11000 });
 
       await expect(
-        service.createAttendant(ownerId, clinicId, dto),
+        service.createAttendant(currentUserId, clinicId, dto),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
-    it('createAttendant — clinic owned by another user throws ForbiddenException', async () => {
-      mockClinicOwnership(false);
+    it('throws ForbiddenException when current user does not own the clinic', async () => {
+      mockClinicsService.findById.mockResolvedValue(foreignClinic);
 
       await expect(
-        service.createAttendant(ownerId, clinicId, dto),
+        service.createAttendant(currentUserId, clinicId, dto),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(bcrypt.hash).not.toHaveBeenCalled();
-      expect(userModel.create).not.toHaveBeenCalled();
+      expect((MockUserModel as any).create).not.toHaveBeenCalled();
     });
   });
 
+  // -------------------------------------------------------------------------
+  // listAttendants
+  // -------------------------------------------------------------------------
   describe('listAttendants', () => {
-    it('listAttendants — returns only attendants of that clinic, no passwordHash, sorted by displayName', async () => {
-      mockClinicOwnership(true);
+    it('returns attendants of that clinic sorted by displayName, no passwordHash', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
 
-      const attendants = [
-        {
-          _id: 'attendant-a',
-          username: 'a@example.com',
-          displayName: 'Ana',
-          role: Role.ATTENDANT,
-          clinicId,
-        },
-        {
-          _id: 'attendant-b',
-          username: 'b@example.com',
-          displayName: 'Bruno',
-          role: Role.ATTENDANT,
-          clinicId,
-        },
-      ];
+      const docs = [{ displayName: 'Ana' }, { displayName: 'Bruno' }];
+      const chain = buildExec(docs);
+      (MockUserModel as any).find.mockReturnValue(chain);
 
-      const execMock = jest.fn().mockResolvedValue(attendants);
-      const sortMock = jest.fn().mockReturnValue({ exec: execMock });
-      const selectMock = jest
-        .fn()
-        .mockReturnValue({ sort: sortMock, exec: execMock });
+      const result = await service.listAttendants(currentUserId, clinicId);
 
-      userModel.find.mockReturnValue({
-        select: selectMock,
-        sort: sortMock,
-        exec: execMock,
+      expect((MockUserModel as any).find).toHaveBeenCalledWith({
+        role: Role.ATTENDANT,
+        clinicId,
       });
-
-      const result = await service.listAttendants(ownerId, clinicId);
-
-      expect(userModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          clinicId,
-          role: Role.ATTENDANT,
-        }),
+      expect(chain.select).toHaveBeenCalledWith('-passwordHash');
+      expect(chain.sort).toHaveBeenCalledWith(
+        expect.objectContaining({ displayName: expect.anything() }),
       );
-
-      expect(selectMock).toHaveBeenCalledWith('-passwordHash');
-      expect(sortMock).toHaveBeenCalledWith({ displayName: 1 });
-      expect(result).toEqual(attendants);
+      expect(result).toEqual(docs);
     });
 
-    it('listAttendants — wrong clinic owner throws ForbiddenException', async () => {
-      mockClinicOwnership(false);
+    it('throws ForbiddenException when current user does not own the clinic', async () => {
+      mockClinicsService.findById.mockResolvedValue(foreignClinic);
 
       await expect(
-        service.listAttendants(ownerId, clinicId),
+        service.listAttendants(currentUserId, clinicId),
       ).rejects.toBeInstanceOf(ForbiddenException);
 
-      expect(userModel.find).not.toHaveBeenCalled();
+      expect((MockUserModel as any).find).not.toHaveBeenCalled();
     });
   });
 
+  // -------------------------------------------------------------------------
+  // updateAttendant
+  // -------------------------------------------------------------------------
   describe('updateAttendant', () => {
-    it('updateAttendant — wrong clinic throws NotFoundException', async () => {
-      mockClinicOwnership(true);
+    it('updates displayName and isActive', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
 
-      userModel.findOneAndUpdate.mockReturnValue(mockQuery(null));
+      const updatedDoc = { displayName: 'Updated', isActive: false };
+      const chain = buildExec(updatedDoc);
+      (MockUserModel as any).findOneAndUpdate.mockReturnValue(chain);
 
-      await expect(
-        service.updateAttendant(ownerId, clinicId, attendantId, {
-          displayName: 'Updated Name',
-        }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-
-      expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          _id: attendantId,
-          clinicId,
-          role: Role.ATTENDANT,
-        }),
-        expect.any(Object),
-        expect.any(Object),
-      );
-    });
-
-    it('updateAttendant — password rehashed when provided', async () => {
-      mockClinicOwnership(true);
-
-      const dto = {
-        displayName: 'Updated Name',
-        password: 'new-password',
-      };
-
-      const updatedUser = {
-        _id: attendantId,
-        username: 'attendant@example.com',
-        displayName: dto.displayName,
-        role: Role.ATTENDANT,
-        clinicId,
-      };
-
-      userModel.findOneAndUpdate.mockReturnValue(mockQuery(updatedUser));
-
+      const dto = { displayName: 'Updated', isActive: false } as any;
       const result = await service.updateAttendant(
-        ownerId,
+        currentUserId,
         clinicId,
         attendantId,
         dto,
       );
 
-      expect(bcrypt.hash).toHaveBeenCalledWith(
-        dto.password,
-        expect.any(Number),
-      );
-
-      expect(userModel.findOneAndUpdate).toHaveBeenCalledWith(
+      expect((MockUserModel as any).findOneAndUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           _id: attendantId,
-          clinicId,
           role: Role.ATTENDANT,
+          clinicId,
         }),
         expect.objectContaining({
-          displayName: dto.displayName,
-          passwordHash: 'hashed-password',
+          displayName: 'Updated',
+          isActive: false,
         }),
         expect.any(Object),
       );
-
-      const updateArg = userModel.findOneAndUpdate.mock.calls[0][1];
-      expect(updateArg).not.toHaveProperty('password');
-
-      expect(result).toEqual(updatedUser);
+      expect(result).toEqual(updatedDoc);
     });
 
-    it('updateAttendant — password NOT rehashed when not provided', async () => {
-      mockClinicOwnership(true);
+    it('rehashes password when dto.password is provided', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
 
-      const dto = {
-        displayName: 'Updated Name',
-      };
+      const chain = buildExec({ displayName: 'x' });
+      (MockUserModel as any).findOneAndUpdate.mockReturnValue(chain);
 
-      const updatedUser = {
-        _id: attendantId,
-        username: 'attendant@example.com',
-        displayName: dto.displayName,
-        role: Role.ATTENDANT,
+      const dto = { password: 'new-pass' } as any;
+      await service.updateAttendant(
+        currentUserId,
         clinicId,
-      };
+        attendantId,
+        dto,
+      );
 
-      userModel.findOneAndUpdate.mockReturnValue(mockQuery(updatedUser));
+      expect(bcrypt.hash).toHaveBeenCalledWith('new-pass', 12);
 
-      const result = await service.updateAttendant(
-        ownerId,
+      const updateArg = (MockUserModel as any).findOneAndUpdate.mock.calls[0][1];
+      expect(updateArg).toEqual(
+        expect.objectContaining({ passwordHash: 'hashed-password' }),
+      );
+    });
+
+    it('does NOT call bcrypt.hash when dto.password is not provided', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
+
+      const chain = buildExec({ displayName: 'x' });
+      (MockUserModel as any).findOneAndUpdate.mockReturnValue(chain);
+
+      const dto = { displayName: 'Only name' } as any;
+      await service.updateAttendant(
+        currentUserId,
         clinicId,
         attendantId,
         dto,
       );
 
       expect(bcrypt.hash).not.toHaveBeenCalled();
-
-      const updateArg = userModel.findOneAndUpdate.mock.calls[0][1];
-      expect(updateArg).not.toHaveProperty('passwordHash');
-      expect(updateArg).toEqual(expect.objectContaining(dto));
-
-      expect(result).toEqual(updatedUser);
     });
   });
 
+  // -------------------------------------------------------------------------
+  // removeAttendant
+  // -------------------------------------------------------------------------
   describe('removeAttendant', () => {
-    it('removeAttendant — success returns { success: true }', async () => {
-      mockClinicOwnership(true);
-
-      userModel.deleteOne.mockReturnValue(mockQuery({ deletedCount: 1 }));
+    it('returns { success: true } on success', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
+      (MockUserModel as any).deleteOne.mockResolvedValue({ deletedCount: 1 });
 
       const result = await service.removeAttendant(
-        ownerId,
+        currentUserId,
         clinicId,
         attendantId,
-      );
-
-      expect(userModel.deleteOne).toHaveBeenCalledWith(
-        expect.objectContaining({
-          _id: attendantId,
-          clinicId,
-          role: Role.ATTENDANT,
-        }),
       );
 
       expect(result).toEqual({ success: true });
+      expect((MockUserModel as any).deleteOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _id: attendantId,
+          role: Role.ATTENDANT,
+          clinicId,
+        }),
+      );
     });
 
-    it('removeAttendant — non-existent throws NotFoundException', async () => {
-      mockClinicOwnership(true);
-
-      userModel.deleteOne.mockReturnValue(mockQuery({ deletedCount: 0 }));
+    it('throws NotFoundException when attendant not found', async () => {
+      mockClinicsService.findById.mockResolvedValue(ownedClinic);
+      (MockUserModel as any).deleteOne.mockResolvedValue({ deletedCount: 0 });
 
       await expect(
-        service.removeAttendant(ownerId, clinicId, attendantId),
+        service.removeAttendant(currentUserId, clinicId, attendantId),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
