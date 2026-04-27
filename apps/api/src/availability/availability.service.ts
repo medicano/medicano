@@ -1,268 +1,124 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import {
-  ProfessionalAvailability,
-  ProfessionalAvailabilityDocument,
-} from './schemas/professional-availability.schema';
-import { CreateProfessionalAvailabilityDto } from './dto/create-professional-availability.dto';
-import { UpdateProfessionalAvailabilityDto } from './dto/update-professional-availability.dto';
+import { Model } from 'mongoose';
+import { Appointment } from '../appointments/schemas/appointment.schema';
+import { Professional } from '../professionals/schemas/professional.schema';
 import { AvailableSlotDto } from './dto/available-slot.dto';
-import { WeeklySlotDto } from '../common/dto/weekly-slot.dto';
-import { ProfessionalsService } from '../professionals/professionals.service';
-import { Role } from '../common/enums/role.enum';
-import { validateWeeklySlots } from '../common/utils/validate-weekly-slots';
-import {
-  Appointment,
-  AppointmentDocument,
-  AppointmentStatus,
-} from '../appointments/schemas/appointment.schema';
-import { computeSlotsForDay } from './utils/compute-slots';
 
 @Injectable()
 export class AvailabilityService {
   constructor(
-    @InjectModel(ProfessionalAvailability.name)
-    private readonly availabilityModel: Model<ProfessionalAvailabilityDocument>,
     @InjectModel(Appointment.name)
-    private readonly appointmentModel: Model<AppointmentDocument>,
-    private readonly professionalsService: ProfessionalsService,
+    private readonly appointmentModel: Model<Appointment>,
+    @InjectModel(Professional.name)
+    private readonly professionalModel: Model<Professional>,
   ) {}
-
-  async create(
-    professionalId: string,
-    dto: CreateProfessionalAvailabilityDto,
-    currentUserId: string,
-    currentUserRole: Role,
-  ): Promise<ProfessionalAvailabilityDocument> {
-    await this.enforceOwnership(
-      professionalId,
-      currentUserId,
-      currentUserRole,
-    );
-
-    const isUnavailable = dto.isUnavailable ?? false;
-    const customSlots = dto.customSlots ?? [];
-
-    this.validateAvailabilitySlots(isUnavailable, customSlots);
-
-    const normalizedDate = this.normalizeDateToUtcMidnight(dto.date);
-
-    try {
-      const created = new this.availabilityModel({
-        professionalId: new Types.ObjectId(professionalId),
-        date: normalizedDate,
-        isUnavailable,
-        customSlots,
-      });
-      return await created.save();
-    } catch (error: unknown) {
-      if (this.isDuplicateKeyError(error)) {
-        throw new ConflictException(
-          `Availability for this professional on ${dto.date} already exists`,
-        );
-      }
-      throw error;
-    }
-  }
-
-  async findByProfessionalAndDate(
-    professionalId: string,
-    dateString: string,
-  ): Promise<ProfessionalAvailabilityDocument | null> {
-    if (!Types.ObjectId.isValid(professionalId)) {
-      throw new NotFoundException(
-        `Invalid professional ID: ${professionalId}`,
-      );
-    }
-
-    const normalizedDate = this.normalizeDateToUtcMidnight(dateString);
-
-    return this.availabilityModel
-      .findOne({
-        professionalId: new Types.ObjectId(professionalId),
-        date: normalizedDate,
-      })
-      .exec();
-  }
-
-  async findById(
-    availabilityId: string,
-  ): Promise<ProfessionalAvailabilityDocument> {
-    if (!Types.ObjectId.isValid(availabilityId)) {
-      throw new NotFoundException(
-        `Invalid availability ID: ${availabilityId}`,
-      );
-    }
-
-    const availability = await this.availabilityModel
-      .findById(availabilityId)
-      .exec();
-
-    if (!availability) {
-      throw new NotFoundException(
-        `Availability with ID ${availabilityId} not found`,
-      );
-    }
-
-    return availability;
-  }
-
-  async update(
-    availabilityId: string,
-    dto: UpdateProfessionalAvailabilityDto,
-    currentUserId: string,
-    currentUserRole: Role,
-  ): Promise<ProfessionalAvailabilityDocument> {
-    const availability = await this.findById(availabilityId);
-
-    await this.enforceOwnership(
-      availability.professionalId.toString(),
-      currentUserId,
-      currentUserRole,
-    );
-
-    const nextIsUnavailable =
-      dto.isUnavailable ?? availability.isUnavailable;
-    const nextCustomSlots =
-      dto.customSlots !== undefined ? dto.customSlots : availability.customSlots;
-
-    this.validateAvailabilitySlots(nextIsUnavailable, nextCustomSlots);
-
-    if (dto.date !== undefined) {
-      availability.date = this.normalizeDateToUtcMidnight(dto.date);
-    }
-    if (dto.isUnavailable !== undefined) {
-      availability.isUnavailable = dto.isUnavailable;
-    }
-    if (dto.customSlots !== undefined) {
-      availability.customSlots = dto.customSlots;
-    }
-
-    try {
-      return await availability.save();
-    } catch (error: unknown) {
-      if (this.isDuplicateKeyError(error)) {
-        throw new ConflictException(
-          'Availability for this professional on this date already exists',
-        );
-      }
-      throw error;
-    }
-  }
-
-  async remove(
-    availabilityId: string,
-    currentUserId: string,
-    currentUserRole: Role,
-  ): Promise<{ success: boolean }> {
-    const availability = await this.findById(availabilityId);
-
-    await this.enforceOwnership(
-      availability.professionalId.toString(),
-      currentUserId,
-      currentUserRole,
-    );
-
-    await this.availabilityModel.findByIdAndDelete(availabilityId).exec();
-    return { success: true };
-  }
 
   async getAvailableSlots(
     professionalId: string,
-    dateString: string,
+    fromDate: string,
+    toDate: string,
   ): Promise<AvailableSlotDto[]> {
-    const professional = await this.professionalsService.findById(
-      professionalId,
-    );
+    const start = this.normalizeDateToUtcMidnight(fromDate);
+    const end = this.normalizeDateToUtcMidnight(toDate);
 
-    const dayStart = this.normalizeDateToUtcMidnight(dateString);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
-
-    const override = await this.availabilityModel
-      .findOne({
-        professionalId: new Types.ObjectId(professionalId),
-        date: dayStart,
-      })
-      .exec();
-
-    if (override && override.isUnavailable) {
-      return [];
+    if (end < start) {
+      throw new BadRequestException('fromDate must be <= toDate');
     }
 
-    const sourceSlots: WeeklySlotDto[] =
-      override && override.customSlots && override.customSlots.length > 0
-        ? override.customSlots
-        : professional.weeklySlots ?? [];
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const rangeDays =
+      Math.floor((end.getTime() - start.getTime()) / ONE_DAY_MS) + 1;
 
-    if (sourceSlots.length === 0) {
-      return [];
+    if (rangeDays > 30) {
+      throw new BadRequestException('Date range too large; maximum 30 days');
     }
 
-    const appointments = await this.appointmentModel
-      .find({
-        professionalId: new Types.ObjectId(professionalId),
-        status: { $ne: AppointmentStatus.CANCELLED },
-        startAt: { $lt: dayEnd },
-        endAt: { $gt: dayStart },
-      })
-      .select('startAt endAt')
-      .exec();
+    const allSlots: AvailableSlotDto[] = [];
+    for (let i = 0; i < rangeDays; i++) {
+      const dayCursor = new Date(start);
+      dayCursor.setUTCDate(dayCursor.getUTCDate() + i);
+      const isoDate = dayCursor.toISOString().slice(0, 10);
 
-    return computeSlotsForDay(dayStart, sourceSlots, appointments);
+      const daySlots = await this.getAvailableSlotsForDay(
+        professionalId,
+        isoDate,
+      );
+      allSlots.push(...daySlots);
+    }
+
+    return allSlots.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
   }
 
-  private async enforceOwnership(
+  async getAvailableSlotsForDay(
     professionalId: string,
-    currentUserId: string,
-    currentUserRole: Role,
-  ): Promise<void> {
-    if (currentUserRole !== Role.PROFESSIONAL) {
-      return;
+    dateString: string,
+  ): Promise<AvailableSlotDto[]> {
+    const targetDate = this.normalizeDateToUtcMidnight(dateString);
+
+    const professional = await this.professionalModel
+      .findById(professionalId)
+      .exec();
+
+    if (!professional) {
+      return [];
     }
 
-    const professional = await this.professionalsService.findById(
-      professionalId,
+    const dayOfWeek = targetDate.getUTCDay();
+
+    const weeklySlots = (professional.weeklySlots ?? []).filter(
+      (slot: { dayOfWeek: number; startTime: string; endTime: string }) =>
+        slot.dayOfWeek === dayOfWeek,
     );
-    if (professional.userId.toString() !== currentUserId) {
-      throw new ForbiddenException(
-        'You can only manage your own availability',
-      );
+
+    if (weeklySlots.length === 0) {
+      return [];
     }
+
+    const nextDayDate = new Date(targetDate);
+    nextDayDate.setUTCDate(nextDayDate.getUTCDate() + 1);
+
+    const existingAppointments = await this.appointmentModel
+      .find({
+        professionalId,
+        startAt: { $gte: targetDate, $lt: nextDayDate },
+        status: { $in: ['confirmed', 'pending'] },
+      })
+      .exec();
+
+    const availableSlots: AvailableSlotDto[] = [];
+
+    for (const slot of weeklySlots) {
+      const [startHour, startMinute] = slot.startTime.split(':').map(Number);
+      const [endHour, endMinute] = slot.endTime.split(':').map(Number);
+
+      const slotStart = new Date(targetDate);
+      slotStart.setUTCHours(startHour, startMinute, 0, 0);
+
+      const slotEnd = new Date(targetDate);
+      slotEnd.setUTCHours(endHour, endMinute, 0, 0);
+
+      const hasOverlap = existingAppointments.some((appt) => {
+        const apptStart = new Date(appt.startAt);
+        const apptEnd = new Date(appt.endAt);
+        return apptStart < slotEnd && apptEnd > slotStart;
+      });
+
+      if (!hasOverlap) {
+        availableSlots.push(
+          new AvailableSlotDto({
+            startAt: slotStart,
+            endAt: slotEnd,
+          }),
+        );
+      }
+    }
+
+    return availableSlots;
   }
 
   private normalizeDateToUtcMidnight(dateString: string): Date {
-    const date = new Date(dateString);
-    date.setUTCHours(0, 0, 0, 0);
-    return date;
-  }
-
-  private validateAvailabilitySlots(
-    isUnavailable: boolean,
-    customSlots: WeeklySlotDto[],
-  ): void {
-    if (isUnavailable && customSlots.length > 0) {
-      throw new BadRequestException(
-        'Cannot have custom slots when marked as unavailable',
-      );
-    }
-
-    validateWeeklySlots(customSlots);
-  }
-
-  private isDuplicateKeyError(error: unknown): boolean {
-    return (
-      typeof error === 'object' &&
-      error !== null &&
-      'code' in error &&
-      (error as { code?: number }).code === 11000
-    );
+    const [year, month, day] = dateString.slice(0, 10).split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
   }
 }
