@@ -95,6 +95,6 @@ export class ClinicProfessionalsService {
       throw new NotFoundException('Professional assignment not found');
     }
 
-    return assignment;
+    return assignment as unknown as ClinicProfessionalDocument;
   }
 }
