@@ -1,4 +1,7 @@
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -12,55 +15,56 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
-import { Specialty } from '../../common/enums/specialty.enum';
 import { AddressDto } from '../../common/dto/address.dto';
+import { Specialty } from '../../common/enums/specialty.enum';
 import { WeeklySlotDto } from '../../common/dto/weekly-slot.dto';
 
 export class CreateProfessionalDto {
   @IsMongoId()
-  userId: string;
+  userId!: string;
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsEnum(Specialty)
-  specialty: Specialty;
+  specialty!: Specialty;
 
   @IsString()
-  @Matches(/^\d{11}$/, { message: 'cpf must be exactly 11 digits' })
-  cpf: string;
+  @Matches(/^\d{11}$/, { message: 'cpf must be 11 digits' })
+  cpf!: string;
 
   @IsString()
   @IsNotEmpty()
-  registration: string;
+  registration!: string;
 
   @ValidateNested()
   @Type(() => AddressDto)
-  address: AddressDto;
+  address!: AddressDto;
 
-  @IsOptional()
   @IsString()
+  @IsOptional()
   phone?: string;
 
-  @IsOptional()
   @IsString()
+  @IsOptional()
   @MaxLength(1000)
   description?: string;
 
-  @IsOptional()
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => WeeklySlotDto)
+  @ArrayMaxSize(50)
+  @IsOptional()
   weeklySlots?: WeeklySlotDto[];
 
-  @IsOptional()
   @IsBoolean()
+  @IsOptional()
   autoConfirm?: boolean;
 
-  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(168)
+  @IsOptional()
   minCancelNoticeHours?: number;
 }
