@@ -54,6 +54,7 @@ fi
 echo "Instalando dependencias..."
 "$VENV_DIR/bin/pip" install --upgrade pip --quiet
 "$VENV_DIR/bin/pip" install -r requirements.txt
+"$VENV_DIR/bin/pip" install -e .
 
 echo ""
 echo "Pronto. Para ativar o ambiente:"

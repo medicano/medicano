@@ -1,0 +1,41 @@
+{
+  "sprint": "sprint-11b-prereqs",
+  "description": "Add the AppointmentsService methods that the controller already references but were never implemented (updateStatus, cancel), fix findAll to honour query filters, and add cancelAsPatient which sprint-11 notification hooks depend on. Must run before sprint-11.",
+  "context": {
+    "stack": "NestJS + TypeScript + MongoDB (Mongoose)",
+    "dependencies": "Sprint 10b-fixes must be complete before running these prompts",
+    "canonical_imports": {
+      "AppointmentStatus": "apps/api/src/appointments/schemas/appointment.schema.ts",
+      "UpdateAppointmentStatusDto": "apps/api/src/appointments/dto/update-appointment-status.dto.ts",
+      "GetAppointmentsQueryDto": "apps/api/src/appointments/dto/get-appointments-query.dto.ts"
+    },
+    "notes": [
+      "AppointmentsController.updateStatus() at line 62 calls appointmentsService.updateStatus() — method does not exist, TypeScript compilation fails.",
+      "AppointmentsController.cancel() at line 68 calls appointmentsService.cancel() — method does not exist.",
+      "AppointmentsController.findAll() passes a GetAppointmentsQueryDto but the service signature accepts no arguments and ignores all filters.",
+      "cancelAsPatient() is called by sprint-11 NotificationsService hooks — it must exist before sprint-11 prompt 8 runs.",
+      "Sprint-11 notification hooks are fire-and-forget (.catch()); they do not require the methods to return anything specific beyond the saved AppointmentDocument."
+    ]
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "appointments-missing-methods",
+      "description": "Implement updateStatus, cancel and cancelAsPatient in AppointmentsService and fix findAll to accept query filters",
+      "files": [
+        "apps/api/src/appointments/appointments.service.ts",
+        "apps/api/src/appointments/dto/get-appointments-query.dto.ts"
+      ],
+      "request": "Before making any changes, READ BOTH files in full. Follow all conventions in medicano_crew/docs/CONVENTIONS.md.\n\nDo NOT remove or modify any existing method (create, createForPatient, findById, update, remove, checkConflict, checkCrossClinicInterval, validateDateRange).\n\n--- Step 1: fix findAll ---\n\nRead apps/api/src/appointments/dto/get-appointments-query.dto.ts to see the available filter fields.\n\nUpdate the findAll signature and implementation in AppointmentsService:\n  async findAll(query?: GetAppointmentsQueryDto): Promise<AppointmentDocument[]>\n  - Build a FilterQuery<AppointmentDocument> from query:\n    - if query.professionalId and Types.ObjectId.isValid: add professionalId\n    - if query.clinicId and Types.ObjectId.isValid: add clinicId\n    - if query.patientId and Types.ObjectId.isValid: add patientId\n    - if query.status: add status\n    - if query.dateFrom or query.dateTo: add startAt filter:\n      { $gte: new Date(query.dateFrom) } and/or { $lte: new Date(query.dateTo) }\n  - return this.appointmentModel.find(filter).exec()\n\n--- Step 2: add updateStatus ---\n\nAdd after update():\n  async updateStatus(id: string, dto: UpdateAppointmentStatusDto): Promise<AppointmentDocument>\n  - import UpdateAppointmentStatusDto at the top\n  - const appointment = await this.findById(id)\n  - Define VALID_TRANSITIONS:\n    {\n      [AppointmentStatus.SCHEDULED]: [AppointmentStatus.CONFIRMED, AppointmentStatus.CANCELLED],\n      [AppointmentStatus.CONFIRMED]: [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED],\n    }\n  - If appointment.status is COMPLETED or CANCELLED:\n    throw new ConflictException(`Appointment is already ${appointment.status}`)\n  - const allowed = VALID_TRANSITIONS[appointment.status] ?? []\n  - If !allowed.includes(dto.status):\n    throw new ConflictException(`Invalid status transition: ${appointment.status} → ${dto.status}`)\n  - appointment.status = dto.status\n  - return appointment.save()\n\n--- Step 3: add cancel (provider cancellation) ---\n\nAdd after updateStatus():\n  async cancel(id: string): Promise<AppointmentDocument>\n  - const appointment = await this.findById(id)\n  - if appointment.status is CANCELLED or COMPLETED:\n    throw new ConflictException(`Cannot cancel appointment with status ${appointment.status}`)\n  - appointment.status = AppointmentStatus.CANCELLED\n  - return appointment.save()\n\n--- Step 4: add cancelAsPatient ---\n\nAdd after cancel():\n  async cancelAsPatient(id: string, patientUserId: string): Promise<AppointmentDocument>\n  - const appointment = await this.findById(id)\n  - if (appointment.patientId.toString() !== patientUserId):\n    throw new ForbiddenException('You are not the patient of this appointment')\n  - import ForbiddenException from @nestjs/common\n  - if appointment.status is CANCELLED or COMPLETED:\n    throw new ConflictException(`Cannot cancel appointment with status ${appointment.status}`)\n  - appointment.status = AppointmentStatus.CANCELLED\n  - return appointment.save()"
+    },
+    {
+      "id": 2,
+      "name": "appointments-missing-methods-tests",
+      "description": "Extend the existing appointments.service.spec.ts with tests for the 3 new methods",
+      "files": [
+        "apps/api/src/appointments/tests/appointments.service.spec.ts"
+      ],
+      "request": "Before making any changes, READ the existing file in full. PRESERVE all existing tests — do not remove or rewrite them. Follow all conventions in medicano_crew/docs/CONVENTIONS.md.\n\nContext: mockAppointmentModel and mockClinicsService are already set up in beforeEach. Add new describe blocks after the existing ones.\n\nThe mocked appointment needs a .save() method. Use this helper inside each test that calls save():\n  const mockAppt = (status: AppointmentStatus) => ({\n    _id: new Types.ObjectId().toString(),\n    clinicId,\n    professionalId,\n    patientId,\n    startAt: new Date(),\n    endAt: new Date(),\n    status,\n    save: jest.fn().mockImplementation(function(this: any) { return Promise.resolve(this) }),\n  })\n\nAdd after the last existing describe block:\n\ndescribe('findAll') — 2 tests:\n  1. 'returns all appointments when no filters provided'\n     - mockAppointmentModel.find returns buildExecMock([])\n     - Call service.findAll() (no args)\n     - Expect find called with an empty object {}\n  2. 'filters by professionalId and status when provided'\n     - Call service.findAll({ professionalId, status: AppointmentStatus.SCHEDULED })\n     - Expect find called with { professionalId, status: AppointmentStatus.SCHEDULED }\n\ndescribe('updateStatus') — 5 tests:\n  1. 'transitions SCHEDULED → CONFIRMED successfully'\n     - mockAppointmentModel.findById returns buildExecMock(mockAppt(AppointmentStatus.SCHEDULED))\n     - Call updateStatus(id, { status: AppointmentStatus.CONFIRMED })\n     - Expect returned appointment.status === CONFIRMED\n  2. 'transitions SCHEDULED → CANCELLED successfully'\n     - Same pattern with CANCELLED\n  3. 'transitions CONFIRMED → COMPLETED successfully'\n  4. 'throws ConflictException for invalid transition SCHEDULED → COMPLETED'\n     - Expect ConflictException\n  5. 'throws ConflictException when appointment is already CANCELLED'\n     - mockAppt(AppointmentStatus.CANCELLED)\n     - Expect ConflictException\n\ndescribe('cancel') — 2 tests:\n  1. 'cancels a SCHEDULED appointment and returns it'\n     - findById returns mockAppt(AppointmentStatus.SCHEDULED)\n     - Expect returned status === CANCELLED\n  2. 'throws ConflictException if appointment is already CANCELLED'\n     - Expect ConflictException\n\ndescribe('cancelAsPatient') — 3 tests:\n  1. 'cancels when patientId matches the authenticated user'\n     - Appt has patientId matching patientId constant\n     - Call cancelAsPatient(id, patientId)\n     - Expect returned status === CANCELLED\n  2. 'throws ForbiddenException when patientId does not match'\n     - Call cancelAsPatient(id, new Types.ObjectId().toString()) — different userId\n     - Expect ForbiddenException\n  3. 'throws ConflictException if appointment is already COMPLETED'\n     - mockAppt(AppointmentStatus.COMPLETED)\n     - Expect ConflictException"
+    }
+  ]
+}

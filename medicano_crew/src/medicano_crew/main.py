@@ -2,12 +2,13 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from crewai.flow import Flow, listen, start
-from medicano_crew.crews.content_crew.content_crew import DevCrew
-from dotenv import load_dotenv
 
 load_dotenv(".env", override=True)
+
+from medicano_crew.crews.content_crew.content_crew import DevCrew
 
 
 def _strip_outer_codeblock(text: str) -> str:

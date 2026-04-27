@@ -1,0 +1,60 @@
+{
+  "sprint": "sprint-10b-fixes",
+  "description": "Resolve sprint-10 leftovers: add userId to Clinic schema, add findByUserId to ClinicsService and ProfessionalsService, wire AttendantsService/Controller into ClinicsModule, create missing attendant unit tests, and register all accumulated modules in AppModule.",
+  "context": {
+    "stack": "NestJS + TypeScript + MongoDB (Mongoose)",
+    "dependencies": "Sprint 10 must be complete before running these prompts",
+    "canonical_imports": {
+      "Role": "apps/api/src/common/enums/role.enum.ts",
+      "UserDocument": "apps/api/src/auth/schemas/user.schema.ts",
+      "User (model name)": "'User'",
+      "configuration": "apps/api/src/config/configuration.ts"
+    },
+    "notes": [
+      "The Clinic schema currently lacks a userId field — AttendantsService.assertClinicOwnership and ProfileService.updateClinicProfile both depend on clinic.userId existing.",
+      "findByUserId is called by ProfileService on both ClinicsService and ProfessionalsService but does not exist in either.",
+      "AttendantsService and AttendantsController exist on disk but are not registered in ClinicsModule.",
+      "config/configuration.ts already exists with the ses block but ConfigModule.forRoot has no load: [] option — configService.get('ses') returns undefined at runtime."
+    ]
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "clinic-userId-and-findByUserId",
+      "description": "Add userId to Clinic schema and add findByUserId to ClinicsService and ProfessionalsService",
+      "files": [
+        "apps/api/src/clinics/schemas/clinic.schema.ts",
+        "apps/api/src/clinics/clinics.service.ts",
+        "apps/api/src/professionals/professionals.service.ts"
+      ],
+      "request": "Before making any changes, read ALL THREE files. Follow all conventions in medicano_crew/docs/CONVENTIONS.md.\n\nContext: ProfileService calls clinicsService.findByUserId(userId) and professionalsService.findByUserId(userId), but neither method exists. The Clinic schema also lacks a userId field, which AttendantsService.assertClinicOwnership depends on.\n\nStep 1 — Update apps/api/src/clinics/schemas/clinic.schema.ts:\n- Import Types from 'mongoose'\n- Add to the Clinic class:\n  @Prop({ type: Types.ObjectId, ref: 'User' }) userId?: Types.ObjectId;\n- After SchemaFactory.createForClass(Clinic), add an index:\n  ClinicSchema.index({ userId: 1 }, { sparse: true });\n- Do NOT change any existing field.\n\nStep 2 — Update apps/api/src/clinics/clinics.service.ts:\n- Add after the existing remove() method:\n  async findByUserId(userId: string): Promise<ClinicDocument>\n  - if (!Types.ObjectId.isValid(userId)) throw new NotFoundException(`Clinic for user ${userId} not found`)\n  - const clinic = await this.clinicModel.findOne({ userId: new Types.ObjectId(userId) }).exec()\n  - if (!clinic) throw new NotFoundException(`Clinic for user ${userId} not found`)\n  - return clinic\n- Do NOT change any existing method.\n\nStep 3 — Update apps/api/src/professionals/professionals.service.ts:\n- Add after the existing remove() method:\n  async findByUserId(userId: string): Promise<ProfessionalDocument>\n  - if (!Types.ObjectId.isValid(userId)) throw new NotFoundException(`Professional for user ${userId} not found`)\n  - const professional = await this.professionalModel.findOne({ userId: new Types.ObjectId(userId) }).exec()\n  - if (!professional) throw new NotFoundException(`Professional for user ${userId} not found`)\n  - return professional\n- Note: the Professional schema already has userId as a required unique field.\n- Do NOT change any existing method."
+    },
+    {
+      "id": 2,
+      "name": "clinics-module-attendants-registration",
+      "description": "Register AttendantsService and AttendantsController in ClinicsModule and add the User model to its MongooseModule.forFeature",
+      "files": [
+        "apps/api/src/clinics/clinics.module.ts"
+      ],
+      "request": "Before making any changes, read the file. Follow all conventions in medicano_crew/docs/CONVENTIONS.md.\n\nContext: AttendantsService (apps/api/src/clinics/services/attendants.service.ts) and AttendantsController (apps/api/src/clinics/controllers/attendants.controller.ts) were created in sprint 10 but were never registered in ClinicsModule. AttendantsService injects the User model via @InjectModel('User'), so the User schema must be available in this module.\n\nUpdate apps/api/src/clinics/clinics.module.ts:\n1. Add to imports:\n   - import { User, UserSchema } from '../auth/schemas/user.schema'\n   - import { AttendantsService } from './services/attendants.service'\n   - import { AttendantsController } from './controllers/attendants.controller'\n2. In MongooseModule.forFeature([...]) add: { name: User.name, schema: UserSchema }\n3. Add AttendantsService to the providers array.\n4. Add AttendantsController to the controllers array.\n5. Do NOT add AttendantsService to exports — it is only used within this module.\n6. Do NOT change the existing exports: [ClinicsService, MongooseModule]."
+    },
+    {
+      "id": 3,
+      "name": "attendants-service-tests",
+      "description": "Create the missing unit test file for AttendantsService (was listed in sprint-10 spec but never generated)",
+      "files": [
+        "apps/api/src/clinics/tests/attendants.service.spec.ts"
+      ],
+      "request": "Before writing, read apps/api/src/clinics/services/attendants.service.ts to understand the implementation. Follow all conventions in medicano_crew/docs/CONVENTIONS.md — especially the constructor function mock pattern for Mongoose models.\n\nCreate apps/api/src/clinics/tests/attendants.service.spec.ts:\n\nSetup:\n- Mock bcrypt: jest.mock('bcrypt', () => ({ hash: jest.fn().mockResolvedValue('hashed-password') }))\n- mockClinicsService = { findById: jest.fn() }\n- mockUserModel: use constructor function pattern (MockUserModel) with static methods:\n  MockUserModel.find = jest.fn()\n  MockUserModel.findOneAndUpdate = jest.fn()\n  MockUserModel.create = jest.fn()\n  MockUserModel.deleteOne = jest.fn()\n- Helper: buildExec(value) = { exec: jest.fn().mockResolvedValue(value), select: jest.fn().mockReturnThis(), sort: jest.fn().mockReturnThis() }\n- afterEach(() => jest.clearAllMocks())\n\nClinic ownership helper mocks:\n- const ownedClinic = { _id: new Types.ObjectId().toString(), userId: currentUserId }\n- const foreignClinic = { _id: new Types.ObjectId().toString(), userId: 'other-user-id' }\n\nTests (10 total):\n1. 'createAttendant — creates user with hashed password and role ATTENDANT'\n   - mockClinicsService.findById resolves ownedClinic\n   - MockUserModel.create resolves the created user\n   - Verify create called with { role: Role.ATTENDANT, clinicId, passwordHash: 'hashed-password', ... }\n   - Verify returned user has no passwordHash field\n\n2. 'createAttendant — throws ConflictException on duplicate username'\n   - mockClinicsService.findById resolves ownedClinic\n   - MockUserModel.create rejects with { code: 11000 }\n   - Expect ConflictException\n\n3. 'createAttendant — throws ForbiddenException when current user does not own the clinic'\n   - mockClinicsService.findById resolves foreignClinic\n   - Expect ForbiddenException\n\n4. 'listAttendants — returns attendants of that clinic sorted by displayName, no passwordHash'\n   - mockClinicsService.findById resolves ownedClinic\n   - MockUserModel.find returns buildExec([{ displayName: 'Ana' }, { displayName: 'Bruno' }])\n   - Verify find called with { role: Role.ATTENDANT, clinicId }\n\n5. 'listAttendants — throws ForbiddenException when current user does not own the clinic'\n   - mockClinicsService.findById resolves foreignClinic\n   - Expect ForbiddenException\n\n6. 'updateAttendant — updates displayName and isActive'\n   - mockClinicsService.findById resolves ownedClinic\n   - MockUserModel.findOneAndUpdate returns buildExec({ displayName: 'Updated' })\n   - Verify findOneAndUpdate called with correct query { _id, role: ATTENDANT, clinicId }\n\n7. 'updateAttendant — rehashes password when dto.password is provided'\n   - Verify bcrypt.hash called with dto.password, 12\n   - Verify update object contains passwordHash: 'hashed-password'\n\n8. 'updateAttendant — does NOT call bcrypt.hash when dto.password is not provided'\n   - Verify bcrypt.hash NOT called\n\n9. 'removeAttendant — returns { success: true } on success'\n   - mockClinicsService.findById resolves ownedClinic\n   - MockUserModel.deleteOne resolves { deletedCount: 1 }\n   - Expect result to equal { success: true }\n\n10. 'removeAttendant — throws NotFoundException when attendant not found'\n    - mockClinicsService.findById resolves ownedClinic\n    - MockUserModel.deleteOne resolves { deletedCount: 0 }\n    - Expect NotFoundException"
+    },
+    {
+      "id": 4,
+      "name": "wire-modules-and-config",
+      "description": "Register all accumulated modules in AppModule and enable the configuration factory so configService.get('ses') works at runtime",
+      "files": [
+        "apps/api/src/app.module.ts"
+      ],
+      "request": "Before making any changes, read apps/api/src/app.module.ts carefully. Follow all conventions in medicano_crew/docs/CONVENTIONS.md.\n\nContext: apps/api/src/config/configuration.ts already exists and exports a factory with database, redis, jwt, and ses blocks. However ConfigModule.forRoot has no load: [] option, so configService.get('ses') returns undefined at runtime. Additionally, 7 modules created in sprints 03–10 are not imported in AppModule, making their endpoints unreachable.\n\nUpdate apps/api/src/app.module.ts:\n\nStep 1 — Import the configuration factory:\n  import configuration from './config/configuration'\n\nStep 2 — Add load: [configuration] to ConfigModule.forRoot:\n  ConfigModule.forRoot({ isGlobal: true, load: [configuration] })\n\nStep 3 — Import and add ALL of the following modules to the imports array (each file is confirmed to exist on disk):\n  - import { AppointmentsModule } from './appointments/appointments.module'\n  - import { SubscriptionsModule } from './subscriptions/subscriptions.module'\n  - import { ChatModule } from './chat/chat.module'\n  - import { SearchModule } from './search/search.module'\n  - import { AvailabilityModule } from './availability/availability.module'\n  - import { PatientsModule } from './patients/patients.module'\n  - import { ProfileModule } from './profile/profile.module'\n\nStep 4 — Add all 7 module classes to the imports array inside @Module.\n\nDo NOT change MongooseModule, RedisModule, AuthModule, UsersModule, ClinicsModule, ProfessionalsModule, ClinicProfessionalsModule or any other existing import."
+    }
+  ]
+}

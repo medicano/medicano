@@ -1,0 +1,126 @@
+{
+  "sprint": "sprint-11-schedule-notifications",
+  "description": "Provider schedule view (RF20), generalized subscription supporting both clinic and professional ownership (closes RN20), and email notifications via AWS SES on appointment lifecycle events",
+  "context": {
+    "stack": "NestJS + TypeScript + MongoDB (Mongoose) + AWS SDK v3 (SES)",
+    "monorepo": "apps/api (NestJS), apps/web (React), packages/types (shared)",
+    "dependencies": "Sprints 03, 04, 06, 08, 09 must be complete",
+    "external_packages": ["@aws-sdk/client-ses ^3.0.0"],
+    "env_vars": ["AWS_SES_REGION", "AWS_SES_FROM_EMAIL", "AWS_SES_ACCESS_KEY_ID", "AWS_SES_SECRET_ACCESS_KEY"],
+    "canonical_imports": {
+      "Role": "apps/api/src/common/enums/role.enum.ts",
+      "JwtAuthGuard": "apps/api/src/auth/guards/jwt-auth.guard.ts",
+      "RolesGuard": "apps/api/src/auth/guards/roles.guard.ts",
+      "Roles": "apps/api/src/auth/decorators/roles.decorator.ts",
+      "CurrentUser": "apps/api/src/common/decorators/current-user.decorator.ts",
+      "AppointmentStatus": "apps/api/src/appointments/schemas/appointment.schema.ts",
+      "AvailabilityService": "apps/api/src/availability/availability.service.ts"
+    }
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "install-ses-and-config",
+      "description": "Install AWS SES SDK and add SES configuration",
+      "files": [
+        "apps/api/package.json",
+        "apps/api/src/config/configuration.ts"
+      ],
+      "request": "Before making any changes, READ the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nInstruct the user to install: cd apps/api && npm install @aws-sdk/client-ses\n\nUpdate apps/api/package.json:\n- Add @aws-sdk/client-ses ^3.0.0 to dependencies\n\nUpdate apps/api/src/config/configuration.ts:\n- Inside the default export object, add:\n  ses: {\n    region: process.env.AWS_SES_REGION || 'us-east-1',\n    fromEmail: process.env.AWS_SES_FROM_EMAIL || 'no-reply@medicano.app',\n    accessKeyId: process.env.AWS_SES_ACCESS_KEY_ID,\n    secretAccessKey: process.env.AWS_SES_SECRET_ACCESS_KEY,\n  }\n\nDo not change other config sections."
+    },
+    {
+      "id": 2,
+      "name": "generalize-subscription-schema",
+      "description": "Add ownerType and ownerId to Subscription schema, replacing the clinic-only model",
+      "files": [
+        "apps/api/src/subscriptions/schemas/subscription.schema.ts",
+        "apps/api/src/subscriptions/dto/create-subscription.dto.ts"
+      ],
+      "request": "Before making any changes, READ the existing file CAREFULLY — preserve all existing fields. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/subscriptions/schemas/subscription.schema.ts:\n- Add @Prop({ type: String, enum: ['clinic', 'professional'], required: true }) ownerType: 'clinic' | 'professional';\n- Add @Prop({ type: Types.ObjectId, required: true }) ownerId: Types.ObjectId;\n- Keep the existing clinicId field for backward compatibility but mark it as @Prop({ type: Types.ObjectId, ref: 'Clinic' }) — REMOVE the required and unique constraints\n- Drop the existing index on { clinicId: 1 } (unique). The line removing the unique index is the IMPORTANT one — if Mongoose has already created the index, document that the dev needs to drop it manually with: db.subscriptions.dropIndex('clinicId_1')\n- Add SubscriptionSchema.index({ ownerType: 1, ownerId: 1 }, { unique: true });\n\nUpdate apps/api/src/subscriptions/dto/create-subscription.dto.ts:\n- Add @IsIn(['clinic', 'professional']) ownerType: 'clinic' | 'professional';\n- Add @IsMongoId ownerId: string;\n- Keep clinicId as @IsMongoId @IsOptional (deprecated, for backward compatibility)\n- expiresAt and plan fields stay\n\nIMPORTANT: Add a comment at the top of the schema explaining the breaking change:\n// BREAKING CHANGE (Sprint 11): Subscription is now generalized to support both clinic and professional ownership.\n// Existing data with only clinicId must be migrated to set ownerType='clinic' and ownerId=clinicId.\n// In dev, the simplest path is to drop the subscriptions collection and recreate."
+    },
+    {
+      "id": 3,
+      "name": "subscriptions-service-extensions",
+      "description": "Add findByOwner and findActiveOwnerIds methods, keep findByClinicId as deprecated alias",
+      "files": [
+        "apps/api/src/subscriptions/subscriptions.service.ts"
+      ],
+      "request": "Before making any changes, READ the existing file CAREFULLY — preserve all existing methods. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/subscriptions/subscriptions.service.ts:\n\n1. Add new method:\n   async findByOwner(ownerType: 'clinic' | 'professional', ownerId: string): Promise<SubscriptionDocument | null>\n   - Validates ownerId is ObjectId\n   - returns this.subscriptionModel.findOne({ ownerType, ownerId: new Types.ObjectId(ownerId) })\n\n2. Add new method:\n   async findActiveOwnerIds(ownerType: 'clinic' | 'professional'): Promise<Types.ObjectId[]>\n   - const subs = await this.subscriptionModel.find({ ownerType, status: 'active', expiresAt: { $gt: new Date() } }).select('ownerId')\n   - return subs.map(s => s.ownerId)\n\n3. Update existing findByClinicId to delegate to findByOwner (backward compatibility):\n   async findByClinicId(clinicId: string): Promise<SubscriptionDocument | null>\n   - return this.findByOwner('clinic', clinicId)\n   - Add JSDoc: /** @deprecated use findByOwner('clinic', clinicId) instead */\n\n4. Update enforceClinicProfessionalLimit to call findByOwner('clinic', clinicId) internally instead of findByClinicId.\n\n5. Update create() method:\n   - When called with the new dto containing ownerType and ownerId, save as-is\n   - When called legacy with only clinicId, set ownerType='clinic' and ownerId=clinicId before saving\n\nDo NOT remove existing tests dependencies."
+    },
+    {
+      "id": 4,
+      "name": "search-service-rn20",
+      "description": "Filter professionals in search by active subscription, closing RN20",
+      "files": [
+        "apps/api/src/search/search.service.ts",
+        "apps/api/src/search/search.module.ts"
+      ],
+      "request": "Before making any changes, READ the existing file. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe SubscriptionsService now has findActiveOwnerIds (created in prompt 3).\n\nUpdate apps/api/src/search/search.service.ts:\n- Inject SubscriptionsService in the constructor\n- In the search() method, REMOVE the existing TODO comment about RN20\n- Before querying professionals, fetch active professional IDs:\n  - const activeProfIds = await this.subscriptionsService.findActiveOwnerIds('professional')\n- When building the professional filter, add: _id: { $in: activeProfIds }\n- IMPORTANT: if type === 'clinic', skip this entirely (only filter professionals)\n- Document with comment: // RN20: only show professionals with active subscription\n\nUpdate apps/api/src/search/search.module.ts:\n- Import SubscriptionsModule\n- Add to imports array"
+    },
+    {
+      "id": 5,
+      "name": "schedule-service",
+      "description": "Combined schedule endpoint returning slots + appointments together",
+      "files": [
+        "apps/api/src/availability/dto/get-schedule-query.dto.ts",
+        "apps/api/src/availability/services/schedule.service.ts",
+        "apps/api/src/availability/availability.controller.ts",
+        "apps/api/src/availability/availability.module.ts",
+        "packages/types/src/availability.ts"
+      ],
+      "request": "Before making any changes, READ the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe following already exist — import them:\n- AvailabilityService at apps/api/src/availability/availability.service.ts\n- AppointmentsService at apps/api/src/appointments/appointments.service.ts\n- ProfessionalsService\n- ClinicProfessional model (for ownership check)\n- Role enum, JwtAuthGuard, RolesGuard, Roles, CurrentUser\n\nCreate apps/api/src/availability/dto/get-schedule-query.dto.ts:\n- class GetScheduleQueryDto:\n  - @IsDateString fromDate: string\n  - @IsDateString toDate: string\n\nCreate apps/api/src/availability/services/schedule.service.ts:\n- @Injectable class ScheduleService\n- constructor injects:\n  - availabilityService: AvailabilityService\n  - appointmentsService: AppointmentsService\n  - professionalsService: ProfessionalsService\n  - @InjectModel('ClinicProfessional') clinicProfessionalModel\n  - @InjectModel('User') userModel\n\n- async getProviderSchedule(professionalId: string, query: GetScheduleQueryDto, currentUserId: string): Promise<ScheduleResponse>\n  - Validate ObjectId\n  - const currentUser = await this.userModel.findById(currentUserId)\n  - if (!currentUser) throw NotFoundException\n  - const professional = await this.professionalsService.findById(professionalId)\n  - Authorization:\n    - if currentUser.role === 'professional': verify professional.userId === currentUserId; else ForbiddenException\n    - if currentUser.role === 'clinic' or 'attendant': verify ClinicProfessional document exists for clinicId of currentUser and this professionalId; else ForbiddenException\n    - if any other role (e.g. patient): ForbiddenException\n  - const slots = await this.availabilityService.getAvailableSlots(professionalId, { fromDate: query.fromDate, toDate: query.toDate })\n  - const fromDateObj = new Date(query.fromDate)\n  - const toDateObj = new Date(query.toDate); toDateObj.setHours(23, 59, 59, 999)\n  - const appointments = await this.appointmentsService.findAll({ professionalId, dateFrom: fromDateObj.toISOString(), dateTo: toDateObj.toISOString() })\n  - // Note: if findAll signature differs, adapt the call accordingly to pass the date range\n  - return { fromDate: query.fromDate, toDate: query.toDate, availableSlots: slots, appointments }\n\nUpdate apps/api/src/availability/availability.controller.ts:\n- Add @Get('schedule/professionals/:professionalId')\n  @UseGuards(JwtAuthGuard, RolesGuard)\n  @Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)\n  getProviderSchedule(@Param('professionalId', ParseMongoIdPipe) id, @Query() query, @CurrentUser() userId)\n  - Calls scheduleService.getProviderSchedule(id, query, userId)\n\nUpdate apps/api/src/availability/availability.module.ts:\n- Provide ScheduleService\n- Import ProfessionalsModule, AppointmentsModule (with forwardRef if needed), and add User and ClinicProfessional models via MongooseModule.forFeature\n\nUpdate packages/types/src/availability.ts:\n- export interface IScheduleResponse { fromDate: string; toDate: string; availableSlots: IAvailableSlot[]; appointments: any[] }"
+    },
+    {
+      "id": 6,
+      "name": "notifications-templates",
+      "description": "Email templates and the date formatting utility",
+      "files": [
+        "apps/api/src/notifications/utils/format-date.ts",
+        "apps/api/src/notifications/templates/appointment-created.template.ts",
+        "apps/api/src/notifications/templates/appointment-confirmed.template.ts",
+        "apps/api/src/notifications/templates/appointment-cancelled.template.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md. These are PURE functions — no DB, no NestJS dependencies.\n\nCreate apps/api/src/notifications/utils/format-date.ts:\n- export function formatDateBR(date: Date): string\n  - Returns date in pt-BR format like 'segunda-feira, 15 de abril de 2026 às 14:30'\n  - Use Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })\n\nCreate apps/api/src/notifications/templates/appointment-created.template.ts:\n- export interface AppointmentCreatedData { patientName: string; professionalName: string; startAt: Date; durationMinutes: number; recipientType: 'patient' | 'professional' }\n- export function appointmentCreatedTemplate(data: AppointmentCreatedData): { subject: string; html: string; text: string }\n  - subject = 'Novo agendamento na Medicano'\n  - For recipientType=patient: 'Olá ${patientName}, seu agendamento com ${professionalName} foi registrado para ${formatDateBR(startAt)}.'\n  - For recipientType=professional: 'Olá ${professionalName}, um novo agendamento foi registrado com o paciente ${patientName} para ${formatDateBR(startAt)}.'\n  - html: same content with <p> tags and <strong> on key fields\n  - text: plain text version\n  - Always include a footer: 'Atenciosamente, Equipe Medicano'\n\nCreate apps/api/src/notifications/templates/appointment-confirmed.template.ts:\n- export interface AppointmentConfirmedData { patientName: string; professionalName: string; startAt: Date }\n- export function appointmentConfirmedTemplate(data): { subject; html; text }\n  - subject = 'Seu agendamento foi confirmado'\n  - body: 'Olá ${patientName}, seu agendamento com ${professionalName} para ${formatDateBR(startAt)} foi confirmado.'\n\nCreate apps/api/src/notifications/templates/appointment-cancelled.template.ts:\n- export interface AppointmentCancelledData { recipientName: string; otherPartyName: string; startAt: Date; cancelledBy: 'patient' | 'provider' }\n- export function appointmentCancelledTemplate(data): { subject; html; text }\n  - subject = 'Agendamento cancelado'\n  - If cancelledBy='patient': 'Olá ${recipientName}, o agendamento com ${otherPartyName} para ${formatDateBR(startAt)} foi cancelado pelo paciente.'\n  - If cancelledBy='provider': 'Olá ${recipientName}, o agendamento com ${otherPartyName} para ${formatDateBR(startAt)} foi cancelado pelo prestador.'"
+    },
+    {
+      "id": 7,
+      "name": "notifications-service",
+      "description": "AWS SES email sending service with appointment notification methods",
+      "files": [
+        "apps/api/src/notifications/notifications.service.ts",
+        "apps/api/src/notifications/notifications.module.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe following already exist — import them:\n- AppointmentDocument at apps/api/src/appointments/schemas/appointment.schema.ts\n- Templates created in prompt 6\n- PatientDocument at apps/api/src/patients/schemas/patient.schema.ts\n- ProfessionalsService, ClinicsService, UsersService\n- @aws-sdk/client-ses (installed in prompt 1)\n\nCreate apps/api/src/notifications/notifications.service.ts:\n- @Injectable class NotificationsService\n- private readonly logger = new Logger(NotificationsService.name)\n- private readonly sesClient: SESClient\n- private readonly fromEmail: string\n\n- constructor(\n    configService: ConfigService,\n    @InjectModel('Patient') patientModel,\n    @InjectModel('User') userModel,\n    professionalsService: ProfessionalsService,\n  )\n  - const sesConfig = configService.get('ses')\n  - this.sesClient = new SESClient({\n      region: sesConfig.region,\n      credentials: sesConfig.accessKeyId ? { accessKeyId, secretAccessKey: sesConfig.secretAccessKey } : undefined,\n    })\n    // Note: if accessKeyId is undefined, SES uses the default IAM role chain (EC2 instance profile in production)\n  - this.fromEmail = sesConfig.fromEmail\n\n- private async sendEmail(to: string, subject: string, htmlBody: string, textBody: string): Promise<void>\n  - try {\n      const command = new SendEmailCommand({\n        Source: this.fromEmail,\n        Destination: { ToAddresses: [to] },\n        Message: {\n          Subject: { Data: subject, Charset: 'UTF-8' },\n          Body: {\n            Html: { Data: htmlBody, Charset: 'UTF-8' },\n            Text: { Data: textBody, Charset: 'UTF-8' },\n          },\n        },\n      });\n      await this.sesClient.send(command);\n    } catch (err) {\n      this.logger.warn(`Failed to send email to ${to}: ${err.message}`);\n      // Do NOT rethrow — notifications are best-effort\n    }\n\n- async notifyAppointmentCreated(appointment: AppointmentDocument): Promise<void>\n  - Resolve patient and professional emails by querying respective models\n  - patient: find Patient by userId, then User by patient.userId to get email; OR find User directly by patientId (depending on how appointment.patientId is stored)\n  - professional: find Professional by id, then User by professional.userId to get email\n  - patientName: from Patient document; professionalName: from Professional or its User displayName\n  - Render template for patient with recipientType='patient' → sendEmail to patient email\n  - Render template for professional with recipientType='professional' → sendEmail to professional email\n\n- async notifyAppointmentConfirmed(appointment: AppointmentDocument): Promise<void>\n  - Resolve patient email and names\n  - Render appointmentConfirmedTemplate → sendEmail to patient email only\n\n- async notifyAppointmentCancelled(appointment: AppointmentDocument, cancelledBy: 'patient' | 'provider'): Promise<void>\n  - Resolve both names\n  - If cancelledBy === 'patient': send to professional with otherPartyName=patientName\n  - If cancelledBy === 'provider': send to patient with otherPartyName=professionalName\n\nCreate apps/api/src/notifications/notifications.module.ts:\n- Imports MongooseModule.forFeature for Patient, User, ConfigModule\n- Imports ProfessionalsModule\n- providers: [NotificationsService]\n- exports: [NotificationsService]"
+    },
+    {
+      "id": 8,
+      "name": "wire-notifications-into-appointments",
+      "description": "Hook NotificationsService into appointment create/confirm/cancel flows",
+      "files": [
+        "apps/api/src/appointments/appointments.service.ts",
+        "apps/api/src/appointments/appointments.module.ts"
+      ],
+      "request": "Before making any changes, READ the existing file CAREFULLY — preserve all existing methods and logic. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe NotificationsService already exists (created in prompt 7).\n\nUpdate apps/api/src/appointments/appointments.service.ts:\n- private readonly logger = new Logger(AppointmentsService.name)\n- Inject NotificationsService in the constructor\n\n1. In create() method, after the document is saved:\n   - this.notificationsService.notifyAppointmentCreated(appointment).catch(err => this.logger.warn('Notification failed', err.stack))\n   - Do this BEFORE the return\n\n2. In createForPatient() method, after the document is saved:\n   - Same pattern\n\n3. In updateStatus() method, after appointment.save():\n   - if (dto.status === AppointmentStatus.CONFIRMED): notifyAppointmentConfirmed(appointment).catch(...)\n   - if (dto.status === AppointmentStatus.CANCELLED): notifyAppointmentCancelled(appointment, 'provider').catch(...)\n\n4. In cancel() method (provider cancellation), after status update:\n   - notifyAppointmentCancelled(appointment, 'provider').catch(...)\n\n5. In cancelAsPatient() method, after status update:\n   - notifyAppointmentCancelled(appointment, 'patient').catch(...)\n\nCRITICAL: notification calls must NOT use await. They are fire-and-forget with .catch() to ensure failure does not break the main flow.\n\nUpdate apps/api/src/appointments/appointments.module.ts:\n- Import NotificationsModule\n- Add to imports array"
+    },
+    {
+      "id": 9,
+      "name": "tests-schedule-and-notifications",
+      "description": "Unit tests for ScheduleService and NotificationsService",
+      "files": [
+        "apps/api/src/availability/tests/schedule.service.spec.ts",
+        "apps/api/src/notifications/tests/notifications.service.spec.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nCreate apps/api/src/availability/tests/schedule.service.spec.ts:\n- Mock availabilityService, appointmentsService, professionalsService, clinicProfessionalModel, userModel\n- afterEach jest.clearAllMocks()\n\nTests:\n1. 'getProviderSchedule — combined response returns slots and appointments'\n   - Mock currentUser as a professional whose userId matches professional.userId\n   - Mock availabilityService.getAvailableSlots to return [slot1, slot2]\n   - Mock appointmentsService.findAll to return [appt1]\n   - Expect return value to include both arrays\n\n2. 'getProviderSchedule — professional accessing own schedule allowed'\n3. 'getProviderSchedule — clinic accessing linked professional allowed' (mock ClinicProfessional.findOne to return a doc)\n4. 'getProviderSchedule — clinic accessing UNLINKED professional throws ForbiddenException' (ClinicProfessional.findOne returns null)\n5. 'getProviderSchedule — professional accessing another professional throws ForbiddenException'\n6. 'getProviderSchedule — patient role throws ForbiddenException' (or never reaches service if RolesGuard catches earlier — at the unit level test the service still rejects it)\n\nCreate apps/api/src/notifications/tests/notifications.service.spec.ts:\n- jest.mock('@aws-sdk/client-ses') with a mock SESClient that has a send method\n- const mockSend = jest.fn().mockResolvedValue({ MessageId: 'fake' })\n- Mock patientModel, userModel, professionalsService, configService\n- Mock configService.get('ses') to return { region: 'us-east-1', fromEmail: 'no-reply@medicano.app' }\n\nTests:\n1. 'notifyAppointmentCreated — sends email to both patient and professional' (verify mockSend called twice with correct addresses)\n2. 'notifyAppointmentConfirmed — sends email only to patient' (1 call)\n3. 'notifyAppointmentCancelled — when cancelledBy=patient, sends to professional only'\n4. 'notifyAppointmentCancelled — when cancelledBy=provider, sends to patient only'\n5. 'sendEmail — SES error is caught and logged, does not throw' (mock send to reject; expect no throw)"
+    },
+    {
+      "id": 10,
+      "name": "tests-subscriptions-and-search-rn20",
+      "description": "Extend subscriptions and search tests for the new generalized model and RN20 enforcement",
+      "files": [
+        "apps/api/src/subscriptions/tests/subscriptions.service.spec.ts",
+        "apps/api/src/search/tests/search.service.spec.ts"
+      ],
+      "request": "Before making any changes, READ the existing files and PRESERVE all existing tests. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/subscriptions/tests/subscriptions.service.spec.ts:\n- Add inside the existing describe block:\n  1. 'findByOwner(clinic, id) — returns clinic subscription'\n  2. 'findByOwner(professional, id) — returns professional subscription'\n  3. 'findActiveOwnerIds — filters by status=active and expiresAt > now'\n  4. 'findByClinicId — backward compat alias delegates to findByOwner(clinic, id)'\n\nIf existing tests break because the schema now requires ownerType/ownerId, update test fixtures to include them.\n\nUpdate apps/api/src/search/tests/search.service.spec.ts:\n- The constructor now injects SubscriptionsService — provide a mock\n- Mock subscriptionsService.findActiveOwnerIds('professional') by default to return all professional IDs in the test (so existing tests pass)\n\nAdd new tests:\n  1. 'search — filters out professionals without active subscription (RN20)'\n     - Mock findActiveOwnerIds to return only [profId1] when test data has [profId1, profId2]\n     - Verify search result.professionals only contains profId1\n  2. 'search — clinics are not affected by professional subscription filter'\n     - Mock findActiveOwnerIds to return []\n     - Verify result.clinics still contains all clinics matching the filter"
+    }
+  ]
+}

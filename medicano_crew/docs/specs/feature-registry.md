@@ -4,7 +4,12 @@ This file is the canonical inventory of every file, class, and method that alrea
 exists in the codebase. Before creating anything, check here first.
 If it is listed here, **do not recreate it** — import it from the path shown.
 
-Last updated: 2026-04-23 (sprint-02-rbac + sprint-03-appointments implementation)
+Last updated: 2026-04-26 (sprint-10: profile, attendants, patients — sprints 05–09 backfilled)
+
+> **Wire-up status:** `app.module.ts` currently imports only the original 6 modules (Auth, Users,
+> Clinics, Professionals, ClinicProfessionals, Redis). Modules added in sprints 05–10 exist on disk
+> but have not yet been added to AppModule. Add each one to `app.module.ts` before exposing its
+> endpoints.
 
 ---
 
@@ -31,10 +36,26 @@ export enum Role {
 }
 ```
 
+### `common/enums/specialty.enum.ts` ✅ (sprint 06)
+```typescript
+export enum Specialty {
+  MEDICINE = 'medicine',
+  PSYCHOLOGY = 'psychology',
+  NUTRITION = 'nutrition',
+}
+// NOTE: spec lists 5 values; codebase currently has 3
+```
+
 ### `common/decorators/current-user.decorator.ts` ✅
 ```typescript
 export const CurrentUser = createParamDecorator(...)
 // Returns: request.user?.userId (string)
+```
+
+### `common/decorators/current-user-role.decorator.ts` ✅ (sprint 08)
+```typescript
+export const CurrentUserRole = createParamDecorator(...)
+// Returns: request.user?.role (Role | undefined)
 ```
 
 ### `common/filters/all-exceptions.filter.ts` ✅
@@ -60,6 +81,60 @@ export async function loadAwsSecrets(): Promise<Record<string, string>>
 export class ParseMongoIdPipe implements PipeTransform<string, string>
 // transform(value): validates Types.ObjectId.isValid(value), throws BadRequestException if invalid
 // Used as @Param('id', ParseMongoIdPipe) to validate route params at the controller boundary
+```
+
+### `common/schemas/address.schema.ts` ✅ (sprint 06)
+```typescript
+@Schema({ _id: false, versionKey: false })
+export class Address
+  street: string        // required
+  number: string        // required
+  complement?: string
+  neighborhood: string  // required
+  city: string          // required
+  state: string         // required, min/maxlength 2
+  zipCode: string       // required, matches /^\d{8}$/
+
+export const AddressSchema = SchemaFactory.createForClass(Address)
+```
+
+### `common/schemas/weekly-slot.schema.ts` ✅ (sprint 08)
+```typescript
+@Schema({ _id: false })
+export class WeeklySlot
+  dayOfWeek: number          // required, min 0, max 6 (0=Sunday)
+  startTime: string          // required, format "HH:mm"
+  endTime: string            // required, format "HH:mm"
+  slotDurationMinutes: number  // required, min 15, max 240
+
+export const WeeklySlotSchema = SchemaFactory.createForClass(WeeklySlot)
+```
+
+### `common/dto/address.dto.ts` ✅ (sprint 06)
+```typescript
+export class AddressDto
+  street: string         // @IsString @IsNotEmpty
+  number: string         // @IsString @IsNotEmpty
+  complement?: string    // @IsString @IsOptional
+  neighborhood: string   // @IsString @IsNotEmpty
+  city: string           // @IsString @IsNotEmpty
+  state: string          // @IsString @Length(2, 2)
+  zipCode: string        // @IsString @Matches(/^\d{8}$/)
+```
+
+### `common/dto/weekly-slot.dto.ts` ✅ (sprint 08)
+```typescript
+export class WeeklySlotDto
+  dayOfWeek: number          // @IsInt @Min(0) @Max(6)
+  startTime: string          // @IsString
+  endTime: string            // @IsString
+  slotDurationMinutes: number  // @IsInt @Min(15) @Max(240)
+```
+
+### `common/utils/validate-weekly-slots.ts` ✅ (sprint 08)
+```typescript
+export function validateWeeklySlots(slots: WeeklySlotDto[]): void
+// Validates slot time format and that startTime < endTime
 ```
 
 ---
@@ -93,21 +168,26 @@ export class RedisModule
 
 ## Auth — `apps/api/src/auth`
 
-### `auth/schemas/user.schema.ts` ✅
+### `auth/schemas/user.schema.ts` ✅ (updated sprint 10: added displayName, isActive)
 ```typescript
+// NOTE: UserRole is a string union (not Role enum) in this schema:
+export type UserRole = 'super_admin' | 'clinic_admin' | 'doctor' | 'staff' | 'patient'
+
 @Schema({ timestamps: true })
 export class User
-  role: Role               // immutable, required
-  email?: string           // unique sparse
-  username?: string        // unique sparse
-  clinicId?: Types.ObjectId  // ref: 'Clinic', sparse
-  passwordHash: string     // select: false — NEVER query without .select('+passwordHash')
+  role: UserRole               // required, enum string union
+  email: string                // required, lowercase, trim
+  username: string             // required, trim
+  clinicId?: Types.ObjectId    // ref: 'Clinic', optional, default null
+  passwordHash: string         // required (select: not set to false in current schema)
+  displayName?: string         // optional — display name for attendants
+  isActive: boolean            // default: true
 
-export type UserDocument = User & Document
+export type UserDocument = HydratedDocument<User>
 export const UserSchema = SchemaFactory.createForClass(User)
 // Compound indexes:
-//   { role, email } unique sparse
-//   { clinicId, username } unique sparse
+//   { role, email } unique
+//   { clinicId, username } unique
 ```
 
 ### `auth/dto/signup.dto.ts` ✅
@@ -166,18 +246,8 @@ export class AuthService
 // STANDARD_ROLES = [Role.PATIENT, Role.CLINIC, Role.PROFESSIONAL]
 
 signup(dto: SignupDto): Promise<{ accessToken: string }>
-  // calls usersService.createUser(dto)
-  // signs JWT { sub: userId, role }
-  // saves token to Redis with TOKEN_TTL
-
 loginStandard(dto: LoginStandardDto): Promise<{ accessToken: string }>
-  // tries findByEmailAndRole for each role in STANDARD_ROLES until found
-  // throws UnauthorizedException if not found or wrong password
-
 loginAttendant(dto: LoginAttendantDto): Promise<{ accessToken: string }>
-  // calls usersService.findByClinicIdAndUsername(clinicId, username)
-  // throws UnauthorizedException if not found or wrong password
-
 logout(userId: string): Promise<void>
   // calls redisService.removeToken(userId)
 ```
@@ -196,18 +266,12 @@ export class AuthController
 ### `auth/auth.module.ts` ✅
 ```typescript
 @Module({
-  imports: [
-    PassportModule,
-    JwtModule.registerAsync({ secret: JWT_SECRET, expiresIn: '7d' }),
-    UsersModule,
-  ],
+  imports: [PassportModule, JwtModule.registerAsync(...), UsersModule],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
   exports: [AuthService],
 })
 export class AuthModule
-// Does NOT import RedisModule — RedisService is available via @Global() RedisModule in AppModule
-// Does NOT import MongooseModule — User model is registered in UsersModule
 ```
 
 ### `auth/decorators/roles.decorator.ts` ✅
@@ -222,9 +286,9 @@ export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);
 export class RolesGuard implements CanActivate
 // constructor(reflector: Reflector)
 // canActivate(context): reads ROLES_KEY metadata via Reflector.getAllAndOverride
-//   returns true if no @Roles() is set (all authenticated users allowed)
-//   checks request.user.role (populated by JwtStrategy) against requiredRoles
-// MUST be applied after JwtAuthGuard — depends on request.user being set
+//   returns true if no @Roles() is set
+//   checks request.user.role against requiredRoles
+// MUST be applied after JwtAuthGuard
 ```
 
 ### Auth tests — `auth/tests/` ✅
@@ -232,7 +296,7 @@ export class RolesGuard implements CanActivate
 auth/tests/auth.service.spec.ts    — 9 tests, all pass
 auth/tests/redis.service.spec.ts   — 8 tests, all pass
 auth/tests/jwt.strategy.spec.ts    — 3 tests, all pass
-auth/tests/auth.e2e.spec.ts        — 9 tests, require MongoDB + Redis (skip in unit CI)
+auth/tests/auth.e2e.spec.ts        — 9 tests, require MongoDB + Redis
 auth/tests/roles.guard.spec.ts     — 6 tests, all pass
 ```
 
@@ -262,14 +326,12 @@ export class UpdateUserDto   // role is immutable — never in update DTO
 ```typescript
 @Injectable()
 export class UsersService
-// Injects: Model<UserDocument> (User schema registered in UsersModule)
 
 createUser(dto: CreateUserDto): Promise<UserDocument>
   // hashes dto.password with bcrypt cost 12, stores as passwordHash
   // catches MongoError 11000 → ConflictException('User already exists')
 
 comparePassword(password: string, passwordHash: string): Promise<boolean>
-  // bcrypt.compare — use after querying with .select('+passwordHash')
 
 getById(id: string): Promise<UserDocument>
   // validates ObjectId → NotFoundException for invalid id or not found
@@ -297,52 +359,76 @@ export class UsersController
   exports: [UsersService],
 })
 export class UsersModule
-// User schema is imported from auth/schemas/user.schema.ts
-// AuthModule imports UsersModule to access UsersService
+// User schema imported from auth/schemas/user.schema.ts
 ```
 
 ---
 
 ## Clinics — `apps/api/src/clinics`
 
-### `clinics/schemas/clinic.schema.ts` ✅
+### `clinics/schemas/clinic.schema.ts` ✅ (simplified in recent refactor; updated sprint 10)
 ```typescript
-export enum SubscriptionStatus {
-  ACTIVE = 'active', INACTIVE = 'inactive', TRIAL = 'trial'
-}
-
 @Schema({ timestamps: true })
 export class Clinic
-  name: string                                // required
-  subscriptionStatus: SubscriptionStatus      // default: TRIAL
+  name: string              // required
+  address?: string          // plain string (not Address subdocument)
+  phone?: string
+  email?: string
+  linkedScheduling: boolean // default: false (sprint 10 — RN25)
 
 export type ClinicDocument = Clinic & Document
 export const ClinicSchema = SchemaFactory.createForClass(Clinic)
+// NOTE: subscriptionStatus, cnpj, specialties, Address subdocument, weeklySlots,
+//       autoConfirm, minCancelNoticeHours are NOT in the current schema.
+//       The schema was simplified in the refactor commit (b94284c/6dc6ec5).
 ```
 
 ### `clinics/dto/create-clinic.dto.ts` ✅
 ```typescript
 export class CreateClinicDto
-  name: string                      // @IsString @IsNotEmpty
-  subscriptionStatus?: SubscriptionStatus  // @IsEnum @IsOptional
+  name: string
+  // NOTE: simplified DTO — does not yet include cnpj, specialties, address subdocument
 ```
 
 ### `clinics/dto/update-clinic.dto.ts` ✅
 ```typescript
 export class UpdateClinicDto  // all fields optional
-  name?: string
-  subscriptionStatus?: SubscriptionStatus
 ```
 
-### `clinics/clinics.service.ts` ✅
+### `clinics/dto/create-attendant.dto.ts` ✅ (sprint 10)
+```typescript
+export class CreateAttendantDto
+  username: string          // @IsString @MinLength(3) @MaxLength(30) @Matches(/^[a-zA-Z0-9_-]+$/)
+  password: string          // @IsString @MinLength(8)
+  displayName: string       // @IsString @MinLength(2) @MaxLength(80)
+```
+
+### `clinics/dto/update-attendant.dto.ts` ✅ (sprint 10)
+```typescript
+export class UpdateAttendantDto
+  displayName?: string      // @IsString @IsOptional
+  password?: string         // @IsString @MinLength(8) @IsOptional
+  isActive?: boolean        // @IsBoolean @IsOptional
+```
+
+### `clinics/dto/update-linked-scheduling.dto.ts` ✅ (sprint 10)
+```typescript
+export class UpdateLinkedSchedulingDto
+  linkedScheduling: boolean  // @IsBoolean
+```
+
+### `clinics/clinics.service.ts` ✅ (updated: remove returns ClinicDocument, not {success})
 ```typescript
 @Injectable()
 export class ClinicsService
-  create(dto: CreateClinicDto): Promise<ClinicDocument>
-  findAll(): Promise<ClinicDocument[]>
-  findById(id: string): Promise<ClinicDocument>      // validates ObjectId, throws NotFoundException
-  update(id: string, dto: UpdateClinicDto): Promise<ClinicDocument>
-  remove(id: string): Promise<{ success: boolean }>
+
+create(dto: CreateClinicDto): Promise<ClinicDocument>
+findAll(): Promise<ClinicDocument[]>
+findById(id: string): Promise<ClinicDocument>    // validates ObjectId, throws NotFoundException
+update(id: string, dto: UpdateClinicDto): Promise<ClinicDocument>
+remove(id: string): Promise<ClinicDocument>      // NOTE: returns deleted doc, not {success}
+
+// ⚠️ findByUserId(userId: string) is called by ProfileService but NOT yet implemented
 ```
 
 ### `clinics/clinics.controller.ts` ✅
@@ -360,62 +446,127 @@ export class ClinicsController
 ```typescript
 @Module({
   imports: [MongooseModule.forFeature([Clinic])],
+  controllers: [ClinicsController],
   providers: [ClinicsService],
-  exports: [ClinicsService],
+  exports: [ClinicsService, MongooseModule],
 })
 export class ClinicsModule
+// NOTE: AttendantsService and AttendantsController are NOT yet registered here
+```
+
+### `clinics/services/attendants.service.ts` ✅ (sprint 10)
+```typescript
+@Injectable()
+export class AttendantsService
+// Injects: Model<UserDocument> ('User'), ClinicsService
+
+createAttendant(clinicId: string, currentUserId: string, dto: CreateAttendantDto): Promise<UserDocument>
+  // asserts clinic ownership (clinic.userId === currentUserId)
+  // hashes password, creates User with role=ATTENDANT
+  // catches 11000 → ConflictException('Username already taken in this clinic')
+  // returns sanitized user (no passwordHash)
+
+listAttendants(clinicId: string, currentUserId: string): Promise<UserDocument[]>
+  // asserts ownership; finds by { role: ATTENDANT, clinicId }; .select('-passwordHash')
+  // sorted by displayName asc
+
+updateAttendant(clinicId, attendantId, currentUserId, dto): Promise<UserDocument>
+  // asserts ownership; validates attendantId; finds by { _id, role: ATTENDANT, clinicId }
+  // rehashes password if dto.password provided
+  // throws NotFoundException if attendant not found in clinic
+
+removeAttendant(clinicId, attendantId, currentUserId): Promise<{ success: true }>
+  // asserts ownership; deleteOne({ _id, role: ATTENDANT, clinicId })
+  // throws NotFoundException if not found
+
+private assertClinicOwnership(clinicId, currentUserId): Promise<void>
+  // loads clinic via clinicsService.findById; throws ForbiddenException if clinic.userId !== currentUserId
+```
+
+### `clinics/controllers/attendants.controller.ts` ✅ (sprint 10)
+```typescript
+@Controller('clinics/:clinicId/attendants')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.CLINIC)
+export class AttendantsController
+  POST   /                   → createAttendant()
+  GET    /                   → listAttendants()
+  PUT    /:attendantId        → updateAttendant()
+  DELETE /:attendantId        @HttpCode(204) → removeAttendant()
+// ⚠️ Not yet registered in ClinicsModule
+```
+
+### Clinics tests
+```
+clinics/tests/attendants.service.spec.ts  ✅ (sprint 10) — 8 tests
 ```
 
 ---
 
 ## Professionals — `apps/api/src/professionals`
 
-### `professionals/schemas/professional.schema.ts` ✅
+### `professionals/schemas/professional.schema.ts` ✅ (enriched sprints 06+08)
 ```typescript
 @Schema({ timestamps: true })
 export class Professional
-  specialty: string          // required
   userId: Types.ObjectId     // ref: 'User', required, unique
+  specialty: Specialty       // required (enum, not free string)
+  cpf: string                // required, unique
+  registration: string       // required (e.g. "CRM/SP 123456")
+  address: Address           // required (Address subdocument from common/schemas/address.schema)
+  phone?: string             // optional
+  description?: string       // optional, maxlength 1000
+  weeklySlots: WeeklySlot[]  // default []
 
 export type ProfessionalDocument = Professional & Document
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional)
+// Indexes:
+//   { 'address.city', specialty }
+//   { cpf } unique
 ```
 
-### `professionals/schemas/clinic-professional.schema.ts` ✅
-```typescript
-@Schema({ timestamps: true })
-export class ClinicProfessional
-  clinicId: Types.ObjectId        // ref: 'Clinic', required
-  professionalId: Types.ObjectId  // ref: 'Professional', required
-// Compound unique index: { clinicId, professionalId }
-
-export type ClinicProfessionalDocument = ClinicProfessional & Document
-export const ClinicProfessionalSchema = SchemaFactory.createForClass(ClinicProfessional)
-```
-
-### `professionals/dto/create-professional.dto.ts` ✅
+### `professionals/dto/create-professional.dto.ts` ✅ (updated sprint 06)
 ```typescript
 export class CreateProfessionalDto
-  specialty: string  // @IsString @IsNotEmpty
-  userId: string     // @IsMongoId @IsNotEmpty
+  specialty: Specialty  // @IsEnum(Specialty) @IsNotEmpty
+  userId: string        // @IsMongoId @IsNotEmpty
+  cpf: string           // @IsString @IsNotEmpty
+  registration: string  // @IsString @IsNotEmpty
+  address: AddressDto   // @ValidateNested @Type(() => AddressDto)
+  phone?: string        // @IsString @IsOptional
+  description?: string  // @IsString @IsOptional
 ```
 
-### `professionals/dto/update-professional.dto.ts` ✅
+### `professionals/dto/update-professional.dto.ts` ✅ (updated sprint 06)
 ```typescript
-export class UpdateProfessionalDto
-  specialty?: string  // @IsString @IsNotEmpty @IsOptional
+export class UpdateProfessionalDto  // all optional
+  specialty?: Specialty
+  cpf?: string
+  registration?: string
+  address?: AddressDto
+  phone?: string
+  description?: string
 ```
 
-### `professionals/professionals.service.ts` ✅
+### `professionals/dto/update-weekly-slots.dto.ts` ✅ (sprint 08)
+```typescript
+export class UpdateWeeklySlotsDto
+  weeklySlots: WeeklySlotDto[]  // @ValidateNested({ each: true }) @Type(() => WeeklySlotDto) @ArrayMaxSize(50)
+```
+
+### `professionals/professionals.service.ts` ✅ (updated: remove returns ProfessionalDocument)
 ```typescript
 @Injectable()
 export class ProfessionalsService
-  create(dto: CreateProfessionalDto): Promise<ProfessionalDocument>
-    // validates userId ObjectId; catches 11000 → ConflictException
-  findAll(): Promise<ProfessionalDocument[]>
-  findById(id: string): Promise<ProfessionalDocument>
-  update(id: string, dto: UpdateProfessionalDto): Promise<ProfessionalDocument>
-  remove(id: string): Promise<{ success: boolean }>
+
+create(dto: CreateProfessionalDto): Promise<ProfessionalDocument>
+  // validates userId ObjectId; catches 11000 → ConflictException
+findAll(): Promise<ProfessionalDocument[]>
+findById(id: string): Promise<ProfessionalDocument>
+update(id: string, dto: UpdateProfessionalDto): Promise<ProfessionalDocument>
+remove(id: string): Promise<ProfessionalDocument>  // returns deleted doc
+
+// ⚠️ findByUserId(userId: string) is called by ProfileService but NOT yet implemented
 ```
 
 ### `professionals/professionals.controller.ts` ✅
@@ -434,7 +585,7 @@ export class ProfessionalsController
 @Module({
   imports: [MongooseModule.forFeature([Professional])],
   providers: [ProfessionalsService],
-  exports: [ProfessionalsService],
+  exports: [ProfessionalsService, MongooseModule],
 })
 export class ProfessionalsModule
 ```
@@ -444,20 +595,17 @@ export class ProfessionalsModule
 @Injectable()
 export class ClinicProfessionalsService
   assignProfessionalToClinic(clinicId, professionalId): Promise<ClinicProfessionalDocument>
-    // validates both ObjectIds; verifies clinic and professional exist; catches 11000
   getProfessionalsByClinic(clinicId): Promise<ProfessionalDocument[]>
-    // validates ObjectId; verifies clinic exists; returns professionals via ClinicProfessional join
   removeProfessionalFromClinic(clinicId, professionalId): Promise<{ success: boolean }>
-    // throws NotFoundException if assignment not found
 ```
 
 ### `professionals/clinic-professionals.controller.ts` ✅
 ```typescript
 @Controller('clinics') @UseGuards(JwtAuthGuard, RolesGuard)
 export class ClinicProfessionalsController
-  POST   /clinics/:clinicId/professionals/:professionalId   @Roles(CLINIC, ATTENDANT) → assignProfessionalToClinic()
-  GET    /clinics/:clinicId/professionals                                              → getProfessionalsByClinic()
-  DELETE /clinics/:clinicId/professionals/:professionalId   @Roles(CLINIC, ATTENDANT) → removeProfessionalFromClinic()
+  POST   /clinics/:clinicId/professionals/:professionalId   @Roles(CLINIC, ATTENDANT) → assign
+  GET    /clinics/:clinicId/professionals                                              → list
+  DELETE /clinics/:clinicId/professionals/:professionalId   @Roles(CLINIC, ATTENDANT) → remove
 ```
 
 ### `professionals/clinic-professionals.module.ts` ✅
@@ -476,21 +624,6 @@ export class ClinicProfessionalsModule
 
 ---
 
-## App Root — `apps/api/src`
-
-### `app.module.ts` ✅
-Imports: ConfigModule (global), MongooseModule (forRootAsync), RedisModule (global),
-AuthModule, UsersModule, ClinicsModule, ProfessionalsModule, ClinicProfessionalsModule,
-AppointmentsModule
-
-### `main.ts` ✅
-Bootstrap: ValidationPipe (whitelist, forbidNonWhitelisted, transform), AllExceptionsFilter,
-enableCors(), port from `process.env.PORT ?? 3000`
-
----
-
----
-
 ## Appointments — `apps/api/src/appointments`
 
 ### `appointments/schemas/appointment.schema.ts` ✅
@@ -502,128 +635,73 @@ export enum AppointmentStatus {
   CANCELLED = 'cancelled',
 }
 
-export const VALID_STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]>
-// SCHEDULED → [CONFIRMED, CANCELLED]
-// CONFIRMED → [COMPLETED, CANCELLED]
-// COMPLETED → []   (terminal)
-// CANCELLED → []   (terminal)
-
 @Schema({ timestamps: true })
 export class Appointment
   clinicId: Types.ObjectId        // required
   professionalId: Types.ObjectId  // required
   patientId: Types.ObjectId       // required
   startAt: Date                   // required
-  endAt: Date                     // required, computed: startAt + durationMinutes * 60s
-  durationMinutes: number         // required, min: 15, max: 480
+  endAt: Date                     // required
+  durationMinutes: number         // required
   status: AppointmentStatus       // default: SCHEDULED
   notes?: string
 
 export type AppointmentDocument = Appointment & Document
 export const AppointmentSchema = SchemaFactory.createForClass(Appointment)
-// Index: { professionalId: 1, startAt: 1, endAt: 1 }
 ```
 
 ### `appointments/dto/create-appointment.dto.ts` ✅
-```typescript
-export class CreateAppointmentDto
-  clinicId: string        // @IsMongoId
-  professionalId: string  // @IsMongoId
-  patientId: string       // @IsMongoId
-  startAt: string         // @IsDateString
-  durationMinutes: number // @IsInt @Min(15) @Max(480)
-  notes?: string          // @IsString @IsOptional
-```
-
 ### `appointments/dto/update-appointment.dto.ts` ✅
-```typescript
-export class UpdateAppointmentDto  // all fields optional
-  startAt?: string          // @IsDateString @IsOptional
-  durationMinutes?: number  // @IsInt @Min(15) @Max(480) @IsOptional
-  notes?: string            // @IsString @IsOptional
-```
-
 ### `appointments/dto/update-appointment-status.dto.ts` ✅
-```typescript
-export class UpdateAppointmentStatusDto
-  status: AppointmentStatus  // @IsEnum(AppointmentStatus)
-```
-
 ### `appointments/dto/get-appointments-query.dto.ts` ✅
-```typescript
-export class GetAppointmentsQueryDto  // all fields optional
-  clinicId?: string        // @IsMongoId @IsOptional
-  professionalId?: string  // @IsMongoId @IsOptional
-  patientId?: string       // @IsMongoId @IsOptional
-  date?: string            // @IsDateString @IsOptional — filters startAt on that UTC calendar day
-  status?: AppointmentStatus  // @IsEnum @IsOptional
-```
 
-### `appointments/appointments.service.ts` ✅
+### `appointments/appointments.service.ts` ✅ (updated sprints 09+10)
 ```typescript
 @Injectable()
 export class AppointmentsService
-  create(dto: CreateAppointmentDto): Promise<AppointmentDocument>
-    // computes endAt = startAt + durationMinutes * 60 * 1000ms
-    // calls checkConflict(professionalId, startAt, endAt)
-    // status defaults to SCHEDULED
+// Injects: Model<AppointmentDocument>, ClinicsService
 
-  findAll(query: GetAppointmentsQueryDto): Promise<AppointmentDocument[]>
-    // builds filter from query params; date filter: startAt >= 00:00, < next day 00:00 (UTC)
-    // sorts by startAt ascending
+create(dto: CreateAppointmentDto): Promise<AppointmentDocument>
+  // validates date range; calls checkConflict(professionalId, startAt, endAt, clinicId)
 
-  findById(id: string): Promise<AppointmentDocument>
-    // throws NotFoundException for invalid ObjectId or not found
+createForPatient(dto: CreateAppointmentDto): Promise<AppointmentDocument>
+  // validates date range; checkConflict; also calls checkCrossClinicInterval (RN04)
 
-  update(id: string, dto: UpdateAppointmentDto): Promise<AppointmentDocument>
-    // fetches existing to merge startAt/durationMinutes before recomputing endAt
-    // calls checkConflict(..., excludeId: id)
-    // uses findByIdAndUpdate({ new: true })
+findAll(): Promise<AppointmentDocument[]>
+  // NOTE: current impl does NOT filter by query params — ignores the GetAppointmentsQueryDto
+  // that the controller passes (discrepancy introduced in refactor)
 
-  updateStatus(id: string, dto: UpdateAppointmentStatusDto): Promise<AppointmentDocument>
-    // validates transition against VALID_STATUS_TRANSITIONS
-    // throws BadRequestException for invalid transitions
+findById(id: string): Promise<AppointmentDocument>
+  // throws NotFoundException if not found
 
-  cancel(id: string): Promise<{ success: boolean }>
-    // shorthand: updateStatus(id, { status: CANCELLED })
+update(id: string, dto: UpdateAppointmentDto): Promise<AppointmentDocument>
+  // re-runs checkConflict excluding self
 
-  private checkConflict(professionalId, startAt, endAt, excludeId?): Promise<void>
-    // query: { professionalId, status: { $nin: [CANCELLED] }, startAt: { $lt: endAt }, endAt: { $gt: startAt } }
-    // throws ConflictException if overlapping appointment found
+remove(id: string): Promise<void>
+  // ⚠️ controller calls cancel() and updateStatus() which are NOT yet implemented
+
+private validateDateRange(startAt, endAt): void
+private checkConflict(professionalId, startAt, endAt, clinicId, excludeId?): Promise<void>
+  // loads clinic.linkedScheduling; if true uses strict overlap ($lt/$gt),
+  // if false uses inclusive ($lte/$gte) to block adjacent slots
+private checkCrossClinicInterval(patientId, clinicId, startAt, endAt): Promise<void>
+  // 30-min window around startAt/endAt; queries for patient appts at OTHER clinic
 ```
 
 ### `appointments/appointments.controller.ts` ✅
 ```typescript
 @Controller('appointments') @UseGuards(JwtAuthGuard, RolesGuard)
 export class AppointmentsController
-  POST   /appointments               @Roles(CLINIC, ATTENDANT)              → create()
-  GET    /appointments                                                        → findAll(@Query)
+  POST   /appointments                @Roles(CLINIC, ATTENDANT)              → create()
+  GET    /appointments                                                        → findAll()
   GET    /appointments/:id                                                    → findById()
-  PUT    /appointments/:id           @Roles(CLINIC, ATTENDANT)              → update()
-  PATCH  /appointments/:id/status    @Roles(CLINIC, ATTENDANT, PROFESSIONAL) → updateStatus()
-  DELETE /appointments/:id           @Roles(CLINIC, ATTENDANT) @HttpCode(204) → cancel()
-// Uses ParseMongoIdPipe on :id params
+  PUT    /appointments/:id            @Roles(CLINIC, ATTENDANT)              → update()
+  PATCH  /appointments/:id/status     @Roles(CLINIC, ATTENDANT, PROFESSIONAL) → updateStatus()  ⚠️ service method missing
+  DELETE /appointments/:id            @Roles(CLINIC, ATTENDANT) @HttpCode(204) → cancel()       ⚠️ service method missing
 ```
 
 ### `appointments/appointments.module.ts` ✅
-```typescript
-@Module({
-  imports: [MongooseModule.forFeature([{ name: Appointment.name, schema: AppointmentSchema }])],
-  controllers: [AppointmentsController],
-  providers: [AppointmentsService],
-  exports: [AppointmentsService],
-})
-export class AppointmentsModule
-```
-
-### `appointments/tests/appointments.service.spec.ts` ✅
-12 tests, all pass:
-- create: computes endAt correctly, throws ConflictException on overlap
-- findAll: no filter, by clinicId, by date (UTC day range)
-- findById: found, invalid ObjectId, not found
-- update: rechecks conflict excluding self
-- updateStatus: SCHEDULED → CONFIRMED, throws BadRequestException for COMPLETED → SCHEDULED
-- cancel: sets CANCELLED, returns { success: true }
+### `appointments/tests/appointments.service.spec.ts` ✅ — tests rewritten in recent commit
 
 ---
 
@@ -631,112 +709,497 @@ export class AppointmentsModule
 
 ### `subscriptions/schemas/subscription.schema.ts` ✅
 ```typescript
-export enum SubscriptionPlan {
-  FREE = 'free',
-  BASIC = 'basic',
-  PRO = 'pro',
-}
+export enum SubscriptionPlan { FREE = 'free', BASIC = 'basic', PRO = 'pro' }
 
-export const PLAN_PROFESSIONAL_LIMITS: Record<SubscriptionPlan, number> = {
-  [SubscriptionPlan.FREE]: 2,
-  [SubscriptionPlan.BASIC]: 10,
-  [SubscriptionPlan.PRO]: -1,   // -1 = unlimited
-}
+export const PLAN_PROFESSIONAL_LIMITS: Record<SubscriptionPlan, number>
+// FREE: 2, BASIC: 10, PRO: -1 (unlimited)
 
 @Schema({ timestamps: true })
 export class Subscription
   clinicId: Types.ObjectId   // ref: 'Clinic', required, unique
   plan: SubscriptionPlan     // default: FREE
-  status: SubscriptionStatus // imported from clinics/schemas/clinic.schema; default: TRIAL
+  status: SubscriptionStatus // from clinics/schemas/clinic.schema; default: TRIAL
   expiresAt: Date            // required
-
-export type SubscriptionDocument = Subscription & Document
-export const SubscriptionSchema = SchemaFactory.createForClass(Subscription)
 ```
 
 ### `subscriptions/constants/subscription.constants.ts` ✅
-Re-exports `SubscriptionPlan`, `PLAN_PROFESSIONAL_LIMITS` from the schema and `SubscriptionStatus` from clinics schema.
-
 ### `subscriptions/dto/create-subscription.dto.ts` ✅
-```typescript
-export class CreateSubscriptionDto
-  clinicId: string          // @IsMongoId @IsNotEmpty
-  plan?: SubscriptionPlan   // @IsEnum @IsOptional
-  expiresAt: string         // @IsDateString
-```
-
 ### `subscriptions/dto/update-subscription.dto.ts` ✅
-```typescript
-export class UpdateSubscriptionDto
-  plan?: SubscriptionPlan      // @IsEnum @IsOptional
-  status?: SubscriptionStatus  // @IsEnum @IsOptional
-  expiresAt?: string           // @IsDateString @IsOptional
-```
 
 ### `subscriptions/subscriptions.service.ts` ✅
 ```typescript
-@Injectable()
-export class SubscriptionsService
-  create(dto: CreateSubscriptionDto): Promise<SubscriptionDocument>
-    // validates clinicId ObjectId; calls clinicsService.findById; catches 11000 → ConflictException
-  findByClinicId(clinicId: string): Promise<SubscriptionDocument | null>
-    // returns null if invalid ObjectId or not found — absence is valid
-  findById(id: string): Promise<SubscriptionDocument>
-    // validates ObjectId, throws NotFoundException if not found
-  update(id: string, dto: UpdateSubscriptionDto): Promise<SubscriptionDocument>
-    // validates status transitions; findByIdAndUpdate({ new: true })
-  cancel(id: string): Promise<SubscriptionDocument>
-    // sets status to INACTIVE
-  enforceClinicProfessionalLimit(clinicId: string, currentCount: number): Promise<void>
-    // finds subscription (defaults to FREE if none); throws ForbiddenException if limit reached
-    // PRO plan (limit === -1) never blocks
+create(dto): Promise<SubscriptionDocument>
+findByClinicId(clinicId): Promise<SubscriptionDocument | null>
+findById(id): Promise<SubscriptionDocument>
+update(id, dto): Promise<SubscriptionDocument>
+cancel(id): Promise<SubscriptionDocument>
+enforceClinicProfessionalLimit(clinicId, currentCount): Promise<void>
 ```
 
 ### `subscriptions/subscriptions.controller.ts` ✅
 ```typescript
 @Controller('subscriptions') @UseGuards(JwtAuthGuard, RolesGuard)
-export class SubscriptionsController
   POST  /subscriptions                @Roles(CLINIC)  → create()
   GET   /subscriptions/clinic/:clinicId               → findByClinicId()
   GET   /subscriptions/:id                            → findById()
   PUT   /subscriptions/:id            @Roles(CLINIC)  → update()
-  POST  /subscriptions/:id/cancel     @Roles(CLINIC) @HttpCode(200) → cancel()
-// Note: GET /clinic/:clinicId is declared BEFORE GET /:id to avoid routing conflicts
+  POST  /subscriptions/:id/cancel     @Roles(CLINIC)  → cancel()
 ```
 
 ### `subscriptions/subscriptions.module.ts` ✅
-```typescript
-@Module({
-  imports: [MongooseModule.forFeature([Subscription]), ClinicsModule],
-  controllers: [SubscriptionsController],
-  providers: [SubscriptionsService],
-  exports: [SubscriptionsService],
-})
-export class SubscriptionsModule
-```
-
-### `subscriptions/tests/subscriptions.service.spec.ts` ✅
-18 tests, all pass:
-- create: success, duplicate (ConflictException), clinic not found (NotFoundException)
-- findByClinicId: found, not found (null), invalid ObjectId (null)
-- findById: found, not found, invalid ObjectId
-- update: updates plan and status
-- cancel: sets status to INACTIVE
-- enforceClinicProfessionalLimit: under limit, at limit-1, at limit (ForbiddenException), BASIC over limit, PRO unlimited, no subscription defaults to FREE
-
-### Integration — `professionals/clinic-professionals.service.ts` ✅
-`assignProfessionalToClinic` calls `subscriptionsService.enforceClinicProfessionalLimit` after validating IDs and before saving, using `countDocuments({ clinicId })` as currentCount.
-
-### `professionals/clinic-professionals.module.ts` ✅ (updated)
-Imports `SubscriptionsModule` in addition to `ClinicsModule` and `ProfessionalsModule`.
-
-### `app.module.ts` ✅ (updated)
-Now imports `SubscriptionsModule`.
+### `subscriptions/tests/subscriptions.service.spec.ts` ✅ — 18 tests
 
 ---
 
-## What Needs to Be Built (Next Sprints)
+## Chat — `apps/api/src/chat` (sprints 05 + 07)
+
+### `chat/schemas/chat-session.schema.ts` ✅
+```typescript
+@Schema({ timestamps: true })
+export class ChatSession
+  userId: Types.ObjectId           // ref: 'User', required
+  clinicId?: Types.ObjectId        // ref: 'Clinic', optional
+  recommendedSpecialty?: Specialty // set once when triage completes (sprint 07)
+  disclaimerShown: boolean         // default: false (sprint 07)
+
+export type ChatSessionDocument = ChatSession & Document
+export const ChatSessionSchema = SchemaFactory.createForClass(ChatSession)
+// Index: { userId, createdAt: -1 }
+```
+
+### `chat/schemas/chat-message.schema.ts` ✅
+```typescript
+export enum MessageRole { USER = 'user', ASSISTANT = 'assistant' }
+
+@Schema({ timestamps: { createdAt: true, updatedAt: false } })
+export class ChatMessage
+  sessionId: Types.ObjectId  // ref: 'ChatSession', required
+  role: MessageRole           // required
+  content: string             // required, maxlength 4096
+
+export type ChatMessageDocument = ChatMessage & Document
+export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessage)
+// Index: { sessionId, createdAt: 1 }
+```
+
+### `chat/dto/create-chat-session.dto.ts` ✅
+```typescript
+export class CreateChatSessionDto
+  clinicId?: string  // @IsMongoId @IsOptional
+```
+
+### `chat/dto/create-chat-message.dto.ts` ✅
+```typescript
+export class CreateChatMessageDto
+  content: string  // @IsString @MinLength(1)
+```
+
+### `chat/dto/send-message-response.dto.ts` ✅
+```typescript
+export interface RecommendationDto {
+  specialty: Specialty;
+  reasoning: string;
+}
+export interface SendMessageResponse {
+  message: ChatMessageDocument;
+  recommendation: RecommendationDto | null;
+}
+```
+
+### `chat/dto/get-chat-messages-query.dto.ts` ✅
+
+### `chat/enums/chat-session-type.enum.ts` ✅
+```typescript
+export enum ChatSessionType { STANDARD = 'standard', TRIAGE = 'triage' }
+```
+
+### `chat/constants/triage-prompt.ts` ✅ (sprint 07)
+```typescript
+export const TRIAGE_SYSTEM_PROMPT: string
+// Brazilian PT triage prompt — instructs LLM to output JSON:
+// { "recommendation": "<specialty>", "reasoning": "<text>" }
+// after 4–6 questions; includes CFM disclaimer rule
+```
+
+### `chat/chat.service.ts` ✅
+```typescript
+@Injectable()
+export class ChatService
+// Constants: LLM_MODEL='claude-sonnet-4-6', MAX_CONTEXT_MESSAGES=20, MAX_RESPONSE_TOKENS=1024
+// Injects: Model<ChatSessionDocument>, Model<ChatMessageDocument>, Anthropic (from provider)
+
+createSession(dto: { clinicId?: string; userId: string }): Promise<ChatSessionDocument>
+
+listSessions(userId: string): Promise<ChatSessionDocument[]>
+  // sorted by updatedAt desc
+
+sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<SendMessageResponse>
+  // 1. findSessionById (throws ConflictException if session.recommendedSpecialty already set)
+  // 2. Fetch last MAX_CONTEXT_MESSAGES from DB
+  // 3. Save user message
+  // 4. Call anthropicClient.messages.create with TRIAGE_SYSTEM_PROMPT
+  // 5. Call parseRecommendation on response text
+  // 6. Save assistant message
+  // 7. If recommendation found, update session.recommendedSpecialty
+  // 8. Set disclaimerShown=true on first message
+
+listMessages(sessionId: string): Promise<ChatMessageDocument[]>
+  // sorted by createdAt asc
+
+parseRecommendation(content: string): RecommendationDto | null
+  // extracts JSON from response; validates specialty against Specialty enum
+  // public method (not private) — used in tests
+
+private findSessionById(sessionId: string): Promise<ChatSessionDocument>
+```
+
+### `chat/chat.controller.ts` ✅
+```typescript
+@Controller('chat') @UseGuards(JwtAuthGuard)
+export class ChatController
+  POST /chat/sessions                         → createSession()
+  GET  /chat/sessions                         → listSessions()
+  POST /chat/sessions/:sessionId/messages     → sendMessage()
+  GET  /chat/sessions/:sessionId/messages     → listMessages()
+// ParseMongoIdPipe on :sessionId
+```
+
+### `chat/chat.module.ts` ✅
+```typescript
+@Module({
+  imports: [MongooseModule.forFeature([ChatSession, ChatMessage])],
+  controllers: [ChatController],
+  providers: [ChatService, { provide: Anthropic, useFactory: ... }],
+  exports: [ChatService],
+})
+export class ChatModule
+// ⚠️ Not yet imported in AppModule
+```
+
+### `chat/tests/chat.service.spec.ts` ✅ — tests for both sprint 05 and sprint 07 features
+
+---
+
+## Search — `apps/api/src/search` (sprint 06)
+
+### `search/dto/search-query.dto.ts` ✅
+```typescript
+export class SearchQueryDto
+  specialty?: Specialty         // @IsEnum @IsOptional
+  city?: string                 // @IsString @IsOptional
+  type?: 'clinic' | 'professional' | 'all'  // @IsOptional
+  page?: number                 // @IsInt @Min(1) @IsOptional, default 1
+  limit?: number                // @IsInt @Min(1) @Max(50) @IsOptional, default 20
+```
+
+### `search/interfaces/search-result.interface.ts` ✅
+```typescript
+export interface SearchResult {
+  clinics: ClinicDocument[];
+  professionals: ProfessionalDocument[];
+  total: number;
+  page: number;
+  limit: number;
+}
+```
+
+### `search/search.service.ts` ✅
+```typescript
+@Injectable()
+export class SearchService
+// Injects: Model<ClinicDocument>, Model<ProfessionalDocument>
+
+search(query: SearchQueryDto): Promise<SearchResult>
+  // filters clinics by specialties.$in and address.city
+  // filters professionals by specialty and address.city
+  // respects query.type ('clinic' | 'professional' | 'all')
+  // TODO (Sprint 11): filter professionals by active subscription (RN20)
+
+findClinicById(id: string): Promise<ClinicDocument>
+  // no auth required; throws NotFoundException
+
+findProfessionalById(id: string): Promise<ProfessionalDocument>
+  // no auth required; throws NotFoundException
+```
+
+### `search/search.controller.ts` ✅
+```typescript
+@Controller('search')
+// NO @UseGuards — all endpoints are PUBLIC
+export class SearchController
+  GET /search                      → search()
+  GET /search/clinics/:id          → findClinicById()
+  GET /search/professionals/:id    → findProfessionalById()
+```
+
+### `search/search.module.ts` ✅
+```typescript
+@Module({
+  imports: [MongooseModule.forFeature([Clinic, Professional])],
+  controllers: [SearchController],
+  providers: [SearchService],
+  exports: [SearchService],
+})
+export class SearchModule
+// ⚠️ Not yet imported in AppModule
+```
+
+### `search/tests/search.service.spec.ts` ✅ — 11 tests
+
+---
+
+## Availability — `apps/api/src/availability` (sprints 08)
+
+### `availability/schemas/professional-availability.schema.ts` ✅
+```typescript
+@Schema({ timestamps: true })
+export class ProfessionalAvailability
+  professionalId: Types.ObjectId  // ref: 'Professional', required
+  date: Date                      // required (normalized to UTC midnight)
+  isUnavailable: boolean          // default: false
+  customSlots: WeeklySlot[]       // default: [] — replaces weekly slots for that day
+
+export type ProfessionalAvailabilityDocument = ProfessionalAvailability & Document
+export const ProfessionalAvailabilitySchema = SchemaFactory.createForClass(ProfessionalAvailability)
+// Unique index: { professionalId, date }
+```
+
+### `availability/dto/available-slot.dto.ts` ✅
+```typescript
+export class AvailableSlotDto
+  date: string        // YYYY-MM-DD
+  startAt: Date
+  endAt: Date
+  durationMinutes: number
+```
+
+### `availability/dto/create-professional-availability.dto.ts` ✅
+```typescript
+export class CreateProfessionalAvailabilityDto
+  date: string          // @IsDateString
+  isUnavailable?: boolean
+  customSlots?: WeeklySlotDto[]
+```
+
+### `availability/dto/update-professional-availability.dto.ts` ✅
+```typescript
+export class UpdateProfessionalAvailabilityDto  // all optional
+  date?: string
+  isUnavailable?: boolean
+  customSlots?: WeeklySlotDto[]
+```
+
+### `availability/dto/get-availability-query.dto.ts` ✅
+```typescript
+export class GetAvailabilityQueryDto
+  date: string  // @IsDateString — single date (YYYY-MM-DD)
+```
+
+### `availability/utils/compute-slots.ts` ✅
+```typescript
+export interface AvailableSlot {
+  date: string; startAt: Date; endAt: Date; durationMinutes: number;
+}
+
+export function computeSlotsForDay(
+  date: Date,
+  weeklySlots: WeeklySlot[],
+  appointments: { startAt: Date; endAt: Date }[],
+): AvailableSlot[]
+// Pure function — filters by UTC dayOfWeek, generates slots per window, excludes overlapping appts
+// Uses UTC dates throughout; sorts result by startAt
+```
+
+### `availability/availability.service.ts` ✅
+```typescript
+@Injectable()
+export class AvailabilityService
+// Injects: Model<ProfessionalAvailabilityDocument>, Model<AppointmentDocument>, ProfessionalsService
+
+create(professionalId, dto, currentUserId, currentUserRole): Promise<ProfessionalAvailabilityDocument>
+  // enforceOwnership; validates isUnavailable+customSlots; catches 11000 → ConflictException
+
+findByProfessionalAndDate(professionalId, dateString): Promise<ProfessionalAvailabilityDocument | null>
+
+findById(availabilityId): Promise<ProfessionalAvailabilityDocument>
+
+update(availabilityId, dto, currentUserId, currentUserRole): Promise<ProfessionalAvailabilityDocument>
+  // enforceOwnership; validates slots; catches 11000
+
+remove(availabilityId, currentUserId, currentUserRole): Promise<{ success: boolean }>
+  // enforceOwnership; findByIdAndDelete
+
+getAvailableSlots(professionalId, dateString): Promise<AvailableSlotDto[]>
+  // fetches professional.weeklySlots; checks override for the date;
+  // fetches non-CANCELLED appointments for the day;
+  // calls computeSlotsForDay
+
+private enforceOwnership(professionalId, currentUserId, currentUserRole): Promise<void>
+  // only restricts when role=PROFESSIONAL; checks professional.userId === currentUserId
+private normalizeDateToUtcMidnight(dateString): Date
+private validateAvailabilitySlots(isUnavailable, customSlots): void
+private isDuplicateKeyError(error): boolean
+```
+
+### `availability/availability.controller.ts` ✅
+```typescript
+@Controller() @UseGuards(JwtAuthGuard, RolesGuard)
+export class AvailabilityController
+
+  POST  professionals/:professionalId/availability         @Roles(PROFESSIONAL, CLINIC, ATTENDANT) → create()
+  GET   professionals/:professionalId/availability         (public? no guard via @Roles omitted)   → findByProfessionalAndDate()
+  GET   professionals/:professionalId/availability/slots   (no @Roles)                             → getAvailableSlots()
+  PATCH availability/:availabilityId                       @Roles(PROFESSIONAL, CLINIC, ATTENDANT) → update()
+  DELETE availability/:availabilityId                      @Roles(PROFESSIONAL, CLINIC, ATTENDANT) @HttpCode(204) → remove()
+```
+
+### `availability/availability.module.ts` ✅
+```typescript
+@Module({
+  imports: [
+    MongooseModule.forFeature([ProfessionalAvailability, Appointment]),
+    ProfessionalsModule,
+  ],
+  controllers: [AvailabilityController],
+  providers: [AvailabilityService],
+  exports: [AvailabilityService],
+})
+export class AvailabilityModule
+// ⚠️ Not yet imported in AppModule
+```
+
+### Availability tests
+```
+availability/tests/slot-computation.spec.ts       ✅ — pure function tests
+availability/tests/availability.service.spec.ts   ✅ — service tests
+```
+
+---
+
+## Patients — `apps/api/src/patients` (sprint 10)
+
+### `patients/schemas/patient.schema.ts` ✅
+```typescript
+@Schema({ timestamps: true })
+export class Patient
+  userId: Types.ObjectId  // ref: 'User', required, unique
+  name: string            // required
+  dateOfBirth: Date       // required
+  phone?: string          // optional
+  address?: Address       // optional subdocument (from common/schemas/address.schema)
+
+export type PatientDocument = Patient & Document
+export const PatientSchema = SchemaFactory.createForClass(Patient)
+// Index: { userId } unique
+```
+
+### `patients/dto/update-patient-profile.dto.ts` ✅
+```typescript
+export class UpdatePatientProfileDto
+  name?: string           // @IsString @IsOptional
+  dateOfBirth?: string    // @IsDateString @IsOptional
+  phone?: string          // @IsString @IsOptional
+  address?: AddressDto    // @ValidateNested @Type @IsOptional
+```
+
+### `patients/patients.module.ts` ✅
+```typescript
+@Module({
+  imports: [MongooseModule.forFeature([Patient])],
+  providers: [],
+  exports: [MongooseModule],
+})
+export class PatientsModule
+// ⚠️ Not yet imported in AppModule
+```
+
+---
+
+## Profile — `apps/api/src/profile` (sprint 10)
+
+### `profile/dto/update-clinic-profile.dto.ts` ✅
+```typescript
+export class UpdateClinicProfileDto extends UpdateClinicDto
+// No additional fields — scoped "update my clinic" without an id param
+```
+
+### `profile/dto/update-professional-profile.dto.ts` ✅
+```typescript
+export class UpdateProfessionalProfileDto extends UpdateProfessionalDto
+```
+
+### `profile/profile.service.ts` ✅
+```typescript
+@Injectable()
+export class ProfileService
+// Injects: Model<UserDocument> ('User'), Model<PatientDocument>, ClinicsService, ProfessionalsService
+
+getMyProfile(userId: string): Promise<{ user: any; profile: any }>
+  // loads user; routes to Patient/Clinic/Professional profile by role
+  // ⚠️ calls clinicsService.findByUserId and professionalsService.findByUserId
+  //    which are NOT yet implemented (will throw at runtime)
+
+updatePatientProfile(userId, dto): Promise<PatientDocument>
+  // findOneAndUpdate with upsert: true — creates on first call
+
+updateClinicProfile(userId, dto): Promise<ClinicDocument>
+  // ⚠️ calls clinicsService.findByUserId (not yet implemented)
+
+updateProfessionalProfile(userId, dto): Promise<ProfessionalDocument>
+  // ⚠️ calls professionalsService.findByUserId (not yet implemented)
+```
+
+### `profile/profile.controller.ts` ✅
+```typescript
+@Controller('profile') @UseGuards(JwtAuthGuard, RolesGuard)
+export class ProfileController
+  GET /profile/me                   → getMyProfile()
+  PUT /profile/me/patient           @Roles(PATIENT)       → updatePatientProfile()
+  PUT /profile/me/clinic            @Roles(CLINIC)        → updateClinicProfile()
+  PUT /profile/me/professional      @Roles(PROFESSIONAL)  → updateProfessionalProfile()
+```
+
+### `profile/profile.module.ts` ✅
+```typescript
+@Module({
+  imports: [PatientsModule, ClinicsModule, ProfessionalsModule, MongooseModule (User)],
+  controllers: [ProfileController],
+  providers: [ProfileService],
+  exports: [ProfileService],
+})
+export class ProfileModule
+// ⚠️ Not yet imported in AppModule
+```
+
+### `profile/tests/profile.service.spec.ts` ✅ — 6 tests
+
+---
+
+## App Root — `apps/api/src`
+
+### `app.module.ts` ✅ (current state — simplified)
+Imports: ConfigModule (global), MongooseModule (forRootAsync), RedisModule (global),
+AuthModule, UsersModule, ClinicsModule, ProfessionalsModule, ClinicProfessionalsModule
+
+> **⚠️ Missing imports:** AppointmentsModule, SubscriptionsModule, ChatModule, SearchModule,
+> AvailabilityModule, PatientsModule, ProfileModule — all exist on disk but are not yet wired up.
+
+### `main.ts` ✅
+Bootstrap: ValidationPipe (whitelist, forbidNonWhitelisted, transform), AllExceptionsFilter,
+enableCors(), port from `process.env.PORT ?? 3000`
+
+---
+
+## What Needs to Be Built (Sprint 11)
 
 | Module | Status | Notes |
 |---|---|---|
-| `chat` module | ❌ Not started | ChatSession with LLM integration (sprint-05) |
+| Wire up all modules in `app.module.ts` | ❌ | AppointmentsModule, SubscriptionsModule, ChatModule, SearchModule, AvailabilityModule, PatientsModule, ProfileModule |
+| `findByUserId` in ClinicsService | ❌ | Required by ProfileService |
+| `findByUserId` in ProfessionalsService | ❌ | Required by ProfileService |
+| `updateStatus` + `cancel` in AppointmentsService | ❌ | Referenced by AppointmentsController |
+| `notifications/` module (AWS SES) | ❌ | Sprint 11 — notify on appt created/confirmed/cancelled |
+| `availability/services/schedule.service.ts` | ❌ | Sprint 11 — combined provider schedule view |
+| Subscription generalization (ownerType/ownerId) | ❌ | Sprint 11 — support professional subscriptions |
+| Search: RN20 enforcement | ❌ | Sprint 11 — filter professionals without active sub |
+| Register AttendantsService + AttendantsController in ClinicsModule | ❌ | Sprint 10 leftover |

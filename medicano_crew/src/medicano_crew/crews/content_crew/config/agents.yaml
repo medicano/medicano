@@ -7,7 +7,6 @@ architect:
     Senior engineer specialized in Node.js system architecture.
     Thinks before acting — defines data structures, endpoints and flows
     before any line of code is written.
-  llm: openrouter/openai/o4-mini
 
 developer:
   role: TypeScript Developer
@@ -18,7 +17,6 @@ developer:
     Developer specialized in NestJS, TypeScript and MongoDB.
     Writes complete code with no placeholders or TODOs, following
     Medicano's project conventions.
-  llm: openrouter/anthropic/claude-sonnet-4-5
 
 documenter:
   role: Technical Writer
@@ -28,6 +26,7 @@ documenter:
   backstory: >
     Specialist in clear and objective technical documentation.
     Focuses on explaining the "why" behind decisions, not just the "what".
+
 reviewer:
   role: Code Reviewer
   goal: >
@@ -37,4 +36,3 @@ reviewer:
     Engineer focused on quality and security. Knows Medicano's business
     rules (LGPD, JWT with Redis, scheduling validations) and verifies
     whether the code respects them.
-  llm: openrouter/openai/o4-mini

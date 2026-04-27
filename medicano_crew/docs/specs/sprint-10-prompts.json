@@ -1,0 +1,115 @@
+{
+  "sprint": "sprint-10-profile-attendants",
+  "description": "Profile self-management for patient/clinic/professional, full attendant CRUD scoped to clinic, and the linkedScheduling configuration that controls whether consecutive appointments at the same clinic require a minimum gap.",
+  "context": {
+    "stack": "NestJS + TypeScript + MongoDB (Mongoose) + Bcrypt",
+    "monorepo": "apps/api (NestJS), apps/web (React), packages/types (shared)",
+    "dependencies": "Sprints 02 (RBAC), 06 (Schema enrichment) and 08 (Availability) must be complete",
+    "canonical_imports": {
+      "Role": "apps/api/src/common/enums/role.enum.ts",
+      "JwtAuthGuard": "apps/api/src/auth/guards/jwt-auth.guard.ts",
+      "RolesGuard": "apps/api/src/auth/guards/roles.guard.ts",
+      "Roles": "apps/api/src/auth/decorators/roles.decorator.ts",
+      "CurrentUser": "apps/api/src/common/decorators/current-user.decorator.ts",
+      "AddressSchema": "apps/api/src/common/schemas/address.schema.ts",
+      "AddressDto": "apps/api/src/common/dto/address.dto.ts"
+    }
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "patient-schema-and-module",
+      "description": "Create the Patient profile collection separate from the User document",
+      "files": [
+        "apps/api/src/patients/schemas/patient.schema.ts",
+        "apps/api/src/patients/dto/update-patient-profile.dto.ts",
+        "apps/api/src/patients/patients.module.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md. Check medicano_crew/docs/specs/feature-registry.md to understand what already exists.\n\nThe Address schema and AddressDto already exist (Sprint 06) — import them, do NOT recreate.\n\nCreate apps/api/src/patients/schemas/patient.schema.ts:\n- @Schema({ timestamps: true }) class Patient:\n  - @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true }) userId: Types.ObjectId;\n  - @Prop({ type: String, required: true }) name: string;\n  - @Prop({ type: Date, required: true }) dateOfBirth: Date;\n  - @Prop({ type: String }) phone?: string;\n  - @Prop({ type: AddressSchema }) address?: Address;\n- export type PatientDocument = Patient & Document\n- export const PatientSchema = SchemaFactory.createForClass(Patient)\n- PatientSchema.index({ userId: 1 }, { unique: true })\n\nCreate apps/api/src/patients/dto/update-patient-profile.dto.ts:\n- class UpdatePatientProfileDto:\n  - @IsString @IsOptional name?: string\n  - @IsDateString @IsOptional dateOfBirth?: string\n  - @IsString @IsOptional phone?: string\n  - @ValidateNested @Type(() => AddressDto) @IsOptional address?: AddressDto\n\nCreate apps/api/src/patients/patients.module.ts:\n- @Module imports MongooseModule.forFeature([{ name: Patient.name, schema: PatientSchema }])\n- exports MongooseModule (so other modules can use the Patient model)"
+    },
+    {
+      "id": 2,
+      "name": "extend-user-schema",
+      "description": "Add displayName and isActive to User schema for attendants",
+      "files": [
+        "apps/api/src/auth/schemas/user.schema.ts"
+      ],
+      "request": "Before making any changes, read the existing file CAREFULLY — preserve all existing fields and indexes. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/auth/schemas/user.schema.ts:\n- Add @Prop({ type: String }) displayName?: string;\n- Add @Prop({ type: Boolean, default: true }) isActive: boolean;\n\nDo NOT change role, email, username, clinicId, passwordHash or any existing index. Do NOT change the existing unique compound indexes (role+email, clinicId+username)."
+    },
+    {
+      "id": 3,
+      "name": "extend-clinic-schema-linked-scheduling",
+      "description": "Add linkedScheduling field to Clinic schema (default false per RN25)",
+      "files": [
+        "apps/api/src/clinics/schemas/clinic.schema.ts",
+        "apps/api/src/clinics/dto/update-linked-scheduling.dto.ts"
+      ],
+      "request": "Before making any changes, read the existing file. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/clinics/schemas/clinic.schema.ts:\n- Add @Prop({ type: Boolean, default: false }) linkedScheduling: boolean;\n- Do NOT touch other fields\n\nCreate apps/api/src/clinics/dto/update-linked-scheduling.dto.ts:\n- class UpdateLinkedSchedulingDto:\n  - @IsBoolean linkedScheduling: boolean"
+    },
+    {
+      "id": 4,
+      "name": "profile-module",
+      "description": "Self-managed profile endpoints for patient, clinic and professional",
+      "files": [
+        "apps/api/src/profile/dto/update-clinic-profile.dto.ts",
+        "apps/api/src/profile/dto/update-professional-profile.dto.ts",
+        "apps/api/src/profile/profile.service.ts",
+        "apps/api/src/profile/profile.controller.ts",
+        "apps/api/src/profile/profile.module.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe following already exist — import them:\n- UpdatePatientProfileDto at apps/api/src/patients/dto/update-patient-profile.dto.ts (created in prompt 1)\n- UpdateClinicDto at apps/api/src/clinics/dto/update-clinic.dto.ts\n- UpdateProfessionalDto at apps/api/src/professionals/dto/update-professional.dto.ts\n- ClinicsService, ProfessionalsService\n- Patient model (created in prompt 1)\n- Role enum, Roles decorator, JwtAuthGuard, RolesGuard, CurrentUser decorator\n\nCreate apps/api/src/profile/dto/update-clinic-profile.dto.ts:\n- export class UpdateClinicProfileDto extends UpdateClinicDto {} — pure re-export for clarity in URL-less context\n\nCreate apps/api/src/profile/dto/update-professional-profile.dto.ts:\n- export class UpdateProfessionalProfileDto extends UpdateProfessionalDto {}\n\nCreate apps/api/src/profile/profile.service.ts:\n- @Injectable class ProfileService\n- constructor injects:\n  - @InjectModel(Patient.name) patientModel: Model<PatientDocument>\n  - @InjectModel('User') userModel: Model<UserDocument>\n  - clinicsService: ClinicsService\n  - professionalsService: ProfessionalsService\n\n- async getMyProfile(userId: string): Promise<{ user: any; profile: any }>\n  - const user = await this.userModel.findById(userId).select('-passwordHash')\n  - if (!user) throw NotFoundException\n  - let profile = null\n  - switch (user.role):\n    - case PATIENT: profile = await this.patientModel.findOne({ userId })\n    - case CLINIC: profile = await this.clinicModel.findOne({ userId }) — use clinicsService\n    - case PROFESSIONAL: profile = await this.professionalsService.findByUserId(userId)\n    - case ATTENDANT: profile is null (the user document already has displayName)\n  - return { user, profile }\n\n- async updatePatientProfile(userId: string, dto: UpdatePatientProfileDto): Promise<PatientDocument>\n  - findOneAndUpdate({ userId }, dto, { new: true, upsert: true, setDefaultsOnInsert: true })\n  - On upsert, the userId must be set automatically — use $setOnInsert: { userId } in the update\n\n- async updateClinicProfile(userId: string, dto: UpdateClinicProfileDto): Promise<ClinicDocument>\n  - Find clinic where userId matches; throw NotFoundException if not found\n  - Apply update via clinicsService.update(clinic._id, dto)\n\n- async updateProfessionalProfile(userId: string, dto: UpdateProfessionalProfileDto): Promise<ProfessionalDocument>\n  - Same pattern via professionalsService\n\nNote: ClinicsService and ProfessionalsService should expose a findByUserId helper if they don't already. If they don't, instruct: 'Add a public findByUserId(userId: string) method to ClinicsService and ProfessionalsService that returns the clinic/professional owned by that user, or throws NotFoundException.'\n\nCreate apps/api/src/profile/profile.controller.ts:\n- @Controller('profile') @UseGuards(JwtAuthGuard, RolesGuard)\n- @Get('me') @SkipRoles or no @Roles → all authenticated users; calls getMyProfile(@CurrentUser() userId)\n- @Put('me/patient') @Roles(Role.PATIENT) → updatePatientProfile\n- @Put('me/clinic') @Roles(Role.CLINIC) → updateClinicProfile\n- @Put('me/professional') @Roles(Role.PROFESSIONAL) → updateProfessionalProfile\n\nCreate apps/api/src/profile/profile.module.ts:\n- imports: PatientsModule, ClinicsModule, ProfessionalsModule, MongooseModule.forFeature([{ name: 'User', schema: UserSchema }])\n- providers: [ProfileService]\n- controllers: [ProfileController]"
+    },
+    {
+      "id": 5,
+      "name": "attendants-crud",
+      "description": "Full CRUD for attendants, scoped to the clinic owned by the authenticated user",
+      "files": [
+        "apps/api/src/clinics/dto/create-attendant.dto.ts",
+        "apps/api/src/clinics/dto/update-attendant.dto.ts",
+        "apps/api/src/clinics/services/attendants.service.ts",
+        "apps/api/src/clinics/controllers/attendants.controller.ts",
+        "apps/api/src/clinics/clinics.module.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe following already exist — import them, do NOT recreate:\n- User schema and UserDocument at apps/api/src/auth/schemas/user.schema.ts\n- Role enum, JwtAuthGuard, RolesGuard, Roles decorator\n- ClinicsService for clinic ownership validation\n- bcrypt npm package — use require('bcrypt') with cost 12\n\nCreate apps/api/src/clinics/dto/create-attendant.dto.ts:\n- @IsString @MinLength(3) @MaxLength(30) @Matches(/^[a-zA-Z0-9_-]+$/) username: string\n- @IsString @MinLength(8) password: string\n- @IsString @MinLength(2) @MaxLength(80) displayName: string\n\nCreate apps/api/src/clinics/dto/update-attendant.dto.ts:\n- @IsString @IsOptional displayName?: string\n- @IsString @MinLength(8) @IsOptional password?: string\n- @IsBoolean @IsOptional isActive?: boolean\n\nCreate apps/api/src/clinics/services/attendants.service.ts:\n- @Injectable class AttendantsService\n- constructor:\n  - @InjectModel('User') userModel: Model<UserDocument>\n  - clinicsService: ClinicsService\n\n- private async assertClinicOwnership(clinicId: string, currentUserId: string): Promise<void>\n  - const clinic = await this.clinicsService.findById(clinicId)\n  - if (clinic.userId.toString() !== currentUserId) throw ForbiddenException('You do not own this clinic')\n\n- async createAttendant(clinicId: string, currentUserId: string, dto: CreateAttendantDto): Promise<UserDocument>\n  - assertClinicOwnership\n  - const passwordHash = await bcrypt.hash(dto.password, 12)\n  - try { user = await userModel.create({ role: Role.ATTENDANT, clinicId, username: dto.username, passwordHash, displayName: dto.displayName, isActive: true }) }\n  - catch err with code 11000 → throw ConflictException('Username already taken in this clinic')\n  - return user with passwordHash stripped (toObject and delete)\n\n- async listAttendants(clinicId: string, currentUserId: string): Promise<UserDocument[]>\n  - assertClinicOwnership\n  - return userModel.find({ role: Role.ATTENDANT, clinicId }).select('-passwordHash').sort({ displayName: 1 })\n\n- async updateAttendant(clinicId: string, attendantId: string, currentUserId: string, dto: UpdateAttendantDto): Promise<UserDocument>\n  - assertClinicOwnership\n  - validate attendantId is ObjectId\n  - const update: any = {}\n  - if (dto.displayName !== undefined) update.displayName = dto.displayName\n  - if (dto.isActive !== undefined) update.isActive = dto.isActive\n  - if (dto.password) update.passwordHash = await bcrypt.hash(dto.password, 12)\n  - const user = await userModel.findOneAndUpdate({ _id: attendantId, role: Role.ATTENDANT, clinicId }, update, { new: true }).select('-passwordHash')\n  - if (!user) throw NotFoundException('Attendant not found in this clinic')\n  - return user\n\n- async removeAttendant(clinicId: string, attendantId: string, currentUserId: string): Promise<{ success: true }>\n  - assertClinicOwnership\n  - const result = await userModel.deleteOne({ _id: attendantId, role: Role.ATTENDANT, clinicId })\n  - if (result.deletedCount === 0) throw NotFoundException\n  - return { success: true }\n\nCreate apps/api/src/clinics/controllers/attendants.controller.ts:\n- @Controller('clinics/:clinicId/attendants')\n- @UseGuards(JwtAuthGuard, RolesGuard) @Roles(Role.CLINIC)\n- @Post('/') createAttendant(@Param clinicId, @CurrentUser userId, @Body dto)\n- @Get('/') listAttendants(@Param clinicId, @CurrentUser userId)\n- @Put('/:attendantId') updateAttendant(@Param clinicId, @Param attendantId via ParseMongoIdPipe, @CurrentUser userId, @Body dto)\n- @Delete('/:attendantId') @HttpCode(204) removeAttendant(@Param clinicId, @Param attendantId, @CurrentUser userId)\n\nUpdate apps/api/src/clinics/clinics.module.ts:\n- Add MongooseModule.forFeature([{ name: 'User', schema: UserSchema }]) to imports if not already present\n- Add AttendantsService to providers\n- Add AttendantsController to controllers\n- Export ClinicsService (if not already) so ProfileModule can use it"
+    },
+    {
+      "id": 6,
+      "name": "linked-scheduling-conflict-logic",
+      "description": "Update AppointmentsService.checkConflict to honor linkedScheduling flag",
+      "files": [
+        "apps/api/src/appointments/appointments.service.ts"
+      ],
+      "request": "Before making any changes, READ the existing file CAREFULLY — preserve all existing methods. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe ClinicsService already exists. The Clinic schema now has a linkedScheduling field (added in prompt 3).\n\nUpdate the existing private checkConflict method in AppointmentsService:\n\nCurrent signature:\n  private async checkConflict(professionalId: string, startAt: Date, endAt: Date, excludeId?: string): Promise<void>\n\nNew signature:\n  private async checkConflict(professionalId: string, startAt: Date, endAt: Date, clinicId: string, excludeId?: string): Promise<void>\n\nNew logic:\n- const clinic = await this.clinicsService.findById(clinicId)\n- const linkedScheduling = clinic.linkedScheduling ?? false\n- Build query window:\n  - if linkedScheduling === true: STRICT overlap only — { startAt: { $lt: endAt }, endAt: { $gt: startAt } } — touching boundaries do NOT conflict\n  - if linkedScheduling === false: include adjacency — { startAt: { $lte: endAt }, endAt: { $gte: startAt } } — touching boundaries DO conflict\n- Add filter: status NOT IN [CANCELLED]\n- Add filter: professionalId\n- Add filter: clinicId === this clinic (linkedScheduling only matters for SAME clinic — different clinics still go through RN04 in createForPatient)\n- if excludeId: _id NOT EQUAL to excludeId\n- if found, throw ConflictException\n\nIMPORTANT: All existing call sites of checkConflict must be updated to pass clinicId:\n- in create() method: this.checkConflict(dto.professionalId, startAt, endAt, dto.clinicId)\n- in update() method: pass the clinicId from the existing appointment doc\n- in createForPatient() (Sprint 09): this.checkConflict(dto.professionalId, startAt, endAt, dto.clinicId)\n\nDo NOT remove the cross-clinic 30-min check (RN04, Sprint 09) — it stays as a separate method (checkCrossClinicInterval)."
+    },
+    {
+      "id": 7,
+      "name": "profile-and-attendants-tests",
+      "description": "Unit tests for ProfileService and AttendantsService",
+      "files": [
+        "apps/api/src/profile/tests/profile.service.spec.ts",
+        "apps/api/src/clinics/tests/attendants.service.spec.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nCreate apps/api/src/profile/tests/profile.service.spec.ts:\n- Mock userModel, patientModel, clinicsService, professionalsService\n\nTests:\n1. 'getMyProfile — patient returns user + Patient document'\n2. 'getMyProfile — clinic returns user + Clinic document'\n3. 'getMyProfile — professional returns user + Professional document'\n4. 'getMyProfile — attendant returns user with profile=null'\n5. 'updatePatientProfile — upsert creates patient on first call' (mock findOneAndUpdate to confirm upsert: true)\n6. 'updatePatientProfile — update modifies fields when patient exists'\n\nCreate apps/api/src/clinics/tests/attendants.service.spec.ts:\n- Mock userModel and clinicsService\n- Mock bcrypt.hash to return 'hashed-password'\n- afterEach jest.clearAllMocks()\n\nTests:\n1. 'createAttendant — success hashes password and creates user with role=ATTENDANT'\n2. 'createAttendant — duplicate username throws ConflictException' (simulate Mongo error code 11000)\n3. 'createAttendant — clinic owned by another user throws ForbiddenException'\n4. 'listAttendants — returns only attendants of that clinic, no passwordHash, sorted by displayName'\n5. 'listAttendants — wrong clinic owner throws ForbiddenException'\n6. 'updateAttendant — wrong clinic throws NotFoundException' (mock findOneAndUpdate to return null)\n7. 'updateAttendant — password rehashed when provided' (verify bcrypt.hash called)\n8. 'updateAttendant — password NOT rehashed when not provided'\n9. 'removeAttendant — success returns { success: true }'\n10. 'removeAttendant — non-existent throws NotFoundException' (deletedCount 0)"
+    },
+    {
+      "id": 8,
+      "name": "linked-scheduling-tests",
+      "description": "Add 3 conflict tests covering linkedScheduling=true and =false",
+      "files": [
+        "apps/api/src/appointments/tests/appointments.service.spec.ts"
+      ],
+      "request": "Before making any changes, READ the file and PRESERVE all existing tests. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nThe AppointmentsService now injects ClinicsService — make sure it's mocked in the TestingModule. Mock clinicsService.findById to return { _id, linkedScheduling: <true|false>, ... } per test.\n\nAdd these tests inside the existing describe('AppointmentsService') block:\n\n1. 'checkConflict — linkedScheduling=true allows adjacent same-clinic appointments'\n   - Mock clinicsService.findById to return { linkedScheduling: true }\n   - Existing appointment: 09:00-10:00 at clinic A, professional X\n   - New appointment: 10:00-11:00 at clinic A, professional X\n   - Expect create to succeed (no ConflictException)\n\n2. 'checkConflict — linkedScheduling=false blocks adjacent same-clinic appointments'\n   - Mock clinicsService.findById to return { linkedScheduling: false }\n   - Same scenario as above\n   - Expect ConflictException\n\n3. 'checkConflict — linkedScheduling=true still blocks STRICT overlap'\n   - Mock clinicsService.findById to return { linkedScheduling: true }\n   - Existing appointment: 09:00-10:00\n   - New appointment: 09:30-10:30 (overlapping)\n   - Expect ConflictException\n\nIf existing tests break because checkConflict now requires clinicId, UPDATE them to pass a valid clinicId and mock clinicsService.findById to return a clinic with linkedScheduling=false (default behavior matching current tests)."
+    },
+    {
+      "id": 9,
+      "name": "linked-scheduling-endpoint-and-types",
+      "description": "Add the PATCH endpoint to toggle linkedScheduling and update shared types",
+      "files": [
+        "apps/api/src/clinics/clinics.controller.ts",
+        "apps/api/src/app.module.ts",
+        "packages/types/src/auth.ts"
+      ],
+      "request": "Before making any changes, read the existing files. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/clinics/clinics.controller.ts:\n- Add @Patch(':id/linked-scheduling') endpoint\n- @Roles(Role.CLINIC)\n- Body: UpdateLinkedSchedulingDto\n- Calls clinicsService.update(id, { linkedScheduling: dto.linkedScheduling })\n\nUpdate apps/api/src/app.module.ts:\n- Import ProfileModule\n- Import PatientsModule\n- Add both to imports array\n\nUpdate packages/types/src/auth.ts:\n- IUser interface: add displayName?: string, isActive: boolean\n- IClinic interface: add linkedScheduling: boolean\n- Add IPatient interface: { _id: string; userId: string; name: string; dateOfBirth: Date; phone?: string; address?: IAddress; createdAt: Date; updatedAt: Date }\n- Export IPatient"
+    }
+  ]
+}

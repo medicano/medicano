@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 from typing import List
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[4] / ".env", override=True)
 
 PROVIDER = os.getenv("LLM_PROVIDER", "openrouter")
 
@@ -10,13 +14,25 @@ PROVIDER = os.getenv("LLM_PROVIDER", "openrouter")
 def _llm(openrouter_model: str, vertex_model: str) -> LLM:
     if PROVIDER == "vertex":
         return LLM(model=vertex_model)
-    return LLM(model=f"openrouter/{openrouter_model}")
+    return LLM(model=f"openrouter/{openrouter_model}", is_litellm=True)
 
 
-_architect_llm  = _llm("openai/o4-mini",              "vertex_ai/gemini-2.5-flash")
-_developer_llm  = _llm("anthropic/claude-sonnet-4-5", "vertex_ai/claude-opus-4-7")
-_documenter_llm = _llm("google/gemini-2.5-flash",     "vertex_ai/gemini-2.5-flash")
-_reviewer_llm   = _llm("openai/o4-mini",              "vertex_ai/gemini-2.5-flash")
+_architect_llm = _llm(
+    os.getenv("ARCHITECT_MODEL", "anthropic/claude-opus-4-7"),
+    os.getenv("VERTEX_ARCHITECT_MODEL", "vertex_ai/claude-opus-4-7"),
+)
+_developer_llm = _llm(
+    os.getenv("DEVELOPER_MODEL", "anthropic/claude-sonnet-4-6"),
+    os.getenv("VERTEX_DEVELOPER_MODEL", "vertex_ai/claude-sonnet-4-6"),
+)
+_documenter_llm = _llm(
+    os.getenv("DOCUMENTER_MODEL", "google/gemini-2.5-flash"),
+    os.getenv("VERTEX_DOCUMENTER_MODEL", "vertex_ai/gemini-2.5-flash"),
+)
+_reviewer_llm = _llm(
+    os.getenv("REVIEWER_MODEL", "anthropic/claude-opus-4-7"),
+    os.getenv("VERTEX_REVIEWER_MODEL", "vertex_ai/claude-opus-4-7"),
+)
 
 
 @CrewBase
