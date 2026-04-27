@@ -10,18 +10,24 @@ export interface AppointmentCancelledData {
 export function appointmentCancelledTemplate(
   data: AppointmentCancelledData,
 ): { subject: string; html: string; text: string } {
+  const { recipientName, otherPartyName, startAt, cancelledBy } = data;
+  const formattedDate = formatDateBR(startAt);
   const subject = 'Agendamento cancelado';
-  const formattedDate = formatDateBR(data.startAt);
-  const cancelledByLabel =
-    data.cancelledBy === 'patient' ? 'pelo paciente' : 'pelo prestador';
 
-  const text =
-    `Olá ${data.recipientName}, o agendamento com ${data.otherPartyName} para ${formattedDate} foi cancelado ${cancelledByLabel}.\n\n` +
-    `Atenciosamente, Equipe Medicano`;
+  const cancellationReason =
+    cancelledBy === 'patient' ? 'foi cancelado pelo paciente.' : 'foi cancelado pelo prestador.';
 
-  const html =
-    `<p>Olá <strong>${data.recipientName}</strong>, o agendamento com <strong>${data.otherPartyName}</strong> para <strong>${formattedDate}</strong> foi cancelado ${cancelledByLabel}.</p>` +
-    `<p>Atenciosamente,<br />Equipe Medicano</p>`;
+  const html = [
+    `<p>Olá <strong>${recipientName}</strong>,</p>`,
+    `<p>O agendamento com <strong>${otherPartyName}</strong> para <strong>${formattedDate}</strong> ${cancellationReason}</p>`,
+    `<p>Atenciosamente, Equipe Medicano</p>`,
+  ].join('\n');
+
+  const text = [
+    `Olá ${recipientName},`,
+    `O agendamento com ${otherPartyName} para ${formattedDate} ${cancellationReason}`,
+    `Atenciosamente, Equipe Medicano`,
+  ].join('\n');
 
   return { subject, html, text };
 }

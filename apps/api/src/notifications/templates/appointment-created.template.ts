@@ -11,29 +11,41 @@ export interface AppointmentCreatedData {
 export function appointmentCreatedTemplate(
   data: AppointmentCreatedData,
 ): { subject: string; html: string; text: string } {
-  const subject = 'Novo agendamento na Medicano';
-  const formattedDate = formatDateBR(data.startAt);
+  const { patientName, professionalName, startAt, durationMinutes, recipientType } = data;
+  const formattedDate = formatDateBR(startAt);
+  const subject = 'Novo agendamento criado';
 
-  let text: string;
-  let html: string;
+  if (recipientType === 'patient') {
+    const html = [
+      `<p>Olá <strong>${patientName}</strong>,</p>`,
+      `<p>Seu agendamento com <strong>${professionalName}</strong> para <strong>${formattedDate}</strong> foi criado com sucesso.</p>`,
+      `<p>Duração: ${durationMinutes} minutos.</p>`,
+      `<p>Atenciosamente, Equipe Medicano</p>`,
+    ].join('\n');
 
-  if (data.recipientType === 'patient') {
-    text =
-      `Olá ${data.patientName}, seu agendamento com ${data.professionalName} foi registrado para ${formattedDate}.\n\n` +
-      `Atenciosamente, Equipe Medicano`;
+    const text = [
+      `Olá ${patientName},`,
+      `Seu agendamento com ${professionalName} para ${formattedDate} foi criado com sucesso.`,
+      `Duração: ${durationMinutes} minutos.`,
+      `Atenciosamente, Equipe Medicano`,
+    ].join('\n');
 
-    html =
-      `<p>Olá <strong>${data.patientName}</strong>, seu agendamento com <strong>${data.professionalName}</strong> foi registrado para <strong>${formattedDate}</strong>.</p>` +
-      `<p>Atenciosamente,<br />Equipe Medicano</p>`;
-  } else {
-    text =
-      `Olá ${data.professionalName}, um novo agendamento foi registrado com o paciente ${data.patientName} para ${formattedDate}.\n\n` +
-      `Atenciosamente, Equipe Medicano`;
-
-    html =
-      `<p>Olá <strong>${data.professionalName}</strong>, um novo agendamento foi registrado com o paciente <strong>${data.patientName}</strong> para <strong>${formattedDate}</strong>.</p>` +
-      `<p>Atenciosamente,<br />Equipe Medicano</p>`;
+    return { subject, html, text };
   }
+
+  const html = [
+    `<p>Olá <strong>${professionalName}</strong>,</p>`,
+    `<p>Um novo agendamento com <strong>${patientName}</strong> para <strong>${formattedDate}</strong> foi criado.</p>`,
+    `<p>Duração: ${durationMinutes} minutos.</p>`,
+    `<p>Atenciosamente, Equipe Medicano</p>`,
+  ].join('\n');
+
+  const text = [
+    `Olá ${professionalName},`,
+    `Um novo agendamento com ${patientName} para ${formattedDate} foi criado.`,
+    `Duração: ${durationMinutes} minutos.`,
+    `Atenciosamente, Equipe Medicano`,
+  ].join('\n');
 
   return { subject, html, text };
 }

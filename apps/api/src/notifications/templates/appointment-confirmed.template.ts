@@ -9,16 +9,21 @@ export interface AppointmentConfirmedData {
 export function appointmentConfirmedTemplate(
   data: AppointmentConfirmedData,
 ): { subject: string; html: string; text: string } {
-  const subject = 'Seu agendamento foi confirmado';
-  const formattedDate = formatDateBR(data.startAt);
+  const { patientName, professionalName, startAt } = data;
+  const formattedDate = formatDateBR(startAt);
+  const subject = 'Agendamento confirmado';
 
-  const text =
-    `Olá ${data.patientName}, seu agendamento com ${data.professionalName} para ${formattedDate} foi confirmado.\n\n` +
-    `Atenciosamente, Equipe Medicano`;
+  const html = [
+    `<p>Olá <strong>${patientName}</strong>,</p>`,
+    `<p>Seu agendamento com <strong>${professionalName}</strong> para <strong>${formattedDate}</strong> foi confirmado.</p>`,
+    `<p>Atenciosamente, Equipe Medicano</p>`,
+  ].join('\n');
 
-  const html =
-    `<p>Olá <strong>${data.patientName}</strong>, seu agendamento com <strong>${data.professionalName}</strong> para <strong>${formattedDate}</strong> foi confirmado.</p>` +
-    `<p>Atenciosamente,<br />Equipe Medicano</p>`;
+  const text = [
+    `Olá ${patientName},`,
+    `Seu agendamento com ${professionalName} para ${formattedDate} foi confirmado.`,
+    `Atenciosamente, Equipe Medicano`,
+  ].join('\n');
 
   return { subject, html, text };
 }
