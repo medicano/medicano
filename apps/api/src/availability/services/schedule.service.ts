@@ -89,7 +89,7 @@ export class ScheduleService {
 
     const availableSlots = await this.availabilityService.getAvailableSlots(
       professionalId,
-      { fromDate: fromDateObj, toDate: toDateObj },
+      query.fromDate,
     );
 
     const appointments = await this.appointmentsService.findAll({

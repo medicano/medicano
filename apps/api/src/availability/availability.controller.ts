@@ -48,9 +48,6 @@ export class AvailabilityController {
     @Param('professionalId', ParseMongoIdPipe) professionalId: string,
     @Query() query: GetAvailabilityQueryDto,
   ) {
-    return this.availabilityService.getAvailableSlots(professionalId, {
-      fromDate: new Date(query.fromDate),
-      toDate: new Date(query.toDate),
-    });
+    return this.availabilityService.getAvailableSlots(professionalId, query.date);
   }
 }
