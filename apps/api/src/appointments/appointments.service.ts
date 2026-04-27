@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
@@ -16,6 +17,8 @@ import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
+import { AvailabilityService } from '../availability/availability.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const VALID_TRANSITIONS: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
   [AppointmentStatus.SCHEDULED]: [
@@ -30,13 +33,18 @@ const VALID_TRANSITIONS: Partial<Record<AppointmentStatus, AppointmentStatus[]>>
 
 @Injectable()
 export class AppointmentsService {
+  private readonly logger = new Logger(AppointmentsService.name);
+
   constructor(
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<AppointmentDocument>,
+    private readonly availabilityService: AvailabilityService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
     await this.validateDateRange(dto.startAt, dto.endAt);
+    await this.validateAvailability(dto.professionalId, dto.startAt, dto.endAt);
     await this.checkConflict(dto.professionalId, dto.startAt, dto.endAt);
     await this.checkCrossClinicInterval(
       dto.professionalId,
@@ -45,7 +53,17 @@ export class AppointmentsService {
     );
 
     const appointment = new this.appointmentModel(dto);
-    return appointment.save();
+    const createdAppointment = await appointment.save();
+
+    void this.notificationsService
+      .notifyAppointmentCreated(createdAppointment)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Failed to send appointment created notification: ${error instanceof Error ? error.message : 'unknown error'}`,
+        ),
+      );
+
+    return createdAppointment;
   }
 
   async createForPatient(
@@ -53,6 +71,7 @@ export class AppointmentsService {
     patientId: string,
   ): Promise<AppointmentDocument> {
     await this.validateDateRange(dto.startAt, dto.endAt);
+    await this.validateAvailability(dto.professionalId, dto.startAt, dto.endAt);
     await this.checkConflict(dto.professionalId, dto.startAt, dto.endAt);
     await this.checkCrossClinicInterval(
       dto.professionalId,
@@ -64,7 +83,17 @@ export class AppointmentsService {
       ...dto,
       patientId,
     });
-    return appointment.save();
+    const createdAppointment = await appointment.save();
+
+    void this.notificationsService
+      .notifyAppointmentCreated(createdAppointment)
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Failed to send appointment created notification: ${error instanceof Error ? error.message : 'unknown error'}`,
+        ),
+      );
+
+    return createdAppointment;
   }
 
   async findAll(query?: GetAppointmentsQueryDto): Promise<AppointmentDocument[]> {
@@ -149,7 +178,29 @@ export class AppointmentsService {
     }
 
     appointment.status = dto.status;
-    return appointment.save();
+    const updatedAppointment = await appointment.save();
+
+    if (dto.status === AppointmentStatus.CONFIRMED) {
+      void this.notificationsService
+        .notifyAppointmentConfirmed(updatedAppointment)
+        .catch((error: unknown) =>
+          this.logger.warn(
+            `Failed to send appointment confirmed notification: ${error instanceof Error ? error.message : 'unknown error'}`,
+          ),
+        );
+    }
+
+    if (dto.status === AppointmentStatus.CANCELLED) {
+      void this.notificationsService
+        .notifyAppointmentCancelled(updatedAppointment, 'provider')
+        .catch((error: unknown) =>
+          this.logger.warn(
+            `Failed to send appointment cancelled notification: ${error instanceof Error ? error.message : 'unknown error'}`,
+          ),
+        );
+    }
+
+    return updatedAppointment;
   }
 
   async cancel(id: string): Promise<AppointmentDocument> {
@@ -165,7 +216,17 @@ export class AppointmentsService {
     }
 
     appointment.status = AppointmentStatus.CANCELLED;
-    return appointment.save();
+    const cancelledAppointment = await appointment.save();
+
+    void this.notificationsService
+      .notifyAppointmentCancelled(cancelledAppointment, 'provider')
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Failed to send appointment cancelled notification: ${error instanceof Error ? error.message : 'unknown error'}`,
+        ),
+      );
+
+    return cancelledAppointment;
   }
 
   async cancelAsPatient(
@@ -188,7 +249,17 @@ export class AppointmentsService {
     }
 
     appointment.status = AppointmentStatus.CANCELLED;
-    return appointment.save();
+    const cancelledAppointment = await appointment.save();
+
+    void this.notificationsService
+      .notifyAppointmentCancelled(cancelledAppointment, 'patient')
+      .catch((error: unknown) =>
+        this.logger.warn(
+          `Failed to send appointment cancelled notification: ${error instanceof Error ? error.message : 'unknown error'}`,
+        ),
+      );
+
+    return cancelledAppointment;
   }
 
   async remove(id: string): Promise<void> {
@@ -270,6 +341,33 @@ export class AppointmentsService {
 
     if (start >= end) {
       throw new ConflictException('startAt must be before endAt');
+    }
+  }
+
+  private async validateAvailability(
+    professionalId: string,
+    startAt: string,
+    endAt: string,
+  ): Promise<void> {
+    const requestedStartAt = new Date(startAt);
+    const requestedEndAt = new Date(endAt);
+    const dateString = requestedStartAt.toISOString().slice(0, 10);
+
+    const availableSlots = await this.availabilityService.getAvailableSlots(
+      professionalId,
+      dateString,
+    );
+
+    const hasExactSlot = availableSlots.some(
+      (slot) =>
+        slot.startAt.getTime() === requestedStartAt.getTime() &&
+        slot.endAt.getTime() === requestedEndAt.getTime(),
+    );
+
+    if (!hasExactSlot) {
+      throw new ConflictException(
+        'Selected time is not available for this professional',
+      );
     }
   }
 }
