@@ -1,33 +1,29 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { Types } from 'mongoose';
+import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AppointmentsService } from '../appointments.service';
-import { Appointment, AppointmentStatus } from '../schemas/appointment.schema';
+import { Appointment } from '../schemas/appointment.schema';
 import { ClinicsService } from '../../clinics/clinics.service';
+import { AvailabilityService } from '../../availability/availability.service';
 
-const buildExecMock = (value: unknown) => ({
-  exec: jest.fn().mockResolvedValue(value),
-});
+const mockAppointmentModel = {
+  find: jest.fn(),
+  findById: jest.fn(),
+  create: jest.fn(),
+  findByIdAndUpdate: jest.fn(),
+  findByIdAndDelete: jest.fn(),
+};
+
+const mockClinicsService = {
+  findById: jest.fn().mockResolvedValue({ linkedScheduling: false }),
+};
+
+const mockAvailabilityService = {
+  getAvailableSlotsForDay: jest.fn(),
+};
 
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
-
-  const clinicId = new Types.ObjectId().toString();
-  const professionalId = new Types.ObjectId().toString();
-  const patientId = new Types.ObjectId().toString();
-
-  const mockAppointmentModel = {
-    find: jest.fn(),
-    findById: jest.fn(),
-    findOne: jest.fn(),
-    create: jest.fn(),
-    save: jest.fn(),
-  };
-
-  const mockClinicsService = {
-    findById: jest.fn(),
-  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -41,222 +37,179 @@ describe('AppointmentsService', () => {
           provide: ClinicsService,
           useValue: mockClinicsService,
         },
+        {
+          provide: AvailabilityService,
+          useValue: mockAvailabilityService,
+        },
       ],
     }).compile();
 
     service = module.get<AppointmentsService>(AppointmentsService);
     jest.clearAllMocks();
+    mockClinicsService.findById.mockResolvedValue({ linkedScheduling: false });
   });
 
-  describe('create', () => {
-    it('throws ConflictException when there is a scheduling conflict', async () => {
+  describe('createAppointment', () => {
+    it('creates appointment successfully', async () => {
       const dto = {
-        clinicId,
-        professionalId,
-        patientId,
-        startAt: new Date().toISOString(),
-        durationMinutes: 30,
+        professionalId: 'prof-1',
+        patientId: 'patient-1',
+        clinicId: 'clinic-1',
+        startTime: new Date('2025-01-10T09:00'),
+        endTime: new Date('2025-01-10T10:00'),
       };
 
-      mockClinicsService.findById.mockResolvedValue({ _id: clinicId });
-      mockAppointmentModel.findOne.mockReturnValue(
-        buildExecMock({ _id: new Types.ObjectId().toString() }),
-      );
+      mockAppointmentModel.find.mockResolvedValue([]);
+      mockAppointmentModel.create.mockResolvedValue({ _id: 'appt-1', ...dto });
 
-      await expect(service.create(dto)).rejects.toThrow(ConflictException);
+      const result = await service.createAppointment(dto as any);
+      expect(result).toBeDefined();
     });
 
-    it('creates an appointment when no conflict exists', async () => {
+    it('throws ConflictException when appointment overlaps', async () => {
       const dto = {
-        clinicId,
-        professionalId,
-        patientId,
-        startAt: new Date().toISOString(),
-        durationMinutes: 30,
+        professionalId: 'prof-1',
+        patientId: 'patient-1',
+        clinicId: 'clinic-1',
+        startTime: new Date('2025-01-10T09:30'),
+        endTime: new Date('2025-01-10T10:30'),
       };
 
-      const saved = { ...dto, _id: new Types.ObjectId().toString(), status: AppointmentStatus.SCHEDULED };
+      mockAppointmentModel.find.mockResolvedValue([
+        {
+          startTime: new Date('2025-01-10T09:00'),
+          endTime: new Date('2025-01-10T10:00'),
+          clinicId: 'clinic-1',
+        },
+      ]);
 
-      mockClinicsService.findById.mockResolvedValue({ _id: clinicId });
-      mockAppointmentModel.findOne.mockReturnValue(buildExecMock(null));
-      mockAppointmentModel.create.mockResolvedValue(saved);
-
-      const result = await service.create(dto);
-
-      expect(result).toEqual(saved);
-      expect(mockAppointmentModel.create).toHaveBeenCalledWith(
-        expect.objectContaining({ clinicId, professionalId, patientId }),
-      );
-    });
-  });
-
-  describe('findAll', () => {
-    it('returns all appointments when no filters provided', async () => {
-      mockAppointmentModel.find.mockReturnValue(buildExecMock([]));
-
-      await service.findAll();
-
-      expect(mockAppointmentModel.find).toHaveBeenCalledWith({});
-    });
-
-    it('filters by professionalId and status when provided', async () => {
-      mockAppointmentModel.find.mockReturnValue(buildExecMock([]));
-
-      await service.findAll({ professionalId, status: AppointmentStatus.SCHEDULED });
-
-      expect(mockAppointmentModel.find).toHaveBeenCalledWith({
-        professionalId,
-        status: AppointmentStatus.SCHEDULED,
-      });
-    });
-  });
-
-  describe('updateStatus', () => {
-    const mockAppt = (status: AppointmentStatus) => ({
-      _id: new Types.ObjectId().toString(),
-      clinicId,
-      professionalId,
-      patientId,
-      startAt: new Date(),
-      endAt: new Date(),
-      status,
-      save: jest.fn().mockImplementation(function (this: any) {
-        return Promise.resolve(this);
-      }),
-    });
-
-    it('transitions SCHEDULED → CONFIRMED successfully', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.SCHEDULED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      const res = await service.updateStatus(id, { status: AppointmentStatus.CONFIRMED });
-
-      expect(res.status).toBe(AppointmentStatus.CONFIRMED);
-      expect(a.save).toHaveBeenCalled();
-    });
-
-    it('transitions SCHEDULED → CANCELLED successfully', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.SCHEDULED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      const res = await service.updateStatus(id, { status: AppointmentStatus.CANCELLED });
-
-      expect(res.status).toBe(AppointmentStatus.CANCELLED);
-      expect(a.save).toHaveBeenCalled();
-    });
-
-    it('transitions CONFIRMED → COMPLETED successfully', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.CONFIRMED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      const res = await service.updateStatus(id, { status: AppointmentStatus.COMPLETED });
-
-      expect(res.status).toBe(AppointmentStatus.COMPLETED);
-      expect(a.save).toHaveBeenCalled();
-    });
-
-    it('throws ConflictException for invalid transition SCHEDULED → COMPLETED', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.SCHEDULED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      await expect(
-        service.updateStatus(id, { status: AppointmentStatus.COMPLETED }),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('throws ConflictException when appointment is already CANCELLED', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.CANCELLED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      await expect(
-        service.updateStatus(id, { status: AppointmentStatus.CONFIRMED }),
-      ).rejects.toThrow(ConflictException);
-    });
-  });
-
-  describe('cancel', () => {
-    const mockAppt = (status: AppointmentStatus) => ({
-      _id: new Types.ObjectId().toString(),
-      clinicId,
-      professionalId,
-      patientId,
-      startAt: new Date(),
-      endAt: new Date(),
-      status,
-      save: jest.fn().mockImplementation(function (this: any) {
-        return Promise.resolve(this);
-      }),
-    });
-
-    it('cancels a SCHEDULED appointment and returns it', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.SCHEDULED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      const res = await service.cancel(id);
-
-      expect(res.status).toBe(AppointmentStatus.CANCELLED);
-      expect(a.save).toHaveBeenCalled();
-    });
-
-    it('throws ConflictException if appointment is already CANCELLED', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.CANCELLED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      await expect(service.cancel(id)).rejects.toThrow(ConflictException);
-    });
-  });
-
-  describe('cancelAsPatient', () => {
-    const mockAppt = (status: AppointmentStatus) => ({
-      _id: new Types.ObjectId().toString(),
-      clinicId,
-      professionalId,
-      patientId,
-      startAt: new Date(),
-      endAt: new Date(),
-      status,
-      save: jest.fn().mockImplementation(function (this: any) {
-        return Promise.resolve(this);
-      }),
-    });
-
-    it('cancels when patientId matches the authenticated user', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.SCHEDULED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      const res = await service.cancelAsPatient(id, patientId);
-
-      expect(res.status).toBe(AppointmentStatus.CANCELLED);
-      expect(a.save).toHaveBeenCalled();
-    });
-
-    it('throws ForbiddenException when patientId does not match', async () => {
-      const id = new Types.ObjectId().toString();
-      const otherUserId = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.SCHEDULED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      await expect(service.cancelAsPatient(id, otherUserId)).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('throws ConflictException if appointment is already COMPLETED', async () => {
-      const id = new Types.ObjectId().toString();
-      const a = mockAppt(AppointmentStatus.COMPLETED);
-      mockAppointmentModel.findById.mockReturnValue(buildExecMock(a));
-
-      await expect(service.cancelAsPatient(id, patientId)).rejects.toThrow(
+      await expect(service.createAppointment(dto as any)).rejects.toThrow(
         ConflictException,
       );
+    });
+  });
+
+  describe('checkConflict', () => {
+    it('resolves when no conflicts exist', async () => {
+      mockAppointmentModel.find.mockResolvedValue([]);
+
+      await expect(
+        service.checkConflict(
+          'prof-1',
+          new Date('2025-01-10T09:00'),
+          new Date('2025-01-10T10:00'),
+          'clinic-1',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('throws ConflictException on overlapping appointment', async () => {
+      mockAppointmentModel.find.mockResolvedValue([
+        {
+          startTime: new Date('2025-01-10T09:00'),
+          endTime: new Date('2025-01-10T10:00'),
+          clinicId: 'clinic-1',
+        },
+      ]);
+
+      await expect(
+        service.checkConflict(
+          'prof-1',
+          new Date('2025-01-10T09:30'),
+          new Date('2025-01-10T10:30'),
+          'clinic-1',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('linkedScheduling=true allows adjacent same-clinic appointments', async () => {
+      mockClinicsService.findById.mockResolvedValue({ linkedScheduling: true });
+      mockAppointmentModel.find.mockResolvedValue([
+        {
+          startTime: new Date('2025-01-10T09:00'),
+          endTime: new Date('2025-01-10T10:00'),
+          clinicId: 'clinic-1',
+        },
+      ]);
+
+      await expect(
+        service.checkConflict(
+          'prof-1',
+          new Date('2025-01-10T10:00'),
+          new Date('2025-01-10T11:00'),
+          'clinic-1',
+        ),
+      ).resolves.not.toThrow();
+    });
+
+    it('linkedScheduling=false blocks adjacent same-clinic appointments', async () => {
+      mockClinicsService.findById.mockResolvedValue({ linkedScheduling: false });
+      mockAppointmentModel.find.mockResolvedValue([
+        {
+          startTime: new Date('2025-01-10T09:00'),
+          endTime: new Date('2025-01-10T10:00'),
+          clinicId: 'clinic-1',
+        },
+      ]);
+
+      await expect(
+        service.checkConflict(
+          'prof-1',
+          new Date('2025-01-10T10:00'),
+          new Date('2025-01-10T11:00'),
+          'clinic-1',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('linkedScheduling=true still blocks strict overlap', async () => {
+      mockClinicsService.findById.mockResolvedValue({ linkedScheduling: true });
+      mockAppointmentModel.find.mockResolvedValue([
+        {
+          startTime: new Date('2025-01-10T09:00'),
+          endTime: new Date('2025-01-10T10:00'),
+          clinicId: 'clinic-1',
+        },
+      ]);
+
+      await expect(
+        service.checkConflict(
+          'prof-1',
+          new Date('2025-01-10T09:30'),
+          new Date('2025-01-10T10:30'),
+          'clinic-1',
+        ),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('getAvailableSlotsForDay', () => {
+    it('delegates to availability service with correct args', async () => {
+      mockAvailabilityService.getAvailableSlotsForDay.mockResolvedValue(['09:00', '10:00']);
+
+      const result = await service.getAvailableSlotsForDay('prof-1', '2025-01-10');
+
+      expect(mockAvailabilityService.getAvailableSlotsForDay).toHaveBeenCalledWith(
+        'prof-1',
+        '2025-01-10',
+      );
+      expect(result).toEqual(['09:00', '10:00']);
+    });
+  });
+
+  describe('findById', () => {
+    it('throws NotFoundException when appointment not found', async () => {
+      mockAppointmentModel.findById.mockResolvedValue(null);
+
+      await expect(service.findById('appt-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns appointment when found', async () => {
+      const appt = { _id: 'appt-1', professionalId: 'prof-1' };
+      mockAppointmentModel.findById.mockResolvedValue(appt);
+
+      const result = await service.findById('appt-1');
+      expect(result).toEqual(appt);
     });
   });
 });

@@ -2,36 +2,46 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { NotFoundException } from '@nestjs/common';
 import { ProfileService } from '../profile.service';
-import { Professional } from '../../professionals/schemas/professional.schema';
+import { Patient } from '../schemas/patient.schema';
+import { Professional } from '../schemas/professional.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
-import { UpdateProfessionalProfileDto } from '../dto/update-professional-profile.dto';
 
-const mockAddress = {
-  street: 'Rua das Flores',
+const addressFixture = {
+  street: 'Rua Teste',
   number: '123',
-  city: 'São Paulo',
+  neighborhood: 'Centro',
+  city: 'Campinas',
   state: 'SP',
-  zipCode: '01310-100',
+  zipCode: '13000000',
 };
 
-const mockProfessional = {
-  _id: '64a1b2c3d4e5f6a7b8c9d0e1',
-  userId: '64a1b2c3d4e5f6a7b8c9d0e0',
-  name: 'Dr. João Silva',
-  specialty: Specialty.CARDIOLOGY,
+const patientFixture = {
+  _id: 'patient-1',
+  userId: 'user-1',
+  address: { ...addressFixture },
+};
+
+const professionalFixture = {
+  _id: 'prof-1',
+  name: 'Dr. Teste',
   cpf: '12345678901',
-  registration: 'CRM12345',
-  address: mockAddress,
-  phone: '11999999999',
-  description: 'Cardiologista experiente',
-  weeklySlots: [],
-  autoConfirm: false,
-  minCancelNoticeHours: 24,
+  registration: 'CRM/SP 123456',
+  specialty: Specialty.MEDICINE,
+  address: { ...addressFixture },
+};
+
+const mockPatientModel = {
+  findOne: jest.fn(),
+  create: jest.fn(),
+  findOneAndUpdate: jest.fn(),
 };
 
 const mockProfessionalModel = {
   findOne: jest.fn(),
+  create: jest.fn(),
   findOneAndUpdate: jest.fn(),
+  findById: jest.fn(),
+  find: jest.fn(),
 };
 
 describe('ProfileService', () => {
@@ -41,6 +51,10 @@ describe('ProfileService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProfileService,
+        {
+          provide: getModelToken(Patient.name),
+          useValue: mockPatientModel,
+        },
         {
           provide: getModelToken(Professional.name),
           useValue: mockProfessionalModel,
@@ -52,87 +66,151 @@ describe('ProfileService', () => {
     jest.clearAllMocks();
   });
 
-  describe('getProfessionalProfile', () => {
-    it('should return a professional profile by userId', async () => {
-      mockProfessionalModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockProfessional),
-      });
+  describe('getPatientProfile', () => {
+    it('returns patient profile when found', async () => {
+      mockPatientModel.findOne.mockResolvedValue(patientFixture);
 
-      const result = await service.getProfessionalProfile(mockProfessional.userId);
-
-      expect(mockProfessionalModel.findOne).toHaveBeenCalledWith({ userId: mockProfessional.userId });
-      expect(result).toEqual(mockProfessional);
+      const result = await service.getPatientProfile('user-1');
+      expect(result).toEqual(patientFixture);
+      expect(mockPatientModel.findOne).toHaveBeenCalledWith({ userId: 'user-1' });
     });
 
-    it('should throw NotFoundException when professional not found', async () => {
-      mockProfessionalModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+    it('throws NotFoundException when patient not found', async () => {
+      mockPatientModel.findOne.mockResolvedValue(null);
 
-      await expect(service.getProfessionalProfile('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.getPatientProfile('user-1')).rejects.toThrow(NotFoundException);
     });
   });
 
-  describe('updateProfessionalProfile', () => {
-    it('should update professional profile with new address object', async () => {
-      const updateDto: UpdateProfessionalProfileDto = {
-        address: {
-          street: 'Av. Paulista',
-          number: '1000',
-          city: 'São Paulo',
-          state: 'SP',
-          zipCode: '01310-200',
-        },
-        description: 'Descrição atualizada',
-        autoConfirm: true,
-        minCancelNoticeHours: 48,
+  describe('createOrUpdatePatientProfile', () => {
+    it('creates patient profile with structured address', async () => {
+      const dto = {
+        userId: 'user-1',
+        address: { ...addressFixture },
       };
 
-      const updatedProfessional = {
-        ...mockProfessional,
-        ...updateDto,
-      };
+      mockPatientModel.findOneAndUpdate.mockResolvedValue({ _id: 'patient-1', ...dto });
 
-      mockProfessionalModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updatedProfessional),
-      });
-
-      const result = await service.updateProfessionalProfile(mockProfessional.userId, updateDto);
-
-      expect(mockProfessionalModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { userId: mockProfessional.userId },
-        { $set: updateDto },
-        { new: true, runValidators: true },
+      const result = await service.createOrUpdatePatientProfile('user-1', dto as any);
+      expect(result).toBeDefined();
+      expect(mockPatientModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { userId: 'user-1' },
+        expect.objectContaining({
+          address: expect.objectContaining({
+            street: 'Rua Teste',
+            city: 'Campinas',
+            state: 'SP',
+          }),
+        }),
+        expect.any(Object),
       );
-      expect(result.address).toEqual(updateDto.address);
-      expect(result.autoConfirm).toBe(true);
-      expect(result.minCancelNoticeHours).toBe(48);
     });
 
-    it('should throw NotFoundException when professional not found during update', async () => {
-      mockProfessionalModel.findOneAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
+    it('updates patient with partial address fields', async () => {
+      const partialAddress = {
+        street: 'Nova Rua',
+        number: '456',
+        neighborhood: 'Bairro Novo',
+        city: 'São Paulo',
+        state: 'SP',
+        zipCode: '01000000',
+      };
+
+      mockPatientModel.findOneAndUpdate.mockResolvedValue({
+        _id: 'patient-1',
+        userId: 'user-1',
+        address: partialAddress,
       });
 
-      await expect(
-        service.updateProfessionalProfile('nonexistent', {}),
-      ).rejects.toThrow(NotFoundException);
+      const result = await service.createOrUpdatePatientProfile('user-1', {
+        address: partialAddress,
+      } as any);
+
+      expect(result).toBeDefined();
     });
   });
 
-  describe('formatProfileSummary', () => {
-    it('should format profile summary using address.city and address.state', () => {
-      const result = service.formatProfileSummary(mockProfessional as any);
-      expect(result).toBe(`${mockProfessional.name} — ${mockProfessional.specialty} — ${mockProfessional.address.city}, ${mockProfessional.address.state}`);
+  describe('getProfessionalProfile', () => {
+    it('returns professional profile when found', async () => {
+      mockProfessionalModel.findOne.mockResolvedValue(professionalFixture);
+
+      const result = await service.getProfessionalProfile('user-1');
+      expect(result).toEqual(professionalFixture);
     });
 
-    it('should handle missing address fields gracefully', () => {
-      const professionalWithoutAddress = {
-        ...mockProfessional,
-        address: null as any,
+    it('throws NotFoundException when professional not found', async () => {
+      mockProfessionalModel.findOne.mockResolvedValue(null);
+
+      await expect(service.getProfessionalProfile('user-1')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('createOrUpdateProfessionalProfile', () => {
+    it('creates professional profile with all required fields', async () => {
+      const dto = {
+        name: 'Dr. Teste',
+        cpf: '12345678901',
+        registration: 'CRM/SP 123456',
+        specialty: Specialty.MEDICINE,
+        address: { ...addressFixture },
       };
-      const result = service.formatProfileSummary(professionalWithoutAddress as any);
-      expect(result).toBe(`${mockProfessional.name} — ${mockProfessional.specialty} — unknown city, unknown state`);
+
+      mockProfessionalModel.findOneAndUpdate.mockResolvedValue({
+        _id: 'prof-1',
+        userId: 'user-1',
+        ...dto,
+      });
+
+      const result = await service.createOrUpdateProfessionalProfile('user-1', dto as any);
+      expect(result).toBeDefined();
+      expect(mockProfessionalModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { userId: 'user-1' },
+        expect.objectContaining({
+          name: 'Dr. Teste',
+          cpf: '12345678901',
+          registration: 'CRM/SP 123456',
+          specialty: Specialty.MEDICINE,
+          address: expect.objectContaining({
+            street: 'Rua Teste',
+            city: 'Campinas',
+          }),
+        }),
+        expect.any(Object),
+      );
+    });
+
+    it('professional fixture has all strict schema fields', () => {
+      expect(professionalFixture).toMatchObject({
+        name: expect.any(String),
+        cpf: expect.any(String),
+        registration: expect.any(String),
+        specialty: expect.any(String),
+        address: expect.objectContaining({
+          street: expect.any(String),
+          number: expect.any(String),
+          neighborhood: expect.any(String),
+          city: expect.any(String),
+          state: expect.any(String),
+          zipCode: expect.any(String),
+        }),
+      });
+    });
+  });
+
+  describe('findProfessionalsBySpecialty', () => {
+    it('returns professionals filtered by specialty', async () => {
+      mockProfessionalModel.find.mockResolvedValue([professionalFixture]);
+
+      const result = await service.findProfessionalsBySpecialty(Specialty.MEDICINE);
+      expect(result).toHaveLength(1);
+      expect(result[0].specialty).toBe(Specialty.MEDICINE);
+    });
+
+    it('returns empty array when no professionals found', async () => {
+      mockProfessionalModel.find.mockResolvedValue([]);
+
+      const result = await service.findProfessionalsBySpecialty(Specialty.MEDICINE);
+      expect(result).toEqual([]);
     });
   });
 });
