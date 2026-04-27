@@ -27,6 +27,16 @@ export class SearchService {
     private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
+  async findClinicById(id: string): Promise<ClinicDocument | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return this.clinicModel.findById(id).exec();
+  }
+
+  async findProfessionalById(id: string): Promise<ProfessionalDocument | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    return this.professionalModel.findById(id).exec();
+  }
+
   async search(query: SearchQueryDto): Promise<SearchResult[]> {
     const { type, name, specialty, address } = query;
 
@@ -83,7 +93,7 @@ export class SearchService {
       for (const professional of professionals) {
         results.push({
           id: (professional._id as Types.ObjectId).toString(),
-          name: professional.name,
+          name: professional.name ?? '',
           type: 'professional',
           specialty: professional.specialty,
           address: professional.address,

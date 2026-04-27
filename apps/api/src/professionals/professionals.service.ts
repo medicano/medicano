@@ -59,6 +59,10 @@ export class ProfessionalsService {
     return removed;
   }
 
+  async findById(id: string): Promise<ProfessionalDocument> {
+    return this.findOne(id);
+  }
+
   async findByUserId(userId: string): Promise<ProfessionalDocument> {
     if (!Types.ObjectId.isValid(userId)) {
       throw new NotFoundException(`Professional for user ${userId} not found`);
