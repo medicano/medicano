@@ -1,28 +1,34 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Role } from '../../common/enums/role.enum';
 
-@Schema({ timestamps: true })
+export type UserDocument = HydratedDocument<User>;
+
+@Schema({ timestamps: true, collection: 'users' })
 export class User {
-  @Prop({ type: String, enum: Role, required: true, immutable: true })
+  @Prop({ type: String, enum: Role, required: true })
   role: Role;
 
-  @Prop({ type: String, unique: true, sparse: true })
+  @Prop({ type: String })
   email?: string;
 
-  @Prop({ type: String, unique: true, sparse: true })
+  @Prop({ type: String })
   username?: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Clinic', sparse: true })
+  @Prop({ type: Types.ObjectId, ref: 'Clinic' })
   clinicId?: Types.ObjectId;
 
-  @Prop({ type: String, required: true, select: false })
+  @Prop({ type: String, required: true })
   passwordHash: string;
+
+  @Prop({ type: String })
+  displayName?: string;
+
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean;
 }
 
-export type UserDocument = User & Document;
 export const UserSchema = SchemaFactory.createForClass(User);
 
-// Compound sparse indexes
-UserSchema.index({ role: 1, email: 1 }, { unique: true, sparse: true });
-UserSchema.index({ clinicId: 1, username: 1 }, { unique: true, sparse: true });
+UserSchema.index({ role: 1, email: 1 }, { sparse: true, unique: true });
+UserSchema.index({ clinicId: 1, username: 1 }, { sparse: true, unique: true });
