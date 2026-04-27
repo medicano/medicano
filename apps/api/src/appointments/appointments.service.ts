@@ -1,11 +1,12 @@
 import {
-  BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
+  ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
+
 import {
   Appointment,
   AppointmentDocument,
@@ -13,79 +14,88 @@ import {
 } from './schemas/appointment.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
-import { ClinicsService } from '../clinics/clinics.service';
+import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
+import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
+
+const VALID_TRANSITIONS: Partial<Record<AppointmentStatus, AppointmentStatus[]>> = {
+  [AppointmentStatus.SCHEDULED]: [
+    AppointmentStatus.CONFIRMED,
+    AppointmentStatus.CANCELLED,
+  ],
+  [AppointmentStatus.CONFIRMED]: [
+    AppointmentStatus.COMPLETED,
+    AppointmentStatus.CANCELLED,
+  ],
+};
 
 @Injectable()
 export class AppointmentsService {
   constructor(
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<AppointmentDocument>,
-    private readonly clinicsService: ClinicsService,
   ) {}
 
   async create(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
-    const startAt = new Date(dto.startAt);
-    const endAt = new Date(dto.endAt);
-
-    this.validateDateRange(startAt, endAt);
-
-    await this.checkConflict(
+    await this.validateDateRange(dto.startAt, dto.endAt);
+    await this.checkConflict(dto.professionalId, dto.startAt, dto.endAt);
+    await this.checkCrossClinicInterval(
       dto.professionalId,
-      startAt,
-      endAt,
-      dto.clinicId,
+      dto.startAt,
+      dto.endAt,
     );
 
-    const appointment = new this.appointmentModel({
-      ...dto,
-      startAt,
-      endAt,
-      status: AppointmentStatus.SCHEDULED,
-    });
-
+    const appointment = new this.appointmentModel(dto);
     return appointment.save();
   }
 
   async createForPatient(
     dto: CreateAppointmentDto,
+    patientId: string,
   ): Promise<AppointmentDocument> {
-    const startAt = new Date(dto.startAt);
-    const endAt = new Date(dto.endAt);
-
-    this.validateDateRange(startAt, endAt);
-
-    await this.checkConflict(
-      dto.professionalId,
-      startAt,
-      endAt,
-      dto.clinicId,
-    );
-
+    await this.validateDateRange(dto.startAt, dto.endAt);
+    await this.checkConflict(dto.professionalId, dto.startAt, dto.endAt);
     await this.checkCrossClinicInterval(
-      dto.patientId,
-      dto.clinicId,
-      startAt,
-      endAt,
+      dto.professionalId,
+      dto.startAt,
+      dto.endAt,
     );
 
     const appointment = new this.appointmentModel({
       ...dto,
-      startAt,
-      endAt,
-      status: AppointmentStatus.SCHEDULED,
+      patientId,
     });
-
     return appointment.save();
   }
 
-  async findAll(): Promise<AppointmentDocument[]> {
-    return this.appointmentModel.find().exec();
+  async findAll(query?: GetAppointmentsQueryDto): Promise<AppointmentDocument[]> {
+    const filter: FilterQuery<AppointmentDocument> = {};
+
+    if (query?.professionalId && Types.ObjectId.isValid(query.professionalId)) {
+      filter.professionalId = new Types.ObjectId(query.professionalId);
+    }
+    if (query?.clinicId && Types.ObjectId.isValid(query.clinicId)) {
+      filter.clinicId = new Types.ObjectId(query.clinicId);
+    }
+    if (query?.patientId && Types.ObjectId.isValid(query.patientId)) {
+      filter.patientId = new Types.ObjectId(query.patientId);
+    }
+    if (query?.status) {
+      filter.status = query.status;
+    }
+    if (query?.dateFrom || query?.dateTo) {
+      const startAt: { $gte?: Date; $lte?: Date } = {};
+      if (query.dateFrom) startAt.$gte = new Date(query.dateFrom);
+      if (query.dateTo) startAt.$lte = new Date(query.dateTo);
+      filter.startAt = startAt;
+    }
+
+    return this.appointmentModel.find(filter).exec();
   }
 
   async findById(id: string): Promise<AppointmentDocument> {
     const appointment = await this.appointmentModel.findById(id).exec();
     if (!appointment) {
-      throw new NotFoundException(`Appointment ${id} not found`);
+      throw new NotFoundException(`Appointment with id ${id} not found`);
     }
     return appointment;
   }
@@ -96,110 +106,170 @@ export class AppointmentsService {
   ): Promise<AppointmentDocument> {
     const appointment = await this.findById(id);
 
-    const startAt = dto.startAt ? new Date(dto.startAt) : appointment.startAt;
-    const endAt = dto.endAt ? new Date(dto.endAt) : appointment.endAt;
+    if (dto.startAt || dto.endAt) {
+      const startAt = dto.startAt ?? appointment.startAt.toISOString();
+      const endAt = dto.endAt ?? appointment.endAt.toISOString();
+      await this.validateDateRange(startAt, endAt);
+      await this.checkConflict(
+        appointment.professionalId.toString(),
+        startAt,
+        endAt,
+        id,
+      );
+      await this.checkCrossClinicInterval(
+        appointment.professionalId.toString(),
+        startAt,
+        endAt,
+        id,
+      );
+    }
 
-    this.validateDateRange(startAt, endAt);
+    Object.assign(appointment, dto);
+    return appointment.save();
+  }
 
-    const clinicId =
-      typeof appointment.clinicId === 'string'
-        ? appointment.clinicId
-        : (appointment.clinicId as unknown as Types.ObjectId).toString();
+  async updateStatus(
+    id: string,
+    dto: UpdateAppointmentStatusDto,
+  ): Promise<AppointmentDocument> {
+    const appointment = await this.findById(id);
 
-    const professionalId =
-      typeof appointment.professionalId === 'string'
-        ? appointment.professionalId
-        : (appointment.professionalId as unknown as Types.ObjectId).toString();
+    if (
+      appointment.status === AppointmentStatus.COMPLETED ||
+      appointment.status === AppointmentStatus.CANCELLED
+    ) {
+      throw new ConflictException(`Appointment is already ${appointment.status}`);
+    }
 
-    await this.checkConflict(
-      professionalId,
-      startAt,
-      endAt,
-      clinicId,
-      appointment._id.toString(),
-    );
+    const allowed = VALID_TRANSITIONS[appointment.status] ?? [];
+    if (!allowed.includes(dto.status)) {
+      throw new ConflictException(
+        `Invalid status transition: ${appointment.status} → ${dto.status}`,
+      );
+    }
 
-    Object.assign(appointment, dto, { startAt, endAt });
+    appointment.status = dto.status;
+    return appointment.save();
+  }
+
+  async cancel(id: string): Promise<AppointmentDocument> {
+    const appointment = await this.findById(id);
+
+    if (
+      appointment.status === AppointmentStatus.CANCELLED ||
+      appointment.status === AppointmentStatus.COMPLETED
+    ) {
+      throw new ConflictException(
+        `Cannot cancel appointment with status ${appointment.status}`,
+      );
+    }
+
+    appointment.status = AppointmentStatus.CANCELLED;
+    return appointment.save();
+  }
+
+  async cancelAsPatient(
+    id: string,
+    patientUserId: string,
+  ): Promise<AppointmentDocument> {
+    const appointment = await this.findById(id);
+
+    if (appointment.patientId.toString() !== patientUserId) {
+      throw new ForbiddenException('You are not the patient of this appointment');
+    }
+
+    if (
+      appointment.status === AppointmentStatus.CANCELLED ||
+      appointment.status === AppointmentStatus.COMPLETED
+    ) {
+      throw new ConflictException(
+        `Cannot cancel appointment with status ${appointment.status}`,
+      );
+    }
+
+    appointment.status = AppointmentStatus.CANCELLED;
     return appointment.save();
   }
 
   async remove(id: string): Promise<void> {
-    const result = await this.appointmentModel.findByIdAndDelete(id).exec();
-    if (!result) {
-      throw new NotFoundException(`Appointment ${id} not found`);
-    }
+    const appointment = await this.findById(id);
+    await appointment.deleteOne();
   }
 
-  private validateDateRange(startAt: Date, endAt: Date): void {
-    if (endAt <= startAt) {
-      throw new BadRequestException('endAt must be after startAt');
-    }
-  }
-
-  private async checkConflict(
+  async checkConflict(
     professionalId: string,
-    startAt: Date,
-    endAt: Date,
-    clinicId: string,
+    startAt: string,
+    endAt: string,
     excludeId?: string,
   ): Promise<void> {
-    const clinic = await this.clinicsService.findById(clinicId);
-    const linkedScheduling = clinic?.linkedScheduling ?? false;
-
-    const overlapCondition = linkedScheduling
-      ? {
-          startAt: { $lt: endAt },
-          endAt: { $gt: startAt },
-        }
-      : {
-          startAt: { $lte: endAt },
-          endAt: { $gte: startAt },
-        };
-
-    const query: FilterQuery<AppointmentDocument> = {
-      professionalId,
-      clinicId,
+    const filter: FilterQuery<AppointmentDocument> = {
+      professionalId: new Types.ObjectId(professionalId),
       status: { $nin: [AppointmentStatus.CANCELLED] },
-      ...overlapCondition,
+      $or: [
+        {
+          startAt: { $lt: new Date(endAt) },
+          endAt: { $gt: new Date(startAt) },
+        },
+      ],
     };
 
     if (excludeId) {
-      query._id = { $ne: excludeId };
+      filter._id = { $ne: new Types.ObjectId(excludeId) };
     }
 
-    const conflict = await this.appointmentModel.findOne(query).exec();
-
+    const conflict = await this.appointmentModel.findOne(filter).exec();
     if (conflict) {
       throw new ConflictException(
-        'Appointment conflicts with an existing appointment for this professional at this clinic',
+        'Professional already has an appointment in this time slot',
       );
     }
   }
 
-  private async checkCrossClinicInterval(
-    patientId: string,
-    clinicId: string,
-    startAt: Date,
-    endAt: Date,
+  async checkCrossClinicInterval(
+    professionalId: string,
+    startAt: string,
+    endAt: string,
+    excludeId?: string,
   ): Promise<void> {
-    const THIRTY_MINUTES_MS = 30 * 60 * 1000;
-    const windowStart = new Date(startAt.getTime() - THIRTY_MINUTES_MS);
-    const windowEnd = new Date(endAt.getTime() + THIRTY_MINUTES_MS);
+    const INTERVAL_MINUTES = 60;
+    const intervalMs = INTERVAL_MINUTES * 60 * 1000;
 
-    const conflict = await this.appointmentModel
-      .findOne({
-        patientId,
-        clinicId: { $ne: clinicId },
-        status: { $nin: [AppointmentStatus.CANCELLED] },
-        startAt: { $lt: windowEnd },
-        endAt: { $gt: windowStart },
-      })
-      .exec();
+    const rangeStart = new Date(new Date(startAt).getTime() - intervalMs);
+    const rangeEnd = new Date(new Date(endAt).getTime() + intervalMs);
 
-    if (conflict) {
+    const filter: FilterQuery<AppointmentDocument> = {
+      professionalId: new Types.ObjectId(professionalId),
+      status: { $nin: [AppointmentStatus.CANCELLED] },
+      $or: [
+        {
+          startAt: { $lt: rangeEnd },
+          endAt: { $gt: rangeStart },
+        },
+      ],
+    };
+
+    if (excludeId) {
+      filter._id = { $ne: new Types.ObjectId(excludeId) };
+    }
+
+    const nearby = await this.appointmentModel.findOne(filter).exec();
+    if (nearby) {
       throw new ConflictException(
-        'Patient has another appointment at a different clinic within 30 minutes',
+        `Professional needs at least ${INTERVAL_MINUTES} minutes between appointments at different clinics`,
       );
+    }
+  }
+
+  validateDateRange(startAt: string, endAt: string): void {
+    const start = new Date(startAt);
+    const end = new Date(endAt);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new ConflictException('Invalid date format for startAt or endAt');
+    }
+
+    if (start >= end) {
+      throw new ConflictException('startAt must be before endAt');
     }
   }
 }
