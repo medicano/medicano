@@ -1,27 +1,16 @@
-export interface IWeeklyAvailabilityDay {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  slotDuration: number;
-}
-
-export interface IProfessionalAvailability {
-  _id?: string;
+export interface IGetAvailabilityQuery {
   professionalId: string;
-  weeklyAvailability: IWeeklyAvailabilityDay[];
-  unavailableDates: string[];
-  createdAt?: string;
-  updatedAt?: string;
+  fromDate: string;
+  toDate: string;
 }
 
 export interface IAvailableSlot {
-  start: string;
-  end: string;
+  startTime: string;
+  endTime: string;
+  isAvailable: boolean;
 }
 
-export interface IScheduleResponse {
-  fromDate: string;
-  toDate: string;
-  availableSlots: IAvailableSlot[];
-  appointments: any[];
+export interface IScheduleItem {
+  date: string;
+  slots: IAvailableSlot[];
 }
