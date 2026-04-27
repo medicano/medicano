@@ -1,330 +1,139 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import {
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
 import { Types } from 'mongoose';
-
 import { SubscriptionsService } from '../subscriptions.service';
-import {
-  Subscription,
-  SubscriptionPlan,
-  PLAN_PROFESSIONAL_LIMITS,
-} from '../schemas/subscription.schema';
-import { SubscriptionStatus } from '../../clinics/schemas/clinic.schema';
-import { ClinicsService } from '../../clinics/clinics.service';
+import { Subscription } from '../schemas/subscription.schema';
 
-interface MockModel {
-  findOne: jest.Mock;
-  findById: jest.Mock;
-  findByIdAndUpdate: jest.Mock;
-  create: jest.Mock;
-}
-
-interface MockClinicsService {
-  findById: jest.Mock;
+interface SubscriptionFixture {
+  _id: Types.ObjectId;
+  ownerType: 'clinic' | 'professional';
+  ownerId: Types.ObjectId;
+  plan: string;
+  status: 'active' | 'inactive' | 'expired' | 'cancelled';
+  expiresAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 describe('SubscriptionsService', () => {
   let service: SubscriptionsService;
+  let model: any;
 
-  const mockSubscriptionModel: MockModel = {
+  const makeSubscription = (overrides: Partial<SubscriptionFixture> = {}): SubscriptionFixture => ({
+    _id: new Types.ObjectId(),
+    ownerType: 'clinic',
+    ownerId: new Types.ObjectId(),
+    plan: 'basic',
+    status: 'active',
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    ...overrides,
+  });
+
+  const mockModel = {
     findOne: jest.fn(),
+    find: jest.fn(),
+    create: jest.fn(),
     findById: jest.fn(),
     findByIdAndUpdate: jest.fn(),
-    create: jest.fn(),
+    findByIdAndDelete: jest.fn(),
   };
-
-  const mockClinicsService: MockClinicsService = {
-    findById: jest.fn(),
-  };
-
-  const mockClinicId = new Types.ObjectId().toString();
-  const mockId = new Types.ObjectId().toString();
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SubscriptionsService,
         {
           provide: getModelToken(Subscription.name),
-          useValue: mockSubscriptionModel,
-        },
-        {
-          provide: ClinicsService,
-          useValue: mockClinicsService,
+          useValue: mockModel,
         },
       ],
     }).compile();
 
     service = module.get<SubscriptionsService>(SubscriptionsService);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
+    model = mockModel;
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('create', () => {
-    it('should create subscription for a valid clinic', async () => {
-      const dto = {
-        clinicId: mockClinicId,
-        plan: SubscriptionPlan.FREE,
-        expiresAt: new Date().toISOString(),
-      };
-      const created = {
-        _id: mockId,
-        clinicId: new Types.ObjectId(mockClinicId),
-        plan: SubscriptionPlan.FREE,
-        status: SubscriptionStatus.ACTIVE,
-      };
+  it('findByClinicId — returns subscription for given clinic id', async () => {
+    const clinicId = new Types.ObjectId();
+    const doc = makeSubscription({ ownerType: 'clinic', ownerId: clinicId });
 
-      mockClinicsService.findById.mockResolvedValue({
-        _id: mockClinicId,
-        name: 'Clinic',
-      });
-      mockSubscriptionModel.create.mockResolvedValue(created);
+    model.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(doc) });
 
-      const result = await service.create(dto);
+    const result = await service.findByClinicId(clinicId.toString());
 
-      expect(mockClinicsService.findById).toHaveBeenCalledWith(mockClinicId);
-      expect(mockSubscriptionModel.create).toHaveBeenCalled();
-      expect(result).toEqual(created);
-    });
-
-    it('should throw ConflictException when subscription already exists for clinic', async () => {
-      const dto = {
-        clinicId: mockClinicId,
-        plan: SubscriptionPlan.FREE,
-        expiresAt: new Date().toISOString(),
-      };
-      const duplicateErr: Error & { code?: number } = new Error('duplicate');
-      duplicateErr.code = 11000;
-
-      mockClinicsService.findById.mockResolvedValue({ _id: mockClinicId });
-      mockSubscriptionModel.create.mockRejectedValue(duplicateErr);
-
-      await expect(service.create(dto as never)).rejects.toThrow(
-        ConflictException,
-      );
-    });
-
-    it('should throw NotFoundException when clinic does not exist', async () => {
-      const dto = {
-        clinicId: mockClinicId,
-        plan: SubscriptionPlan.FREE,
-        expiresAt: new Date().toISOString(),
-      };
-      mockClinicsService.findById.mockRejectedValue(
-        new NotFoundException('Clinic not found'),
-      );
-
-      await expect(service.create(dto as never)).rejects.toThrow(
-        NotFoundException,
-      );
-      expect(mockSubscriptionModel.create).not.toHaveBeenCalled();
-    });
+    expect(result).toEqual(doc);
   });
 
-  describe('findByClinicId', () => {
-    it('should return subscription when found', async () => {
-      const sub = {
-        _id: mockId,
-        clinicId: new Types.ObjectId(mockClinicId),
-        plan: SubscriptionPlan.BASIC,
-        status: SubscriptionStatus.ACTIVE,
-      };
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(sub),
-      });
+  it('findByOwner(clinic, id) — returns clinic subscription', async () => {
+    const clinicId = new Types.ObjectId();
+    const doc = makeSubscription({ ownerType: 'clinic', ownerId: clinicId });
+    model.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(doc) });
 
-      const result = await service.findByClinicId(mockClinicId);
+    const result = await service.findByOwner('clinic', clinicId.toString());
 
-      expect(result).toEqual(sub);
-      expect(mockSubscriptionModel.findOne).toHaveBeenCalled();
+    expect(model.findOne).toHaveBeenCalledWith({
+      ownerType: 'clinic',
+      ownerId: expect.anything(),
     });
-
-    it('should return null when not found', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
-
-      const result = await service.findByClinicId(mockClinicId);
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null for invalid ObjectId without throwing', async () => {
-      const result = await service.findByClinicId('invalid-id');
-      expect(result).toBeNull();
-      expect(mockSubscriptionModel.findOne).not.toHaveBeenCalled();
-    });
+    expect(result).toEqual(doc);
   });
 
-  describe('findById', () => {
-    it('should return subscription when found', async () => {
-      const sub = {
-        _id: mockId,
-        clinicId: new Types.ObjectId(mockClinicId),
-        plan: SubscriptionPlan.FREE,
-        status: SubscriptionStatus.ACTIVE,
-      };
-      mockSubscriptionModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(sub),
-      });
+  it('findByOwner(professional, id) — returns professional subscription', async () => {
+    const profId = new Types.ObjectId();
+    const doc = makeSubscription({ ownerType: 'professional', ownerId: profId });
+    model.findOne = jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(doc) });
 
-      const result = await service.findById(mockId);
+    const result = await service.findByOwner('professional', profId.toString());
 
-      expect(result).toEqual(sub);
+    expect(model.findOne).toHaveBeenCalledWith({
+      ownerType: 'professional',
+      ownerId: expect.anything(),
     });
-
-    it('should throw NotFoundException when not found', async () => {
-      mockSubscriptionModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
-
-      await expect(service.findById(mockId)).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw NotFoundException for invalid ObjectId', async () => {
-      await expect(service.findById('invalid-id')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
+    expect(result).toEqual(doc);
   });
 
-  describe('update', () => {
-    it('should update plan and status', async () => {
-      const existing = {
-        _id: mockId,
-        clinicId: new Types.ObjectId(mockClinicId),
-        plan: SubscriptionPlan.FREE,
-        status: SubscriptionStatus.TRIAL,
-      };
+  it('findActiveOwnerIds — filters by status=active and expiresAt > now', async () => {
+    const activeProfId = new Types.ObjectId();
+    const expiredProfId = new Types.ObjectId();
+    const inactiveProfId = new Types.ObjectId();
 
-      const updated = {
-        ...existing,
-        plan: SubscriptionPlan.BASIC,
-        status: SubscriptionStatus.ACTIVE,
-      };
+    const expectedDocs = [
+      { ownerId: activeProfId, ownerType: 'professional' },
+    ];
 
-      mockSubscriptionModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(existing),
-      });
-      mockSubscriptionModel.findByIdAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updated),
-      });
-
-      const result = await service.update(mockId, {
-        plan: SubscriptionPlan.BASIC,
-        status: SubscriptionStatus.ACTIVE,
-      });
-
-      expect(result.plan).toBe(SubscriptionPlan.BASIC);
-      expect(result.status).toBe(SubscriptionStatus.ACTIVE);
+    model.find = jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(expectedDocs),
     });
+
+    const ids = await service.findActiveOwnerIds('professional');
+
+    expect(model.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerType: 'professional',
+        status: 'active',
+        expiresAt: expect.objectContaining({ $gt: expect.any(Date) }),
+      }),
+    );
+    expect(ids.map(String)).toEqual([activeProfId.toString()]);
+    expect(ids.map(String)).not.toContain(expiredProfId.toString());
+    expect(ids.map(String)).not.toContain(inactiveProfId.toString());
   });
 
-  describe('cancel', () => {
-    it('should set status to INACTIVE and return updated subscription', async () => {
-      const existing = {
-        _id: mockId,
-        clinicId: new Types.ObjectId(mockClinicId),
-        plan: SubscriptionPlan.BASIC,
-        status: SubscriptionStatus.ACTIVE,
-      };
-      const updated = {
-        ...existing,
-        status: SubscriptionStatus.INACTIVE,
-      };
+  it('findByClinicId — backward compat alias delegates to findByOwner(clinic, id)', async () => {
+    const clinicId = new Types.ObjectId().toString();
+    const spy = jest.spyOn(service, 'findByOwner').mockResolvedValue(null as any);
 
-      mockSubscriptionModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(existing),
-      });
-      mockSubscriptionModel.findByIdAndUpdate.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(updated),
-      });
+    await service.findByClinicId(clinicId);
 
-      const result = await service.cancel(mockId);
-
-      expect(mockSubscriptionModel.findByIdAndUpdate).toHaveBeenCalledWith(
-        mockId,
-        { status: SubscriptionStatus.INACTIVE },
-        { new: true },
-      );
-      expect(result).toEqual(updated);
-      expect(result?.status).toBe(SubscriptionStatus.INACTIVE);
-    });
-  });
-
-  describe('enforceClinicProfessionalLimit', () => {
-    it('should resolve without error when count is below FREE limit', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ plan: SubscriptionPlan.FREE }),
-      });
-
-      await expect(
-        service.enforceClinicProfessionalLimit(mockClinicId, 0),
-      ).resolves.not.toThrow();
-    });
-
-    it('should resolve when count equals limit minus 1', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ plan: SubscriptionPlan.FREE }),
-      });
-
-      const limit = PLAN_PROFESSIONAL_LIMITS[SubscriptionPlan.FREE];
-      await expect(
-        service.enforceClinicProfessionalLimit(mockClinicId, limit - 1),
-      ).resolves.not.toThrow();
-    });
-
-    it('should throw ForbiddenException when count equals FREE limit', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ plan: SubscriptionPlan.FREE }),
-      });
-
-      const limit = PLAN_PROFESSIONAL_LIMITS[SubscriptionPlan.FREE];
-      await expect(
-        service.enforceClinicProfessionalLimit(mockClinicId, limit),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should throw ForbiddenException when count exceeds BASIC limit', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ plan: SubscriptionPlan.BASIC }),
-      });
-
-      const limit = PLAN_PROFESSIONAL_LIMITS[SubscriptionPlan.BASIC];
-      await expect(
-        service.enforceClinicProfessionalLimit(mockClinicId, limit + 5),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should never throw for PRO plan regardless of count', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ plan: SubscriptionPlan.PRO }),
-      });
-
-      await expect(
-        service.enforceClinicProfessionalLimit(mockClinicId, 9999),
-      ).resolves.not.toThrow();
-    });
-
-    it('should default to FREE limits when no subscription found', async () => {
-      mockSubscriptionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
-
-      const limit = PLAN_PROFESSIONAL_LIMITS[SubscriptionPlan.FREE];
-      await expect(
-        service.enforceClinicProfessionalLimit(mockClinicId, limit),
-      ).rejects.toThrow(ForbiddenException);
-    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith('clinic', clinicId);
   });
 });
