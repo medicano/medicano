@@ -1,235 +1,241 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException } from '@nestjs/common';
+import { Model, Types } from 'mongoose';
 import { SearchService } from '../search.service';
-import { Specialty } from '../../common/enums/specialty.enum';
-import { SearchQueryDto } from '../dto/search-query.dto';
+import { Professional } from '../../professionals/schemas/professional.schema';
+import { Clinic } from '../../clinics/schemas/clinic.schema';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 
-interface QueryMock {
-  skip: jest.Mock;
-  limit: jest.Mock;
-  exec: jest.Mock;
-}
+const mockProfessionalModel = {
+  find: jest.fn().mockReturnValue({
+    lean: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue([]),
+    }),
+  }),
+};
 
-const createQueryMock = (returnValue: unknown[]): QueryMock => ({
-  skip: jest.fn().mockReturnThis(),
-  limit: jest.fn().mockReturnThis(),
-  exec: jest.fn().mockResolvedValue(returnValue),
-});
+const mockClinicModel = {
+  find: jest.fn().mockReturnValue({
+    lean: jest.fn().mockReturnValue({
+      exec: jest.fn().mockResolvedValue([]),
+    }),
+  }),
+};
 
-const clinicFixture = [
-  {
-    _id: 'clinic-1',
-    name: 'Clinic One',
-    specialties: [Specialty.MEDICINE],
-    address: { city: 'Porto' },
-  },
-  {
-    _id: 'clinic-2',
-    name: 'Clinic Two',
-    specialties: [Specialty.PSYCHOLOGY],
-    address: { city: 'Lisboa' },
-  },
-];
-
-const professionalFixture = [
-  {
-    _id: 'pro-1',
-    name: 'Dr. Alice',
-    specialty: Specialty.MEDICINE,
-    address: { city: 'Porto' },
-  },
-  {
-    _id: 'pro-2',
-    name: 'Dr. Bob',
-    specialty: Specialty.PSYCHOLOGY,
-    address: { city: 'Lisboa' },
-  },
-];
+const mockSubscriptionsService = {
+  findActiveOwnerIds: jest.fn().mockResolvedValue([]),
+};
 
 describe('SearchService', () => {
   let service: SearchService;
-  let clinicModel: { find: jest.Mock; findById: jest.Mock };
-  let professionalModel: { find: jest.Mock; findById: jest.Mock };
+  let professionalModel: Model<Professional>;
+  let clinicModel: Model<Clinic>;
+  let subscriptionsService: SubscriptionsService;
 
   beforeEach(async () => {
-    clinicModel = {
-      find: jest.fn(),
-      findById: jest.fn(),
-    };
-    professionalModel = {
-      find: jest.fn(),
-      findById: jest.fn(),
-    };
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchService,
-        { provide: getModelToken('Clinic'), useValue: clinicModel },
-        { provide: getModelToken('Professional'), useValue: professionalModel },
+        {
+          provide: getModelToken(Professional.name),
+          useValue: mockProfessionalModel,
+        },
+        {
+          provide: getModelToken(Clinic.name),
+          useValue: mockClinicModel,
+        },
+        {
+          provide: SubscriptionsService,
+          useValue: mockSubscriptionsService,
+        },
       ],
     }).compile();
 
     service = module.get<SearchService>(SearchService);
-  });
+    professionalModel = module.get<Model<Professional>>(
+      getModelToken(Professional.name),
+    );
+    clinicModel = module.get<Model<Clinic>>(getModelToken(Clinic.name));
+    subscriptionsService = module.get<SubscriptionsService>(SubscriptionsService);
 
-  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('search', () => {
-    it('returns all clinics and professionals with no filters', async () => {
-      clinicModel.find.mockReturnValue(createQueryMock(clinicFixture));
-      professionalModel.find.mockReturnValue(
-        createQueryMock(professionalFixture),
-      );
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
 
-      const dto: SearchQueryDto = {};
-      const result = await service.search(dto);
-
-      expect(clinicModel.find).toHaveBeenCalledWith({});
-      expect(professionalModel.find).toHaveBeenCalledWith({});
-      expect(result.clinics).toHaveLength(clinicFixture.length);
-      expect(result.professionals).toHaveLength(professionalFixture.length);
-    });
-
-    it('filters by specialty correctly', async () => {
-      clinicModel.find.mockReturnValue(createQueryMock([clinicFixture[0]]));
-      professionalModel.find.mockReturnValue(
-        createQueryMock([professionalFixture[0]]),
-      );
-
-      const dto: SearchQueryDto = { specialty: Specialty.MEDICINE };
-      await service.search(dto);
-
-      expect(clinicModel.find).toHaveBeenCalledWith({
-        specialties: { $in: [Specialty.MEDICINE] },
+  describe('search()', () => {
+    it('should return an empty array when no results found', async () => {
+      mockProfessionalModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
       });
-      expect(professionalModel.find).toHaveBeenCalledWith({
-        specialty: Specialty.MEDICINE,
+      mockClinicModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
       });
+      mockSubscriptionsService.findActiveOwnerIds.mockResolvedValue([]);
+
+      const results = await service.search({});
+      expect(results).toEqual([]);
     });
 
-    it('filters by city correctly', async () => {
-      clinicModel.find.mockReturnValue(createQueryMock([clinicFixture[0]]));
-      professionalModel.find.mockReturnValue(
-        createQueryMock([professionalFixture[0]]),
+    it('should call findActiveOwnerIds when searching for professionals', async () => {
+      mockProfessionalModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+      mockSubscriptionsService.findActiveOwnerIds.mockResolvedValue([]);
+
+      await service.search({ type: 'professional' });
+
+      expect(subscriptionsService.findActiveOwnerIds).toHaveBeenCalledWith(
+        'professional',
       );
-
-      const dto: SearchQueryDto = { city: 'Porto' };
-      await service.search(dto);
-
-      const expectedFilter = { 'address.city': 'Porto' };
-      expect(clinicModel.find).toHaveBeenCalledWith(expectedFilter);
-      expect(professionalModel.find).toHaveBeenCalledWith(expectedFilter);
     });
 
-    it('combines specialty and city filters', async () => {
-      clinicModel.find.mockReturnValue(createQueryMock([clinicFixture[0]]));
-      professionalModel.find.mockReturnValue(
-        createQueryMock([professionalFixture[0]]),
-      );
+    it('should NOT call findActiveOwnerIds when searching only for clinics', async () => {
+      mockClinicModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
 
-      const dto: SearchQueryDto = {
-        specialty: Specialty.MEDICINE,
-        city: 'Porto',
+      await service.search({ type: 'clinic' });
+
+      expect(subscriptionsService.findActiveOwnerIds).not.toHaveBeenCalled();
+    });
+
+    it('should filter professionals by active subscription IDs (RN20)', async () => {
+      const activeId = new Types.ObjectId();
+      const activeProfessional = {
+        _id: activeId,
+        name: 'Dr. Active',
+        specialty: 'Cardiology',
+        address: 'Main St',
       };
-      await service.search(dto);
 
-      expect(clinicModel.find).toHaveBeenCalledWith({
-        specialties: { $in: [Specialty.MEDICINE] },
-        'address.city': 'Porto',
-      });
-      expect(professionalModel.find).toHaveBeenCalledWith({
-        specialty: Specialty.MEDICINE,
-        'address.city': 'Porto',
-      });
-    });
-
-    it('returns only clinics when type=clinic', async () => {
-      clinicModel.find.mockReturnValue(createQueryMock(clinicFixture));
-
-      const dto: SearchQueryDto = { type: 'clinic' };
-      const result = await service.search(dto);
-
-      expect(clinicModel.find).toHaveBeenCalled();
-      expect(professionalModel.find).not.toHaveBeenCalled();
-      expect(result.clinics).toHaveLength(clinicFixture.length);
-      expect(result.professionals).toEqual([]);
-    });
-
-    it('returns only professionals when type=professional', async () => {
-      professionalModel.find.mockReturnValue(
-        createQueryMock(professionalFixture),
-      );
-
-      const dto: SearchQueryDto = { type: 'professional' };
-      const result = await service.search(dto);
-
-      expect(professionalModel.find).toHaveBeenCalled();
-      expect(clinicModel.find).not.toHaveBeenCalled();
-      expect(result.professionals).toHaveLength(professionalFixture.length);
-      expect(result.clinics).toEqual([]);
-    });
-
-    it('respects pagination (page=2, limit=10 -> skip=10)', async () => {
-      const clinicQuery = createQueryMock(clinicFixture);
-      const professionalQuery = createQueryMock(professionalFixture);
-      clinicModel.find.mockReturnValue(clinicQuery);
-      professionalModel.find.mockReturnValue(professionalQuery);
-
-      const dto: SearchQueryDto = { page: 2, limit: 10 };
-      await service.search(dto);
-
-      expect(clinicQuery.skip).toHaveBeenCalledWith(10);
-      expect(clinicQuery.limit).toHaveBeenCalledWith(10);
-      expect(professionalQuery.skip).toHaveBeenCalledWith(10);
-      expect(professionalQuery.limit).toHaveBeenCalledWith(10);
-    });
-  });
-
-  describe('findClinicById', () => {
-    it('returns the clinic when found', async () => {
-      clinicModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(clinicFixture[0]),
+      mockSubscriptionsService.findActiveOwnerIds.mockResolvedValue([activeId]);
+      mockProfessionalModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([activeProfessional]),
+        }),
       });
 
-      const result = await service.findClinicById('clinic-1');
+      const results = await service.search({ type: 'professional' });
 
-      expect(clinicModel.findById).toHaveBeenCalledWith('clinic-1');
-      expect(result).toEqual(clinicFixture[0]);
-    });
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Dr. Active');
+      expect(results[0].type).toBe('professional');
 
-    it('throws NotFoundException when clinic not found', async () => {
-      clinicModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
-
-      await expect(service.findClinicById('missing')).rejects.toThrow(
-        NotFoundException,
+      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _id: { $in: [activeId] },
+        }),
       );
     });
-  });
 
-  describe('findProfessionalById', () => {
-    it('returns the professional when found', async () => {
-      professionalModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(professionalFixture[0]),
+    it('should exclude professionals without active subscription when activeProfIds is empty', async () => {
+      mockSubscriptionsService.findActiveOwnerIds.mockResolvedValue([]);
+      mockProfessionalModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
       });
 
-      const result = await service.findProfessionalById('pro-1');
+      const results = await service.search({ type: 'professional' });
 
-      expect(professionalModel.findById).toHaveBeenCalledWith('pro-1');
-      expect(result).toEqual(professionalFixture[0]);
+      expect(results).toHaveLength(0);
+      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _id: { $in: [] },
+        }),
+      );
     });
 
-    it('throws NotFoundException when professional not found', async () => {
-      professionalModel.findById.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
+    it('should return clinic results without subscription filter', async () => {
+      const clinicId = new Types.ObjectId();
+      const mockClinic = {
+        _id: clinicId,
+        name: 'Health Clinic',
+        address: '123 Health Ave',
+      };
+
+      mockClinicModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([mockClinic]),
+        }),
       });
 
-      await expect(service.findProfessionalById('missing')).rejects.toThrow(
-        NotFoundException,
+      const results = await service.search({ type: 'clinic' });
+
+      expect(results).toHaveLength(1);
+      expect(results[0].name).toBe('Health Clinic');
+      expect(results[0].type).toBe('clinic');
+      expect(subscriptionsService.findActiveOwnerIds).not.toHaveBeenCalled();
+    });
+
+    it('should apply RN20 filter to professionals when type is undefined (search both)', async () => {
+      const activeId = new Types.ObjectId();
+      mockSubscriptionsService.findActiveOwnerIds.mockResolvedValue([activeId]);
+
+      mockProfessionalModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+      mockClinicModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      await service.search({});
+
+      expect(subscriptionsService.findActiveOwnerIds).toHaveBeenCalledWith(
+        'professional',
+      );
+      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          _id: { $in: [activeId] },
+        }),
+      );
+    });
+
+    it('should apply name filter to professionals', async () => {
+      mockSubscriptionsService.findActiveOwnerIds.mockResolvedValue([]);
+      mockProfessionalModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      await service.search({ type: 'professional', name: 'John' });
+
+      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: { $regex: 'John', $options: 'i' },
+        }),
+      );
+    });
+
+    it('should apply name filter to clinics', async () => {
+      mockClinicModel.find.mockReturnValue({
+        lean: jest.fn().mockReturnValue({
+          exec: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      await service.search({ type: 'clinic', name: 'Health' });
+
+      expect(mockClinicModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: { $regex: 'Health', $options: 'i' },
+        }),
       );
     });
   });
