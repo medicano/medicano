@@ -10,3 +10,15 @@ Thumbs.db
 api@0.0.1
 prettier
 apps/api/coverage/
+
+# LaTeX build artifacts
+documentation/*.aux
+documentation/*.bbl
+documentation/*.blg
+documentation/*.fdb_latexmk
+documentation/*.fls
+documentation/*.lof
+documentation/*.lot
+documentation/*.pdf
+documentation/*.synctex.gz
+documentation/*.toc
