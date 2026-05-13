@@ -1,14 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { AvailabilityService } from '../availability.service';
-import { Availability } from '../schemas/availability.schema';
+import { Appointment } from '../../appointments/schemas/appointment.schema';
+import { Professional } from '../../professionals/schemas/professional.schema';
 
-const mockAvailabilityModel = {
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findOneAndUpdate: jest.fn(),
-  findOneAndDelete: jest.fn(),
+const mockAppointmentModel = {
+  find: jest.fn(),
+};
+
+const mockProfessionalModel = {
+  findById: jest.fn(),
+};
+
+const professionalWithFridaySlots = {
+  weeklySlots: [{ dayOfWeek: 5, startTime: '09:00', endTime: '11:00' }],
 };
 
 describe('AvailabilityService', () => {
@@ -19,8 +25,12 @@ describe('AvailabilityService', () => {
       providers: [
         AvailabilityService,
         {
-          provide: getModelToken(Availability.name),
-          useValue: mockAvailabilityModel,
+          provide: getModelToken(Appointment.name),
+          useValue: mockAppointmentModel,
+        },
+        {
+          provide: getModelToken(Professional.name),
+          useValue: mockProfessionalModel,
         },
       ],
     }).compile();
@@ -29,30 +39,13 @@ describe('AvailabilityService', () => {
     jest.clearAllMocks();
   });
 
-  describe('setAvailability', () => {
-    it('creates availability for professional', async () => {
-      const dto = {
-        professionalId: 'prof-1',
-        dayOfWeek: 1,
-        startTime: '09:00',
-        endTime: '17:00',
-        slotDuration: 30,
-      };
-      mockAvailabilityModel.findOneAndUpdate.mockResolvedValue({ _id: 'avail-1', ...dto });
-
-      const result = await service.setAvailability('prof-1', dto as any);
-      expect(result).toBeDefined();
-    });
-  });
-
   describe('getAvailableSlotsForDay', () => {
     it('returns available slots for a given day', async () => {
-      mockAvailabilityModel.findOne.mockResolvedValue({
-        professionalId: 'prof-1',
-        dayOfWeek: 5,
-        startTime: '09:00',
-        endTime: '11:00',
-        slotDuration: 60,
+      mockProfessionalModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(professionalWithFridaySlots),
+      });
+      mockAppointmentModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
       });
 
       const result = await service.getAvailableSlotsForDay('prof-1', '2025-01-10');
@@ -60,7 +53,9 @@ describe('AvailabilityService', () => {
     });
 
     it('returns empty array when no availability configured', async () => {
-      mockAvailabilityModel.findOne.mockResolvedValue(null);
+      mockProfessionalModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(null),
+      });
 
       const result = await service.getAvailableSlotsForDay('prof-1', '2025-01-10');
       expect(result).toEqual([]);
@@ -69,12 +64,11 @@ describe('AvailabilityService', () => {
 
   describe('getAvailableSlots', () => {
     it('returns slots for a date range', async () => {
-      mockAvailabilityModel.findOne.mockResolvedValue({
-        professionalId: 'prof-1',
-        dayOfWeek: 5,
-        startTime: '09:00',
-        endTime: '11:00',
-        slotDuration: 60,
+      mockProfessionalModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(professionalWithFridaySlots),
+      });
+      mockAppointmentModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
       });
 
       const result = await service.getAvailableSlots('prof-1', '2025-01-10', '2025-01-12');

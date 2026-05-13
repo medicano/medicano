@@ -18,6 +18,14 @@ export class GetAppointmentsQueryDto {
   @IsOptional()
   readonly date?: string;
 
+  @IsDateString()
+  @IsOptional()
+  readonly dateFrom?: string;
+
+  @IsDateString()
+  @IsOptional()
+  readonly dateTo?: string;
+
   @IsEnum(AppointmentStatus)
   @IsOptional()
   readonly status?: AppointmentStatus;

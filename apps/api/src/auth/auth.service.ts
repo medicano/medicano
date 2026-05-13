@@ -1,10 +1,10 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { IAuthTokens } from '@medicano/types';
 import { Role } from '../common/enums/role.enum';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users/users.service';
+import { UserDocument } from './schemas/user.schema';
 import { LoginAttendantDto } from './dto/login-attendant.dto';
 import { LoginStandardDto } from './dto/login-standard.dto';
 import { SignupDto } from './dto/signup.dto';
@@ -17,7 +17,6 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
     private readonly redisService: RedisService,
   ) {}
 
@@ -32,7 +31,7 @@ export class AuthService {
   }
 
   async loginStandard(dto: LoginStandardDto): Promise<IAuthTokens> {
-    let user = null;
+    let user: UserDocument | null = null;
 
     for (const role of STANDARD_ROLES) {
       user = await this.usersService.findByEmailAndRole(dto.email, role);
@@ -45,10 +44,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await this.usersService.comparePassword(
-      dto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = await user.comparePassword(dto.password);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -72,10 +68,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const isPasswordValid = await this.usersService.comparePassword(
-      dto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = await user.comparePassword(dto.password);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -94,15 +87,6 @@ export class AuthService {
   }
 
   private signToken(userId: string, role: Role): string {
-    const jwtSecret = this.configService.get<string>('JWT_SECRET');
-
-    if (!jwtSecret) {
-      throw new Error('JWT_SECRET not configured');
-    }
-
-    return this.jwtService.sign(
-      { sub: userId, role },
-      { secret: jwtSecret, expiresIn: '7d' },
-    );
+    return this.jwtService.sign({ sub: userId, role });
   }
 }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import Anthropic from '@anthropic-ai/sdk';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatSession, ChatSessionSchema } from './schemas/chat-session.schema';
@@ -15,7 +16,15 @@ import { ChatMessage, ChatMessageSchema } from './schemas/chat-message.schema';
     ConfigModule,
   ],
   controllers: [ChatController],
-  providers: [ChatService],
+  providers: [
+    ChatService,
+    {
+      provide: Anthropic,
+      useFactory: (configService: ConfigService) =>
+        new Anthropic({ apiKey: configService.get<string>('ANTHROPIC_API_KEY') }),
+      inject: [ConfigService],
+    },
+  ],
   exports: [ChatService],
 })
 export class ChatModule {}

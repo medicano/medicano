@@ -6,7 +6,7 @@ import { UsersModule } from './users/users.module';
 import { PatientsModule } from './patients/patients.module';
 import { ClinicsModule } from './clinics/clinics.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
-import { ClinicProfessionalsModule } from './clinic-professionals/clinic-professionals.module';
+import { ClinicProfessionalsModule } from './professionals/clinic-professionals.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AvailabilityModule } from './availability/availability.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';

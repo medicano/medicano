@@ -16,6 +16,9 @@ export class Subscription {
   clinicLimit: number;
 
   @Prop({ type: Number, required: true })
+  professionalLimit: number;
+
+  @Prop({ type: Number, required: true })
   appointmentLimit: number;
 
   @Prop({ type: Boolean, default: false })

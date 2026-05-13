@@ -1,0 +1,847 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-04-28T00:00:00.000Z",
+  "__export_source": "medicano-api.collection",
+  "resources": [
+    {
+      "_id": "wrk_1d913bc41a30407aad9e60e2",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "Medicano API",
+      "description": "Coleção completa da API Medicano. Após login/signup, copie o accessToken da resposta para a variável 'token' no ambiente.",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_7f39b26f1b4e4d449585f73d",
+      "_type": "environment",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Local",
+      "data": {
+        "base_url": "http://localhost:3000",
+        "token": "",
+        "clinic_id": "",
+        "professional_id": "",
+        "patient_id": "",
+        "appointment_id": "",
+        "session_id": "",
+        "subscription_id": "",
+        "attendant_id": "",
+        "user_id": ""
+      }
+    },
+    {
+      "_id": "fld_5e96c7b9245f41bfa71ae62d",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Auth",
+      "metaSortKey": -100
+    },
+    {
+      "_id": "req_7d6974b6ba814b3b84acb865",
+      "_type": "request",
+      "parentId": "fld_5e96c7b9245f41bfa71ae62d",
+      "name": "Signup",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/signup",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_signup_ct" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"role\": \"patient\",\n  \"email\": \"paciente@exemplo.com\",\n  \"password\": \"senha1234\"\n}"
+      },
+      "authentication": {},
+      "description": "role: patient | clinic | professional | attendant\nPara attendant: omitir email, incluir username e clinicId.\n\nApós receber a resposta, copie o accessToken para a variável 'token'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_8d688345b2994c7abd4f3056",
+      "_type": "request",
+      "parentId": "fld_5e96c7b9245f41bfa71ae62d",
+      "name": "Login (padrão)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/login",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_login_ct" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"paciente@exemplo.com\",\n  \"password\": \"senha1234\"\n}"
+      },
+      "authentication": {},
+      "description": "Roles: patient, clinic, professional.\n\nApós receber a resposta, copie o accessToken para a variável 'token'.",
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_2d2e9f474f9642caaefd22a7",
+      "_type": "request",
+      "parentId": "fld_5e96c7b9245f41bfa71ae62d",
+      "name": "Login (atendente)",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/login/attendant",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_login_att_ct" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"clinicId\": \"{{ clinic_id }}\",\n  \"username\": \"atendente1\",\n  \"password\": \"senha1234\"\n}"
+      },
+      "authentication": {},
+      "description": "Após receber a resposta, copie o accessToken para a variável 'token'.",
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_d56a0c00560f45678f8c3a33",
+      "_type": "request",
+      "parentId": "fld_5e96c7b9245f41bfa71ae62d",
+      "name": "Logout",
+      "method": "POST",
+      "url": "{{ base_url }}/auth/logout",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_logout_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Invalida o token no Redis imediatamente.",
+      "metaSortKey": -7
+    },
+    {
+      "_id": "fld_profile",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Profile",
+      "metaSortKey": -90
+    },
+    {
+      "_id": "req_get_profile",
+      "_type": "request",
+      "parentId": "fld_profile",
+      "name": "Get My Profile",
+      "method": "GET",
+      "url": "{{ base_url }}/profile/me",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_profile_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_update_patient_profile",
+      "_type": "request",
+      "parentId": "fld_profile",
+      "name": "Update Patient Profile",
+      "method": "PUT",
+      "url": "{{ base_url }}/profile/me/patient",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_pp_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_pp_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Nome do Paciente\",\n  \"phone\": \"(11) 91234-5678\",\n  \"birthDate\": \"1990-01-15\"\n}"
+      },
+      "authentication": {},
+      "description": "Role: patient",
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_update_clinic_profile",
+      "_type": "request",
+      "parentId": "fld_profile",
+      "name": "Update Clinic Profile",
+      "method": "PUT",
+      "url": "{{ base_url }}/profile/me/clinic",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_cp_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_cp_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Clínica Saúde Total\",\n  \"description\": \"Clínica multiespecialidade\",\n  \"phone\": \"(11) 3456-7890\",\n  \"email\": \"contato@clinica.com\",\n  \"specialties\": [\"CARDIOLOGY\", \"PEDIATRICS\"],\n  \"address\": {\n    \"street\": \"Av. Paulista\",\n    \"number\": \"1000\",\n    \"complement\": \"Sala 52\",\n    \"neighborhood\": \"Bela Vista\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01310-100\",\n    \"country\": \"BR\"\n  }\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic",
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_update_professional_profile",
+      "_type": "request",
+      "parentId": "fld_profile",
+      "name": "Update Professional Profile",
+      "method": "PUT",
+      "url": "{{ base_url }}/profile/me/professional",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_procp_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_procp_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Dr. João Silva\",\n  \"bio\": \"Cardiologista com 10 anos de experiência\",\n  \"phone\": \"(11) 99876-5432\",\n  \"email\": \"dr.joao@email.com\",\n  \"specialty\": \"CARDIOLOGY\",\n  \"crm\": \"CRM/SP 123456\",\n  \"address\": {\n    \"street\": \"Rua das Flores\",\n    \"number\": \"200\",\n    \"neighborhood\": \"Jardins\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01452-000\",\n    \"country\": \"BR\"\n  }\n}"
+      },
+      "authentication": {},
+      "description": "Role: professional",
+      "metaSortKey": -7
+    },
+    {
+      "_id": "fld_f0f8ab564bbc4588bd3a74c8",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Clinics",
+      "metaSortKey": -80
+    },
+    {
+      "_id": "req_2acd31285f194df3bc74a7f3",
+      "_type": "request",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Create Clinic",
+      "method": "POST",
+      "url": "{{ base_url }}/clinics",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_cc_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_cc_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Clínica Saúde Total\",\n  \"description\": \"Clínica multiespecialidade no centro da cidade\",\n  \"phone\": \"(11) 3456-7890\",\n  \"email\": \"contato@saudetotal.com\",\n  \"specialties\": [\"CARDIOLOGY\", \"GENERAL_PRACTICE\"],\n  \"address\": {\n    \"street\": \"Av. Paulista\",\n    \"number\": \"1000\",\n    \"complement\": \"Sala 52\",\n    \"neighborhood\": \"Bela Vista\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01310-100\",\n    \"country\": \"BR\"\n  }\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic. specialties: GENERAL_PRACTICE | PEDIATRICS | CARDIOLOGY | DERMATOLOGY | PSYCHIATRY\n\nApós criar, copie o _id para a variável 'clinic_id'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_eb4caf95264b407a92ab1aee",
+      "_type": "request",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "List My Clinics",
+      "method": "GET",
+      "url": "{{ base_url }}/clinics",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_lc_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_8d966ca1fd4a46a18f806a58",
+      "_type": "request",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Get Clinic by ID",
+      "method": "GET",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_gc_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_6920cd7eaf384022a35a0ec5",
+      "_type": "request",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Update Clinic",
+      "method": "PATCH",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_uc_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_uc_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Clínica Saúde Total Atualizada\",\n  \"phone\": \"(11) 3456-9999\",\n  \"isActive\": true\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic",
+      "metaSortKey": -7
+    },
+    {
+      "_id": "req_4d3f3892de22431aaf7e841d",
+      "_type": "request",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Delete Clinic",
+      "method": "DELETE",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_dc_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Role: clinic",
+      "metaSortKey": -6
+    },
+    {
+      "_id": "req_update_linked_scheduling",
+      "_type": "request",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Update Linked Scheduling",
+      "method": "PATCH",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/linked-scheduling",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_uls_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_uls_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"linkedScheduling\": true\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic",
+      "metaSortKey": -5
+    },
+    {
+      "_id": "fld_b3ee3e6ae69643b5b5ba1bfb",
+      "_type": "request_group",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Professionals",
+      "metaSortKey": -4
+    },
+    {
+      "_id": "req_216d3be4136445c99742f6e1",
+      "_type": "request",
+      "parentId": "fld_b3ee3e6ae69643b5b5ba1bfb",
+      "name": "Assign Professional to Clinic",
+      "method": "POST",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/professionals/{{ professional_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_apc_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_f693538edfa2458583602861",
+      "_type": "request",
+      "parentId": "fld_b3ee3e6ae69643b5b5ba1bfb",
+      "name": "List Clinic Professionals",
+      "method": "GET",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/professionals",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_lcp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_77a354700d0e4b8d86169993",
+      "_type": "request",
+      "parentId": "fld_b3ee3e6ae69643b5b5ba1bfb",
+      "name": "Remove Professional from Clinic",
+      "method": "DELETE",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/professionals/{{ professional_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_rpc_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -8
+    },
+    {
+      "_id": "fld_attendants",
+      "_type": "request_group",
+      "parentId": "fld_f0f8ab564bbc4588bd3a74c8",
+      "name": "Attendants",
+      "metaSortKey": -3
+    },
+    {
+      "_id": "req_create_attendant",
+      "_type": "request",
+      "parentId": "fld_attendants",
+      "name": "Create Attendant",
+      "method": "POST",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/attendants",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_ca_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_ca_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"atendente1\",\n  \"password\": \"senha1234\",\n  \"displayName\": \"Maria Atendente\"\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic. username: apenas letras, números, _ e -\n\nApós criar, copie o _id para a variável 'attendant_id'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_list_attendants",
+      "_type": "request",
+      "parentId": "fld_attendants",
+      "name": "List Attendants",
+      "method": "GET",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/attendants",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_la_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Role: clinic",
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_update_attendant",
+      "_type": "request",
+      "parentId": "fld_attendants",
+      "name": "Update Attendant",
+      "method": "PUT",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/attendants/{{ attendant_id }}",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_ua_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_ua_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"displayName\": \"Maria Silva\",\n  \"password\": \"novaSenha1234\"\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic",
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_remove_attendant",
+      "_type": "request",
+      "parentId": "fld_attendants",
+      "name": "Remove Attendant",
+      "method": "DELETE",
+      "url": "{{ base_url }}/clinics/{{ clinic_id }}/attendants/{{ attendant_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_ra_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Role: clinic. Retorna 204 No Content.",
+      "metaSortKey": -7
+    },
+    {
+      "_id": "fld_6bed808e5dd84ba9902bcb96",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Professionals",
+      "metaSortKey": -70
+    },
+    {
+      "_id": "req_16fb972a565344febe73a522",
+      "_type": "request",
+      "parentId": "fld_6bed808e5dd84ba9902bcb96",
+      "name": "Create Professional",
+      "method": "POST",
+      "url": "{{ base_url }}/professionals",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_crp_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_crp_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Dr. João Silva\",\n  \"bio\": \"Cardiologista com 10 anos de experiência\",\n  \"phone\": \"(11) 99876-5432\",\n  \"email\": \"dr.joao@email.com\",\n  \"specialty\": \"CARDIOLOGY\",\n  \"crm\": \"CRM/SP 123456\",\n  \"address\": {\n    \"street\": \"Rua das Flores\",\n    \"number\": \"200\",\n    \"neighborhood\": \"Jardins\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01452-000\",\n    \"country\": \"BR\"\n  }\n}"
+      },
+      "authentication": {},
+      "description": "specialty: GENERAL_PRACTICE | PEDIATRICS | CARDIOLOGY | DERMATOLOGY | PSYCHIATRY\n\nApós criar, copie o _id para a variável 'professional_id'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_11669a1f0d864ab48b93a8db",
+      "_type": "request",
+      "parentId": "fld_6bed808e5dd84ba9902bcb96",
+      "name": "List Professionals",
+      "method": "GET",
+      "url": "{{ base_url }}/professionals",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_lp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_641b89a9fe0e440c9cfe6b09",
+      "_type": "request",
+      "parentId": "fld_6bed808e5dd84ba9902bcb96",
+      "name": "Get Professional by ID",
+      "method": "GET",
+      "url": "{{ base_url }}/professionals/{{ professional_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_gp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_4266eb918a5144818abfcc97",
+      "_type": "request",
+      "parentId": "fld_6bed808e5dd84ba9902bcb96",
+      "name": "Update Professional",
+      "method": "PUT",
+      "url": "{{ base_url }}/professionals/{{ professional_id }}",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_up_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_up_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"bio\": \"Bio atualizada\",\n  \"crm\": \"CRM/SP 654321\"\n}"
+      },
+      "authentication": {},
+      "metaSortKey": -7
+    },
+    {
+      "_id": "req_bfdfd999c47e4635a6847a72",
+      "_type": "request",
+      "parentId": "fld_6bed808e5dd84ba9902bcb96",
+      "name": "Delete Professional",
+      "method": "DELETE",
+      "url": "{{ base_url }}/professionals/{{ professional_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_dp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -6
+    },
+    {
+      "_id": "fld_appointments",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Appointments",
+      "metaSortKey": -60
+    },
+    {
+      "_id": "req_create_appointment",
+      "_type": "request",
+      "parentId": "fld_appointments",
+      "name": "Create Appointment",
+      "method": "POST",
+      "url": "{{ base_url }}/appointments",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_capp_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_capp_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"clinicId\": \"{{ clinic_id }}\",\n  \"professionalId\": \"{{ professional_id }}\",\n  \"patientId\": \"{{ patient_id }}\",\n  \"startAt\": \"2026-05-10T09:00:00.000Z\",\n  \"durationMinutes\": 30,\n  \"notes\": \"Primeira consulta\"\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic | attendant. durationMinutes: 15–480.\n\nApós criar, copie o _id para a variável 'appointment_id'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_list_appointments",
+      "_type": "request",
+      "parentId": "fld_appointments",
+      "name": "List Appointments",
+      "method": "GET",
+      "url": "{{ base_url }}/appointments?clinicId={{ clinic_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_lapp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Query params disponíveis: clinicId, professionalId, patientId, date, dateFrom, dateTo, status (scheduled|confirmed|completed|cancelled)",
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_get_appointment",
+      "_type": "request",
+      "parentId": "fld_appointments",
+      "name": "Get Appointment by ID",
+      "method": "GET",
+      "url": "{{ base_url }}/appointments/{{ appointment_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_gapp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_update_appointment",
+      "_type": "request",
+      "parentId": "fld_appointments",
+      "name": "Update Appointment",
+      "method": "PUT",
+      "url": "{{ base_url }}/appointments/{{ appointment_id }}",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_uapp_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_uapp_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"startAt\": \"2026-05-10T10:00:00.000Z\",\n  \"durationMinutes\": 45,\n  \"notes\": \"Reagendamento solicitado pelo paciente\"\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic | attendant",
+      "metaSortKey": -7
+    },
+    {
+      "_id": "req_update_appointment_status",
+      "_type": "request",
+      "parentId": "fld_appointments",
+      "name": "Update Appointment Status",
+      "method": "PATCH",
+      "url": "{{ base_url }}/appointments/{{ appointment_id }}/status",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_uas_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_uas_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"status\": \"confirmed\"\n}"
+      },
+      "authentication": {},
+      "description": "Role: clinic | attendant | professional. status: scheduled | confirmed | completed | cancelled",
+      "metaSortKey": -6
+    },
+    {
+      "_id": "req_cancel_appointment",
+      "_type": "request",
+      "parentId": "fld_appointments",
+      "name": "Cancel Appointment",
+      "method": "DELETE",
+      "url": "{{ base_url }}/appointments/{{ appointment_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_canapp_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Role: clinic | attendant. Retorna 204 No Content.",
+      "metaSortKey": -5
+    },
+    {
+      "_id": "fld_availability",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Availability",
+      "metaSortKey": -50
+    },
+    {
+      "_id": "req_get_slots",
+      "_type": "request",
+      "parentId": "fld_availability",
+      "name": "Get Available Slots",
+      "method": "GET",
+      "url": "{{ base_url }}/availability/{{ professional_id }}?fromDate=2026-05-01&toDate=2026-05-31",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_avail_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "description": "Retorna os slots disponíveis do profissional no intervalo de datas.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "fld_search",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Search",
+      "metaSortKey": -40
+    },
+    {
+      "_id": "req_search",
+      "_type": "request",
+      "parentId": "fld_search",
+      "name": "Search Clinics and Professionals",
+      "method": "GET",
+      "url": "{{ base_url }}/search?type=all&city=São Paulo&page=1&limit=10",
+      "headers": [],
+      "body": {},
+      "authentication": {},
+      "description": "Rota pública (sem autenticação). type: clinic | professional | all\nspecialty: GENERAL_PRACTICE | PEDIATRICS | CARDIOLOGY | DERMATOLOGY | PSYCHIATRY",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_search_clinic",
+      "_type": "request",
+      "parentId": "fld_search",
+      "name": "Get Clinic by ID (public)",
+      "method": "GET",
+      "url": "{{ base_url }}/search/clinics/{{ clinic_id }}",
+      "headers": [],
+      "body": {},
+      "authentication": {},
+      "description": "Rota pública.",
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_search_professional",
+      "_type": "request",
+      "parentId": "fld_search",
+      "name": "Get Professional by ID (public)",
+      "method": "GET",
+      "url": "{{ base_url }}/search/professionals/{{ professional_id }}",
+      "headers": [],
+      "body": {},
+      "authentication": {},
+      "description": "Rota pública.",
+      "metaSortKey": -8
+    },
+    {
+      "_id": "fld_subscriptions",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Subscriptions",
+      "metaSortKey": -30
+    },
+    {
+      "_id": "req_create_subscription",
+      "_type": "request",
+      "parentId": "fld_subscriptions",
+      "name": "Create Subscription",
+      "method": "POST",
+      "url": "{{ base_url }}/subscriptions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_csub_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_csub_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"plan\": \"BASIC\"\n}"
+      },
+      "authentication": {},
+      "description": "plan: BASIC | PREMIUM\n\nApós criar, copie o _id para a variável 'subscription_id'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_get_my_subscription",
+      "_type": "request",
+      "parentId": "fld_subscriptions",
+      "name": "Get My Subscription",
+      "method": "GET",
+      "url": "{{ base_url }}/subscriptions/me",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_gmsub_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_get_subscription",
+      "_type": "request",
+      "parentId": "fld_subscriptions",
+      "name": "Get Subscription by ID",
+      "method": "GET",
+      "url": "{{ base_url }}/subscriptions/{{ subscription_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_gsub_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_update_subscription",
+      "_type": "request",
+      "parentId": "fld_subscriptions",
+      "name": "Update Subscription",
+      "method": "PATCH",
+      "url": "{{ base_url }}/subscriptions/{{ subscription_id }}",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_usub_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_usub_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"plan\": \"PREMIUM\"\n}"
+      },
+      "authentication": {},
+      "metaSortKey": -7
+    },
+    {
+      "_id": "fld_chat",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Chat",
+      "metaSortKey": -20
+    },
+    {
+      "_id": "req_create_session",
+      "_type": "request",
+      "parentId": "fld_chat",
+      "name": "Create Chat Session",
+      "method": "POST",
+      "url": "{{ base_url }}/chat/sessions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_cs_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_cs_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"clinicId\": \"{{ clinic_id }}\"\n}"
+      },
+      "authentication": {},
+      "description": "clinicId é opcional.\n\nApós criar, copie o _id para a variável 'session_id'.",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_list_sessions",
+      "_type": "request",
+      "parentId": "fld_chat",
+      "name": "List Chat Sessions",
+      "method": "GET",
+      "url": "{{ base_url }}/chat/sessions",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_ls_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -9
+    },
+    {
+      "_id": "req_send_message",
+      "_type": "request",
+      "parentId": "fld_chat",
+      "name": "Send Message",
+      "method": "POST",
+      "url": "{{ base_url }}/chat/sessions/{{ session_id }}/messages",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json", "id": "hdp_sm_ct" },
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_sm_auth" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"content\": \"Olá, preciso marcar uma consulta de cardiologia.\"\n}"
+      },
+      "authentication": {},
+      "description": "Máximo 4096 caracteres.",
+      "metaSortKey": -8
+    },
+    {
+      "_id": "req_list_messages",
+      "_type": "request",
+      "parentId": "fld_chat",
+      "name": "List Messages",
+      "method": "GET",
+      "url": "{{ base_url }}/chat/sessions/{{ session_id }}/messages",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_lm_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -7
+    },
+    {
+      "_id": "fld_acf5f5e4bf714c288a39975c",
+      "_type": "request_group",
+      "parentId": "wrk_1d913bc41a30407aad9e60e2",
+      "name": "Users",
+      "metaSortKey": -10
+    },
+    {
+      "_id": "req_445b4471098d42a38041d15e",
+      "_type": "request",
+      "parentId": "fld_acf5f5e4bf714c288a39975c",
+      "name": "Get User by ID",
+      "method": "GET",
+      "url": "{{ base_url }}/users/{{ user_id }}",
+      "headers": [
+        { "name": "Authorization", "value": "Bearer {{ token }}", "id": "hdp_gu_auth" }
+      ],
+      "body": {},
+      "authentication": {},
+      "metaSortKey": -10
+    }
+  ]
+}

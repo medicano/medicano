@@ -77,8 +77,8 @@ describe('AppointmentsService', () => {
 
       mockAppointmentModel.find.mockResolvedValue([
         {
-          startTime: new Date('2025-01-10T09:00'),
-          endTime: new Date('2025-01-10T10:00'),
+          startAt: new Date('2025-01-10T09:00'),
+          endAt: new Date('2025-01-10T10:00'),
           clinicId: 'clinic-1',
         },
       ]);
@@ -106,8 +106,8 @@ describe('AppointmentsService', () => {
     it('throws ConflictException on overlapping appointment', async () => {
       mockAppointmentModel.find.mockResolvedValue([
         {
-          startTime: new Date('2025-01-10T09:00'),
-          endTime: new Date('2025-01-10T10:00'),
+          startAt: new Date('2025-01-10T09:00'),
+          endAt: new Date('2025-01-10T10:00'),
           clinicId: 'clinic-1',
         },
       ]);
@@ -126,8 +126,8 @@ describe('AppointmentsService', () => {
       mockClinicsService.findById.mockResolvedValue({ linkedScheduling: true });
       mockAppointmentModel.find.mockResolvedValue([
         {
-          startTime: new Date('2025-01-10T09:00'),
-          endTime: new Date('2025-01-10T10:00'),
+          startAt: new Date('2025-01-10T09:00'),
+          endAt: new Date('2025-01-10T10:00'),
           clinicId: 'clinic-1',
         },
       ]);
@@ -146,8 +146,8 @@ describe('AppointmentsService', () => {
       mockClinicsService.findById.mockResolvedValue({ linkedScheduling: false });
       mockAppointmentModel.find.mockResolvedValue([
         {
-          startTime: new Date('2025-01-10T09:00'),
-          endTime: new Date('2025-01-10T10:00'),
+          startAt: new Date('2025-01-10T09:00'),
+          endAt: new Date('2025-01-10T10:00'),
           clinicId: 'clinic-1',
         },
       ]);
@@ -166,8 +166,8 @@ describe('AppointmentsService', () => {
       mockClinicsService.findById.mockResolvedValue({ linkedScheduling: true });
       mockAppointmentModel.find.mockResolvedValue([
         {
-          startTime: new Date('2025-01-10T09:00'),
-          endTime: new Date('2025-01-10T10:00'),
+          startAt: new Date('2025-01-10T09:00'),
+          endAt: new Date('2025-01-10T10:00'),
           clinicId: 'clinic-1',
         },
       ]);

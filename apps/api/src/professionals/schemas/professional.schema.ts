@@ -33,6 +33,24 @@ export class Professional {
 
   @Prop({ type: Boolean, default: true })
   isActive: boolean;
+
+  @Prop({ type: String, required: false })
+  description?: string;
+
+  @Prop({ type: Boolean, default: false })
+  autoConfirm: boolean;
+
+  @Prop({
+    type: [
+      {
+        dayOfWeek: { type: Number, min: 0, max: 6, required: true },
+        startTime: { type: String, required: true },
+        endTime: { type: String, required: true },
+      },
+    ],
+    default: [],
+  })
+  weeklySlots: { dayOfWeek: number; startTime: string; endTime: string }[];
 }
 
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional);

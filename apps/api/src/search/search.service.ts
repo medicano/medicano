@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model } from 'mongoose';
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
+import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { Specialty } from '../common/enums/specialty.enum';
 
 export interface SearchQueryParams {
@@ -27,6 +28,8 @@ export class SearchService {
   constructor(
     @InjectModel(Professional.name)
     private readonly professionalModel: Model<ProfessionalDocument>,
+    @InjectModel(Clinic.name)
+    private readonly clinicModel: Model<ClinicDocument>,
   ) {}
 
   async search(params: SearchQueryParams): Promise<SearchResult[]> {
@@ -60,6 +63,22 @@ export class SearchService {
       description: p.description,
       autoConfirm: p.autoConfirm,
     }));
+  }
+
+  async findClinicById(id: string): Promise<ClinicDocument> {
+    const clinic = await this.clinicModel.findById(id).exec();
+    if (!clinic) {
+      throw new NotFoundException(`Clinic with id ${id} not found`);
+    }
+    return clinic;
+  }
+
+  async findProfessionalById(id: string): Promise<ProfessionalDocument> {
+    const professional = await this.professionalModel.findById(id).exec();
+    if (!professional) {
+      throw new NotFoundException(`Professional with id ${id} not found`);
+    }
+    return professional;
   }
 
   async findBySpecialtyAndCity(

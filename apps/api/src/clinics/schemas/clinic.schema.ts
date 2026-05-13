@@ -30,6 +30,9 @@ export class Clinic {
 
   @Prop({ type: Boolean, default: true })
   isActive: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  linkedScheduling: boolean;
 }
 
 export const ClinicSchema = SchemaFactory.createForClass(Clinic);

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Subscription, SubscriptionDocument } from './schemas/subscription.schema';
@@ -20,10 +20,9 @@ export class SubscriptionsService {
     userId: string,
     createSubscriptionDto: CreateSubscriptionDto,
   ): Promise<SubscriptionDocument> {
-    const existing = await this.subscriptionModel.findOne({
-      userId: new Types.ObjectId(userId),
-      isActive: true,
-    });
+    const existing = await this.subscriptionModel
+      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
+      .exec();
 
     if (existing) {
       throw new BadRequestException('User already has an active subscription');
@@ -35,6 +34,7 @@ export class SubscriptionsService {
       userId: new Types.ObjectId(userId),
       plan: createSubscriptionDto.plan,
       clinicLimit: limits.clinicLimit,
+      professionalLimit: limits.professionalLimit,
       appointmentLimit: limits.appointmentLimit,
       aiTriageEnabled: limits.aiTriageEnabled,
       prioritySupport: limits.prioritySupport,
@@ -96,5 +96,17 @@ export class SubscriptionsService {
   async getActivePlan(userId: string): Promise<SubscriptionPlan | null> {
     const subscription = await this.findByUserId(userId);
     return subscription ? subscription.plan : null;
+  }
+
+  async enforceClinicProfessionalLimit(userId: string, currentCount: number): Promise<void> {
+    const subscription = await this.findByUserId(userId);
+    if (!subscription) {
+      throw new ForbiddenException('No active subscription found');
+    }
+    if (currentCount >= subscription.professionalLimit) {
+      throw new ForbiddenException(
+        `Professional limit of ${subscription.professionalLimit} reached for your subscription plan`,
+      );
+    }
   }
 }

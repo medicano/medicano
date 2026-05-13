@@ -23,7 +23,7 @@ export class ClinicProfessionalsService {
     clinicId: string,
     professionalId: string,
   ): Promise<ClinicProfessionalDocument> {
-    await this.clinicsService.findById(clinicId);
+    const clinic = await this.clinicsService.findById(clinicId);
     await this.professionalsService.findById(professionalId);
 
     const currentCount = await this.clinicProfessionalModel.countDocuments({
@@ -31,7 +31,7 @@ export class ClinicProfessionalsService {
     });
 
     await this.subscriptionsService.enforceClinicProfessionalLimit(
-      clinicId,
+      clinic.userId.toString(),
       currentCount,
     );
 

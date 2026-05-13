@@ -1,3 +1,7 @@
+export interface IAuthTokens {
+  accessToken: string;
+}
+
 export interface LoginRequest {
   email: string;
   password: string;

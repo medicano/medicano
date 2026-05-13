@@ -71,7 +71,7 @@ export class NotificationsService {
           recipientType: 'patient',
           patientName: parties.patientName,
           professionalName: parties.professionalName,
-          scheduledAt: appointment.scheduledAt,
+          startAt: appointment.startAt,
           durationMinutes: appointment.durationMinutes,
         });
         await this.sendEmail(parties.patientEmail, subject, html, text);
@@ -86,7 +86,7 @@ export class NotificationsService {
           recipientType: 'professional',
           patientName: parties.patientName,
           professionalName: parties.professionalName,
-          scheduledAt: appointment.scheduledAt,
+          startAt: appointment.startAt,
           durationMinutes: appointment.durationMinutes,
         });
         await this.sendEmail(parties.professionalEmail, subject, html, text);
@@ -116,8 +116,7 @@ export class NotificationsService {
       const { subject, html, text } = appointmentConfirmedTemplate({
         patientName: parties.patientName,
         professionalName: parties.professionalName,
-        scheduledAt: appointment.scheduledAt,
-        durationMinutes: appointment.durationMinutes,
+        startAt: appointment.startAt,
       });
 
       await this.sendEmail(parties.patientEmail, subject, html, text);
@@ -144,13 +143,10 @@ export class NotificationsService {
         }
 
         const { subject, html, text } = appointmentCancelledTemplate({
-          recipientType: 'professional',
+          recipientName: parties.professionalName,
           otherPartyName: parties.patientName,
           cancelledBy,
-          scheduledAt: appointment.scheduledAt,
-          durationMinutes: appointment.durationMinutes,
-          professionalName: parties.professionalName,
-          patientName: parties.patientName,
+          startAt: appointment.startAt,
         });
 
         await this.sendEmail(parties.professionalEmail, subject, html, text);
@@ -163,13 +159,10 @@ export class NotificationsService {
         }
 
         const { subject, html, text } = appointmentCancelledTemplate({
-          recipientType: 'patient',
+          recipientName: parties.patientName,
           otherPartyName: parties.professionalName,
           cancelledBy,
-          scheduledAt: appointment.scheduledAt,
-          durationMinutes: appointment.durationMinutes,
-          professionalName: parties.professionalName,
-          patientName: parties.patientName,
+          startAt: appointment.startAt,
         });
 
         await this.sendEmail(parties.patientEmail, subject, html, text);
@@ -232,7 +225,6 @@ export class NotificationsService {
     try {
       const patient = (await this.patientModel
         .findById(appointment.patientId)
-        .lean()
         .exec()) as PatientDocument | null;
 
       if (patient) {
@@ -240,7 +232,6 @@ export class NotificationsService {
 
         const patientUser = (await this.userModel
           .findById((patient as any).userId)
-          .lean()
           .exec()) as UserDocument | null;
 
         if (patientUser) {
@@ -269,7 +260,6 @@ export class NotificationsService {
 
         const professionalUser = (await this.userModel
           .findById((professional as any).userId)
-          .lean()
           .exec()) as UserDocument | null;
 
         if (professionalUser) {

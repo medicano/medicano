@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { SearchService } from '../search.service';
 import { Professional } from '../../professionals/schemas/professional.schema';
+import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
 
 const mockAddress = {
@@ -45,6 +46,11 @@ const mockProfessionals = [
 
 const mockProfessionalModel = {
   find: jest.fn(),
+  findById: jest.fn(),
+};
+
+const mockClinicModel = {
+  findById: jest.fn(),
 };
 
 describe('SearchService', () => {
@@ -57,6 +63,10 @@ describe('SearchService', () => {
         {
           provide: getModelToken(Professional.name),
           useValue: mockProfessionalModel,
+        },
+        {
+          provide: getModelToken(Clinic.name),
+          useValue: mockClinicModel,
         },
       ],
     }).compile();

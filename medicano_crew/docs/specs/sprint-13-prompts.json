@@ -1,0 +1,91 @@
+{
+  "sprint": "sprint-13-chat-streaming",
+  "description": "Migrate ChatService from @anthropic-ai/sdk to Vercel AI SDK with SSE streaming, aligning with the original MDC-87 spec (Vercel AI SDK + streaming via SSE). The current implementation uses the Anthropic SDK directly and returns the full response as JSON, breaking the token-by-token streaming UX expected by the triage chatbot.",
+  "context": {
+    "stack": "NestJS + TypeScript + MongoDB (Mongoose) + Vercel AI SDK (ai) + @ai-sdk/anthropic",
+    "monorepo": "apps/api (NestJS)",
+    "jira_issue": "MDC-113 (correction of MDC-87)",
+    "dependencies": "Sprint 05 (chat) and Sprint 07 (triage) must be complete — ChatSession, ChatMessage, TRIAGE_SYSTEM_PROMPT and parseRecommendation already exist",
+    "llm": {
+      "model": "claude-sonnet-4-6",
+      "max_tokens": 1024,
+      "max_context_messages": 20,
+      "api_key_env": "ANTHROPIC_API_KEY"
+    },
+    "current_state": {
+      "service_uses": "@anthropic-ai/sdk — Anthropic class injected via factory in ChatModule",
+      "controller_returns": "JSON SendMessageResponse (no streaming)",
+      "tests_mock": "anthropicClient.messages.create"
+    },
+    "target_state": {
+      "service_uses": "ai (Vercel AI SDK) + @ai-sdk/anthropic — streamText() with onFinish callback",
+      "controller_returns": "text/event-stream (SSE) — pipes the AI SDK stream to the response",
+      "tests_mock": "streamText from 'ai'"
+    },
+    "canonical_imports": {
+      "TRIAGE_SYSTEM_PROMPT": "apps/api/src/chat/constants/triage-prompt.ts",
+      "Specialty": "apps/api/src/common/enums/specialty.enum.ts",
+      "ChatSession": "apps/api/src/chat/schemas/chat-session.schema.ts",
+      "ChatMessage": "apps/api/src/chat/schemas/chat-message.schema.ts",
+      "JwtAuthGuard": "apps/api/src/auth/guards/jwt-auth.guard.ts",
+      "CurrentUser": "apps/api/src/common/decorators/current-user.decorator.ts",
+      "ParseMongoIdPipe": "apps/api/src/common/pipes/parse-mongo-id.pipe.ts"
+    }
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "swap-llm-dependencies",
+      "description": "Replace @anthropic-ai/sdk with ai + @ai-sdk/anthropic in API package.json",
+      "files": [
+        "apps/api/package.json"
+      ],
+      "request": "Before making any changes, read apps/api/package.json and check what is already in the dependencies. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/package.json:\n- REMOVE '@anthropic-ai/sdk' from the dependencies object\n- ADD 'ai': '^4.0.0' to the dependencies object\n- ADD '@ai-sdk/anthropic': '^1.0.0' to the dependencies object\n- Do NOT modify any other field, script, jest config, or existing dependency\n- Preserve all existing formatting and field order — keep dependencies sorted alphabetically if they currently are\n\nAfter updating the file, run: cd apps/api && npm install\n\nIf '@anthropic-ai/sdk' has already been removed and 'ai' + '@ai-sdk/anthropic' are already present, make no changes."
+    },
+    {
+      "id": 2,
+      "name": "refactor-chat-module-provider",
+      "description": "Replace the Anthropic client provider with the @ai-sdk/anthropic provider in ChatModule",
+      "files": [
+        "apps/api/src/chat/chat.module.ts"
+      ],
+      "request": "Before making any changes, read apps/api/src/chat/chat.module.ts and check the current state. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md. Check medicano_crew/docs/specs/feature-registry.md to understand what already exists.\n\nRefactor apps/api/src/chat/chat.module.ts to provide the @ai-sdk/anthropic model instead of the Anthropic client:\n\n- REMOVE the import of `Anthropic from '@anthropic-ai/sdk'`\n- ADD: `import { createAnthropic } from '@ai-sdk/anthropic';`\n- Define an injection token for the model. At the top of the file (outside the @Module decorator):\n  `export const ANTHROPIC_MODEL = Symbol('ANTHROPIC_MODEL');`\n- In the providers array, REPLACE the existing Anthropic provider with:\n  ```\n  {\n    provide: ANTHROPIC_MODEL,\n    useFactory: (configService: ConfigService) => {\n      const anthropic = createAnthropic({\n        apiKey: configService.get<string>('ANTHROPIC_API_KEY') ?? '',\n      });\n      return anthropic('claude-sonnet-4-6');\n    },\n    inject: [ConfigService],\n  }\n  ```\n- Keep ChatService, MongooseModule.forFeature, ConfigModule, ChatController and `exports: [ChatService]` exactly as they are\n\nIf the module is already in this target state, make no changes."
+    },
+    {
+      "id": 3,
+      "name": "refactor-chat-service-streaming",
+      "description": "Refactor ChatService.sendMessage to return an SSE stream using Vercel AI SDK streamText",
+      "files": [
+        "apps/api/src/chat/chat.service.ts"
+      ],
+      "request": "Before making any changes, read apps/api/src/chat/chat.service.ts and check the current implementation. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md. Check medicano_crew/docs/specs/feature-registry.md to understand what already exists.\n\nImport from the correct canonical paths — do NOT recreate any of these:\n- ChatSession, ChatSessionDocument from './schemas/chat-session.schema'\n- ChatMessage, ChatMessageDocument from './schemas/chat-message.schema'\n- CreateChatMessageDto from './dto/create-chat-message.dto'\n- TRIAGE_SYSTEM_PROMPT from './constants/triage-prompt'\n- Specialty from '../common/enums/specialty.enum'\n- RecommendationDto from './dto/send-message-response.dto'\n- ANTHROPIC_MODEL from './chat.module'\n\nRefactor apps/api/src/chat/chat.service.ts:\n\n- REMOVE: `import Anthropic from '@anthropic-ai/sdk';`\n- ADD: `import { streamText, type LanguageModel } from 'ai';`\n- ADD: `import { Inject } from '@nestjs/common';`\n- ADD: `import { ANTHROPIC_MODEL } from './chat.module';`\n\n- Keep the existing constants (MAX_CONTEXT_MESSAGES = 20, MAX_RESPONSE_TOKENS = 1024). REMOVE the LLM_MODEL constant since the model is now configured at the provider level.\n\n- Update the constructor to inject the language model:\n  ```\n  constructor(\n    @InjectModel(ChatSession.name) private readonly sessionModel: Model<ChatSessionDocument>,\n    @InjectModel(ChatMessage.name) private readonly messageModel: Model<ChatMessageDocument>,\n    @Inject(ANTHROPIC_MODEL) private readonly model: LanguageModel,\n  ) {}\n  ```\n  Replace the existing `private readonly anthropicClient: Anthropic` injection with the line above.\n\n- Keep `createSession`, `listSessions`, `listMessages`, `parseRecommendation`, and `findSessionById` UNCHANGED — they do not interact with the LLM.\n\n- COMPLETELY REWRITE `sendMessage` to return a `Response` (Web Fetch API Response) carrying the SSE stream. New signature:\n  ```\n  async sendMessage(\n    sessionId: string,\n    dto: CreateChatMessageDto,\n  ): Promise<Response>\n  ```\n\n  Implementation steps inside `sendMessage`:\n  1. Load session via `findSessionById(sessionId)`. If `session.recommendedSpecialty` is already set, throw `ConflictException` (same message as before).\n  2. Fetch the previous messages from MongoDB exactly as before (sort by createdAt asc, limit MAX_CONTEXT_MESSAGES).\n  3. Compute `isFirstMessage = previousMessages.length === 0`.\n  4. Save the user's message immediately: `await this.messageModel.create({ sessionId, role: 'user', content: dto.content })`.\n  5. Build the messages array for the LLM: previous messages mapped to `{ role, content }` plus the new user message.\n  6. Call `streamText`:\n     ```\n     const result = streamText({\n       model: this.model,\n       system: TRIAGE_SYSTEM_PROMPT,\n       messages: llmMessages,\n       maxTokens: MAX_RESPONSE_TOKENS,\n       onFinish: async ({ text }) => {\n         const recommendation = this.parseRecommendation(text);\n         await this.messageModel.create({\n           sessionId,\n           role: 'assistant',\n           content: text,\n         });\n         if (recommendation) {\n           session.recommendedSpecialty = recommendation.specialty;\n         }\n         if (isFirstMessage) {\n           session.disclaimerShown = true;\n         }\n         if (recommendation || isFirstMessage) {\n           await session.save();\n         }\n       },\n     });\n     ```\n  7. Return `result.toDataStreamResponse()` — this is the Vercel AI SDK helper that produces a `Response` with the correct SSE headers and body.\n\n- The `parseRecommendation` method stays public (still used in tests) and unchanged. The SendMessageResponse DTO is no longer the return type — leave the file in dto/ alone for now (it may be removed in a later cleanup), but the service no longer imports it.\n\nIf the file already matches this target shape, make no changes."
+    },
+    {
+      "id": 4,
+      "name": "refactor-chat-controller-sse",
+      "description": "Update ChatController.sendMessage to stream the SSE Response back to the client",
+      "files": [
+        "apps/api/src/chat/chat.controller.ts"
+      ],
+      "request": "Before making any changes, read apps/api/src/chat/chat.controller.ts and check the current state. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nRefactor the `sendMessage` handler in apps/api/src/chat/chat.controller.ts to forward the streaming Response to the client:\n\n- ADD imports: `Res` from '@nestjs/common', `Response as ExpressResponse` from 'express'\n- REMOVE the import of `SendMessageResponse` from './dto/send-message-response.dto' if no other handler still uses it\n- Update the `sendMessage` handler signature:\n  ```\n  @Post('sessions/:sessionId/messages')\n  async sendMessage(\n    @Param('sessionId', ParseMongoIdPipe) sessionId: string,\n    @Body() dto: CreateChatMessageDto,\n    @Res() res: ExpressResponse,\n  ): Promise<void> {\n    const streamResponse = await this.chatService.sendMessage(sessionId, dto);\n\n    res.setHeader('Content-Type', 'text/event-stream');\n    res.setHeader('Cache-Control', 'no-cache');\n    res.setHeader('Connection', 'keep-alive');\n\n    if (!streamResponse.body) {\n      res.end();\n      return;\n    }\n\n    const reader = streamResponse.body.getReader();\n    try {\n      while (true) {\n        const { done, value } = await reader.read();\n        if (done) break;\n        res.write(value);\n      }\n    } finally {\n      reader.releaseLock();\n      res.end();\n    }\n  }\n  ```\n- Keep all other handlers (`createSession`, `listSessions`, `listMessages`) and the `@UseGuards(JwtAuthGuard)` decorator UNCHANGED.\n\nIMPORTANT: NestJS bypasses the framework's response serialization when `@Res()` is used directly, which is exactly what we want here for streaming. Do NOT add `@HttpCode` to this handler — the AI SDK Response already returns 200.\n\nIf the controller already matches this shape, make no changes."
+    },
+    {
+      "id": 5,
+      "name": "update-chat-tests",
+      "description": "Update chat.service.spec.ts to mock streamText from 'ai' instead of the Anthropic client",
+      "files": [
+        "apps/api/src/chat/tests/chat.service.spec.ts"
+      ],
+      "request": "Before making any changes, read apps/api/src/chat/tests/chat.service.spec.ts to understand the existing test structure. Follow all conventions defined in medicano_crew/docs/CONVENTIONS.md.\n\nUpdate apps/api/src/chat/tests/chat.service.spec.ts so it works with the new streamText-based implementation:\n\n- At the TOP of the file (before any imports of ChatService), mock the 'ai' module:\n  ```\n  jest.mock('ai', () => ({\n    streamText: jest.fn(),\n  }));\n  ```\n- Import the mocked function: `import { streamText } from 'ai';`\n- REMOVE any mocks of the `Anthropic` class or `@anthropic-ai/sdk`. REMOVE the `anthropicClient` provider override from the TestingModule setup.\n- In the TestingModule providers, replace the old Anthropic provider with a mock for the `ANTHROPIC_MODEL` token:\n  ```\n  { provide: ANTHROPIC_MODEL, useValue: {} }  // model object is unused because streamText is mocked\n  ```\n  Import `ANTHROPIC_MODEL` from '../chat.module'.\n- For each existing test that exercises `sendMessage`, replace the `anthropicClient.messages.create` mock with a `streamText` mock that:\n  ```\n  (streamText as jest.Mock).mockReturnValue({\n    toDataStreamResponse: () => new Response('data: ...\\n\\n', { headers: { 'Content-Type': 'text/event-stream' } }),\n  });\n  ```\n  And whenever the test needs to simulate the LLM finishing, invoke the `onFinish` callback that the service passes to `streamText`. Example:\n  ```\n  (streamText as jest.Mock).mockImplementation(({ onFinish }) => {\n    // simulate the stream completing with some text\n    queueMicrotask(() => onFinish({ text: 'assistant reply with recommendation JSON' }));\n    return { toDataStreamResponse: () => new Response(null) };\n  });\n  ```\n- Tests that assert on `result.message.content` or `result.recommendation` (the old SendMessageResponse) need to be REWRITTEN. The new sendMessage returns a Response object. The assertion should now look at side effects: the assistant message saved in `messageModel.create` and the `session.recommendedSpecialty` set on the session. Use spies on `messageModel.create` and `sessionModel`/`session.save`.\n- Keep the existing tests for `createSession`, `listSessions`, `listMessages`, `parseRecommendation` (it's a pure method that didn't change) UNCHANGED.\n\nThe goal: ALL chat service tests must pass with the new streaming implementation. Tests that asserted on the old JSON response shape should be replaced with assertions on the side effects (messages persisted, session updated)."
+    },
+    {
+      "id": 6,
+      "name": "update-feature-registry",
+      "description": "Update the feature registry to reflect the new streaming implementation",
+      "files": [
+        "medicano_crew/docs/specs/feature-registry.md"
+      ],
+      "request": "Read medicano_crew/docs/specs/feature-registry.md and update the Chat module section to reflect the streaming refactor.\n\nIn the section `## Chat — \\`apps/api/src/chat\\``:\n\n- Update the `chat.service.ts` block:\n  - Replace `Injects: ..., Anthropic (from provider)` with `Injects: ..., LanguageModel (via ANTHROPIC_MODEL token from @ai-sdk/anthropic)`\n  - Update the `sendMessage` signature to: `sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<Response>` with a note that it returns a Web Fetch Response carrying an SSE stream produced by Vercel AI SDK's streamText.\n  - Add a note: \"The recommendation parsing and message persistence happen inside the streamText `onFinish` callback after the stream completes.\"\n\n- Update the `chat.controller.ts` block:\n  - Change `POST /chat/sessions/:sessionId/messages → sendMessage()` to `POST /chat/sessions/:sessionId/messages → sendMessage() — streams text/event-stream via @Res()`\n\n- Update the `chat.module.ts` block:\n  - Replace `{ provide: Anthropic, useFactory: ... }` with `{ provide: ANTHROPIC_MODEL, useFactory: createAnthropic(...)('claude-sonnet-4-6'), inject: [ConfigService] }`\n  - Add a line: `export const ANTHROPIC_MODEL: unique symbol — injection token for the @ai-sdk/anthropic model`\n\n- Update the `Last updated:` line at the top of the file to today's date and add a one-line note: `sprint-13: chat migrated from @anthropic-ai/sdk to Vercel AI SDK (streamText + SSE)`\n\nKeep every other section of the feature registry exactly as it is."
+    }
+  ]
+}

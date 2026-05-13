@@ -26,7 +26,7 @@ describe('NotificationsService', () => {
     findOne: jest.fn(),
   };
   const professionalsService = {
-    findOne: jest.fn(),
+    findById: jest.fn(),
   };
   const configService = {
     get: jest.fn().mockImplementation((key: string) => {
@@ -95,7 +95,7 @@ describe('NotificationsService', () => {
       return { exec: jest.fn().mockResolvedValue(doc) };
     });
 
-    professionalsService.findOne.mockResolvedValue(professionalDoc);
+    professionalsService.findById.mockResolvedValue(professionalDoc);
   };
 
   beforeAll(async () => {

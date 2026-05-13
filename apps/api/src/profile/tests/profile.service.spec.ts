@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 import { ProfileService } from '../profile.service';
 import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
+import { Patient } from '../../patients/schemas/patient.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
 import { Address } from '../../common/schemas/address.schema';
 
@@ -63,6 +64,11 @@ describe('ProfileService', () => {
       }),
     };
 
+    const mockPatientModel = {
+      findOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+      findOneAndUpdate: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProfileService,
@@ -73,6 +79,10 @@ describe('ProfileService', () => {
         {
           provide: getModelToken(Professional.name),
           useValue: mockProfessionalModel,
+        },
+        {
+          provide: getModelToken(Patient.name),
+          useValue: mockPatientModel,
         },
       ],
     }).compile();

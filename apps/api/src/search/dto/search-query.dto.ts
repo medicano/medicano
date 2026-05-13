@@ -12,6 +12,14 @@ export class SearchQueryDto {
   @IsOptional()
   city?: string;
 
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  address?: string;
+
   @IsIn(['clinic', 'professional', 'all'])
   @IsOptional()
   type?: 'clinic' | 'professional' | 'all';

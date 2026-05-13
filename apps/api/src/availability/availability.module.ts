@@ -11,6 +11,8 @@ import { UserSchema } from '../auth/schemas/user.schema';
 import {
   ClinicProfessionalSchema,
 } from '../professionals/schemas/clinic-professional.schema';
+import { Professional, ProfessionalSchema } from '../professionals/schemas/professional.schema';
+import { Appointment, AppointmentSchema } from '../appointments/schemas/appointment.schema';
 import { ProfessionalsModule } from '../professionals/professionals.module';
 import { AppointmentsModule } from '../appointments/appointments.module';
 
@@ -23,6 +25,8 @@ import { AppointmentsModule } from '../appointments/appointments.module';
       },
       { name: 'User', schema: UserSchema },
       { name: 'ClinicProfessional', schema: ClinicProfessionalSchema },
+      { name: Professional.name, schema: ProfessionalSchema },
+      { name: Appointment.name, schema: AppointmentSchema },
     ]),
     forwardRef(() => ProfessionalsModule),
     forwardRef(() => AppointmentsModule),

@@ -1,8 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import * as bcrypt from 'bcrypt';
 import { Role } from '../../common/enums/role.enum';
 
-export type UserDocument = HydratedDocument<User>;
+export interface UserMethods {
+  comparePassword(password: string): Promise<boolean>;
+}
+
+export type UserDocument = HydratedDocument<User, UserMethods>;
 
 @Schema({ timestamps: true, collection: 'users' })
 export class User {
@@ -29,6 +34,12 @@ export class User {
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
+
+UserSchema.methods.comparePassword = async function (
+  password: string,
+): Promise<boolean> {
+  return bcrypt.compare(password, this.passwordHash);
+};
 
 UserSchema.index({ role: 1, email: 1 }, { sparse: true, unique: true });
 UserSchema.index({ clinicId: 1, username: 1 }, { sparse: true, unique: true });
