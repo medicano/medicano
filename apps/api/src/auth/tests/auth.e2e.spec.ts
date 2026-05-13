@@ -1,8 +1,9 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../../app.module';
 import { Role } from '../../common/enums/role.enum';
+import { loadAwsSecrets } from '../../common/config/aws-secrets.loader';
 
 const uniqueEmail = (): string =>
   `patient-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}@example.com`;
@@ -11,6 +12,10 @@ describe('Auth (e2e)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
+    jest.setTimeout(60_000);
+    const secrets = await loadAwsSecrets();
+    Object.assign(process.env, secrets);
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();

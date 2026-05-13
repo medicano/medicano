@@ -27,4 +27,8 @@ export class SignupDto {
   @IsString()
   @MinLength(8)
   readonly password: string;
+
+  @IsString()
+  @IsOptional()
+  readonly name?: string;
 }

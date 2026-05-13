@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { Types } from 'mongoose';
 import { UsersRepository } from './users.repository';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { Role } from '../common/enums/role.enum';
@@ -15,6 +16,7 @@ interface CreateUserDto {
   username?: string;
   clinicId?: string;
   password: string;
+  name?: string;
 }
 
 @Injectable()
@@ -30,7 +32,7 @@ export class UsersService {
   }
 
   async createUser(dto: CreateUserDto): Promise<UserDocument> {
-    const { role, email, username, clinicId, password } = dto;
+    const { role, email, username, clinicId, password, name } = dto;
 
     if (role === Role.ATTENDANT) {
       if (!username) {
@@ -63,7 +65,8 @@ export class UsersService {
       passwordHash,
       ...(email && { email }),
       ...(username && { username }),
-      ...(clinicId && { clinicId }),
+      ...(clinicId && { clinicId: new Types.ObjectId(clinicId) }),
+      ...(name && { displayName: name }),
     };
 
     try {
