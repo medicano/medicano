@@ -1,39 +1,71 @@
 import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
   IsArray,
-  IsEnum,
+  IsBoolean,
   IsEmail,
+  IsInt,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { AddressDto } from '../../common/dto/address.dto';
-import { Specialty } from '../../common/enums/specialty.enum';
+import { WeeklySlotDto } from '../../common/dto/weekly-slot.dto';
 
 export class CreateClinicDto {
   @IsString()
   @IsNotEmpty()
   name: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   description?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   phone?: string;
 
-  @IsEmail()
   @IsOptional()
+  @IsEmail()
   email?: string;
 
-  @ValidateNested()
-  @Type(() => AddressDto)
-  address: AddressDto;
-
-  @IsArray()
-  @IsEnum(Specialty, { each: true })
   @IsOptional()
-  specialties?: Specialty[];
+  @IsObject()
+  address?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specialties?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  linkedScheduling?: boolean;
+
+  @IsString()
+  @Matches(/^\d{14}$/, { message: 'CNPJ must be 14 digits' })
+  cnpj: string;
+
+  @IsOptional()
+  @IsBoolean()
+  autoConfirm?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(168)
+  minCancelNoticeHours?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => WeeklySlotDto)
+  weeklySlots?: WeeklySlotDto[];
 }
