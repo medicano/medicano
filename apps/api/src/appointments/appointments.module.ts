@@ -1,18 +1,17 @@
-import { forwardRef, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+
+import { NotificationsModule } from '../notifications/notifications.module';
+import { AvailabilityModule } from '../availability/availability.module';
 import { AppointmentsController } from './appointments.controller';
 import { AppointmentsService } from './appointments.service';
 import { Appointment, AppointmentSchema } from './schemas/appointment.schema';
-import { ClinicsModule } from '../clinics/clinics.module';
-import { AvailabilityModule } from '../availability/availability.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([
-      { name: Appointment.name, schema: AppointmentSchema },
-    ]),
-    ClinicsModule,
-    forwardRef(() => AvailabilityModule),
+    MongooseModule.forFeature([{ name: Appointment.name, schema: AppointmentSchema }]),
+    AvailabilityModule,
+    NotificationsModule,
   ],
   controllers: [AppointmentsController],
   providers: [AppointmentsService],
