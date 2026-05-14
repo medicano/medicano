@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, type CoreMessage } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
 
 import {
   ChatSession,
@@ -37,7 +38,6 @@ export class ChatService {
     private readonly sessionModel: Model<ChatSessionDocument>,
     @InjectModel(ChatMessage.name)
     private readonly messageModel: Model<ChatMessageDocument>,
-    private readonly anthropicClient: Anthropic,
   ) {}
 
   async createSession(dto: {
@@ -83,27 +83,22 @@ export class ChatService {
       content: dto.content,
     });
 
-    const llmMessages = [
-      ...previousMessages.map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
+    const llmMessages: CoreMessage[] = [
+      ...previousMessages.map((message) => ({
+        role: message.role as 'user' | 'assistant',
+        content: message.content,
       })),
-      { role: 'user' as const, content: dto.content },
+      { role: 'user', content: dto.content },
     ];
 
-    const llmResponse = await this.anthropicClient.messages.create({
-      model: LLM_MODEL,
-      max_tokens: MAX_RESPONSE_TOKENS,
+    const llmResponse = await generateText({
+      model: anthropic(LLM_MODEL),
+      maxTokens: MAX_RESPONSE_TOKENS,
       system: TRIAGE_SYSTEM_PROMPT,
       messages: llmMessages,
     });
 
-    const assistantContent =
-      llmResponse.content
-        ?.map((block: { type: string; text?: string }) =>
-          block.type === 'text' ? (block.text ?? '') : '',
-        )
-        .join('') ?? '';
+    const assistantContent = llmResponse.text ?? '';
 
     const recommendation = this.parseRecommendation(assistantContent);
 
