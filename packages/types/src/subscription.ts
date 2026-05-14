@@ -1,36 +1,27 @@
 export enum SubscriptionPlan {
-  BASIC = 'BASIC',
-  PREMIUM = 'PREMIUM',
+  FREE = 'free',
+  BASIC = 'basic',
+  PRO = 'pro',
 }
 
-export interface SubscriptionPlanLimits {
-  clinicLimit: number;
-  appointmentLimit: number;
-  aiTriageEnabled: boolean;
-  prioritySupport: boolean;
+export enum SubscriptionStatus {
+  TRIAL = 'trial',
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
 }
 
 export interface Subscription {
   _id: string;
-  userId: string;
+  clinicId: string;
   plan: SubscriptionPlan;
-  clinicLimit: number;
-  appointmentLimit: number;
-  aiTriageEnabled: boolean;
-  prioritySupport: boolean;
-  isActive: boolean;
-  expiresAt?: Date;
-  createdAt: Date;
-  updatedAt: Date;
+  status: SubscriptionStatus;
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export interface CreateSubscriptionRequest {
-  plan: SubscriptionPlan;
-  expiresAt?: Date;
-}
-
-export interface UpdateSubscriptionRequest {
-  plan?: SubscriptionPlan;
-  isActive?: boolean;
-  expiresAt?: Date;
-}
+export const PLAN_PROFESSIONAL_LIMITS: Record<SubscriptionPlan, number> = {
+  [SubscriptionPlan.FREE]: 2,
+  [SubscriptionPlan.BASIC]: 10,
+  [SubscriptionPlan.PRO]: -1,
+};

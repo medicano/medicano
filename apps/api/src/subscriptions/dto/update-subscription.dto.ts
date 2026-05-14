@@ -1,18 +1,19 @@
-import { IsEnum, IsOptional, IsBoolean, IsDate } from 'class-validator';
-import { Type } from 'class-transformer';
-import { SubscriptionPlan } from '../constants/subscription.constants';
+import { IsEnum, IsOptional, IsDateString } from 'class-validator';
+import {
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from '../constants/subscription.constants';
 
 export class UpdateSubscriptionDto {
-  @IsEnum(SubscriptionPlan)
   @IsOptional()
+  @IsEnum(SubscriptionPlan)
   plan?: SubscriptionPlan;
 
   @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsEnum(SubscriptionStatus)
+  status?: SubscriptionStatus;
 
   @IsOptional()
-  @IsDate()
-  @Type(() => Date)
-  expiresAt?: Date;
+  @IsDateString()
+  expiresAt?: string;
 }

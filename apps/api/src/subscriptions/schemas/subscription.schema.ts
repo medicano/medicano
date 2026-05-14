@@ -1,34 +1,26 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-import { SubscriptionPlan } from '../constants/subscription.constants';
+import {
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from '../constants/subscription.constants';
 
 export type SubscriptionDocument = Subscription & Document;
 
 @Schema({ timestamps: true })
 export class Subscription {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  userId: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Clinic', required: true, unique: true })
+  clinicId: Types.ObjectId;
 
-  @Prop({ type: String, enum: SubscriptionPlan, required: true })
+  @Prop({ type: String, enum: SubscriptionPlan, default: SubscriptionPlan.FREE })
   plan: SubscriptionPlan;
 
-  @Prop({ type: Number, required: true })
-  clinicLimit: number;
-
-  @Prop({ type: Number, required: true })
-  professionalLimit: number;
-
-  @Prop({ type: Number, required: true })
-  appointmentLimit: number;
-
-  @Prop({ type: Boolean, default: false })
-  aiTriageEnabled: boolean;
-
-  @Prop({ type: Boolean, default: false })
-  prioritySupport: boolean;
-
-  @Prop({ type: Boolean, default: true })
-  isActive: boolean;
+  @Prop({
+    type: String,
+    enum: SubscriptionStatus,
+    default: SubscriptionStatus.TRIAL,
+  })
+  status: SubscriptionStatus;
 
   @Prop({ type: Date })
   expiresAt?: Date;

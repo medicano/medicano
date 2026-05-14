@@ -1,13 +1,22 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { Subscription, SubscriptionDocument } from './schemas/subscription.schema';
+import { Model } from 'mongoose';
+import {
+  PLAN_PROFESSIONAL_LIMITS,
+  SubscriptionPlan,
+  SubscriptionStatus,
+} from './constants/subscription.constants';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 import {
-  SubscriptionPlan,
-  SUBSCRIPTION_PLAN_LIMITS,
-} from './constants/subscription.constants';
+  Subscription,
+  SubscriptionDocument,
+} from './schemas/subscription.schema';
 
 @Injectable()
 export class SubscriptionsService {
@@ -16,39 +25,22 @@ export class SubscriptionsService {
     private readonly subscriptionModel: Model<SubscriptionDocument>,
   ) {}
 
-  async create(
-    userId: string,
-    createSubscriptionDto: CreateSubscriptionDto,
-  ): Promise<SubscriptionDocument> {
-    const existing = await this.subscriptionModel
-      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
-      .exec();
-
-    if (existing) {
-      throw new BadRequestException('User already has an active subscription');
+  async create(dto: CreateSubscriptionDto): Promise<SubscriptionDocument> {
+    try {
+      const subscription = new this.subscriptionModel({
+        clinicId: dto.clinicId,
+        plan: dto.plan,
+        ...(dto.expiresAt ? { expiresAt: new Date(dto.expiresAt) } : {}),
+      });
+      return await subscription.save();
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        throw new ConflictException(
+          'A subscription for this clinic already exists',
+        );
+      }
+      throw error;
     }
-
-    const limits = SUBSCRIPTION_PLAN_LIMITS[createSubscriptionDto.plan];
-
-    const subscription = new this.subscriptionModel({
-      userId: new Types.ObjectId(userId),
-      plan: createSubscriptionDto.plan,
-      clinicLimit: limits.clinicLimit,
-      professionalLimit: limits.professionalLimit,
-      appointmentLimit: limits.appointmentLimit,
-      aiTriageEnabled: limits.aiTriageEnabled,
-      prioritySupport: limits.prioritySupport,
-      isActive: true,
-      expiresAt: createSubscriptionDto.expiresAt,
-    });
-
-    return subscription.save();
-  }
-
-  async findByUserId(userId: string): Promise<SubscriptionDocument | null> {
-    return this.subscriptionModel
-      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
-      .exec();
   }
 
   async findById(id: string): Promise<SubscriptionDocument> {
@@ -59,53 +51,69 @@ export class SubscriptionsService {
     return subscription;
   }
 
+  async findByClinicId(
+    clinicId: string,
+  ): Promise<SubscriptionDocument | null> {
+    return this.subscriptionModel.findOne({ clinicId }).exec();
+  }
+
   async update(
     id: string,
-    updateSubscriptionDto: UpdateSubscriptionDto,
+    dto: UpdateSubscriptionDto,
   ): Promise<SubscriptionDocument> {
-    const subscription = await this.findById(id);
+    const updatePayload: Partial<{
+      plan: SubscriptionPlan;
+      status: SubscriptionStatus;
+      expiresAt: Date;
+    }> = {};
 
-    if (updateSubscriptionDto.plan) {
-      const limits = SUBSCRIPTION_PLAN_LIMITS[updateSubscriptionDto.plan];
-      subscription.plan = updateSubscriptionDto.plan;
-      subscription.clinicLimit = limits.clinicLimit;
-      subscription.appointmentLimit = limits.appointmentLimit;
-      subscription.aiTriageEnabled = limits.aiTriageEnabled;
-      subscription.prioritySupport = limits.prioritySupport;
-    }
+    if (dto.plan !== undefined) updatePayload.plan = dto.plan;
+    if (dto.status !== undefined) updatePayload.status = dto.status;
+    if (dto.expiresAt !== undefined)
+      updatePayload.expiresAt = new Date(dto.expiresAt);
 
-    if (updateSubscriptionDto.isActive !== undefined) {
-      subscription.isActive = updateSubscriptionDto.isActive;
-    }
+    const subscription = await this.subscriptionModel
+      .findByIdAndUpdate(id, { $set: updatePayload }, { new: true })
+      .exec();
 
-    if (updateSubscriptionDto.expiresAt !== undefined) {
-      subscription.expiresAt = updateSubscriptionDto.expiresAt;
-    }
-
-    return subscription.save();
-  }
-
-  async hasReachedClinicLimit(userId: string, currentClinicCount: number): Promise<boolean> {
-    const subscription = await this.findByUserId(userId);
     if (!subscription) {
-      return true;
+      throw new NotFoundException(`Subscription with id ${id} not found`);
     }
-    return currentClinicCount >= subscription.clinicLimit;
+
+    return subscription;
   }
 
-  async getActivePlan(userId: string): Promise<SubscriptionPlan | null> {
-    const subscription = await this.findByUserId(userId);
-    return subscription ? subscription.plan : null;
-  }
+  async cancel(id: string): Promise<SubscriptionDocument> {
+    const subscription = await this.subscriptionModel
+      .findByIdAndUpdate(
+        id,
+        { $set: { status: SubscriptionStatus.INACTIVE } },
+        { new: true },
+      )
+      .exec();
 
-  async enforceClinicProfessionalLimit(userId: string, currentCount: number): Promise<void> {
-    const subscription = await this.findByUserId(userId);
     if (!subscription) {
-      throw new ForbiddenException('No active subscription found');
+      throw new NotFoundException(`Subscription with id ${id} not found`);
     }
-    if (currentCount >= subscription.professionalLimit) {
+
+    return subscription;
+  }
+
+  async enforceClinicProfessionalLimit(
+    clinicId: string,
+    currentCount: number,
+  ): Promise<void> {
+    const sub = await this.findByClinicId(clinicId);
+    const plan = sub?.plan ?? SubscriptionPlan.FREE;
+    const limit = PLAN_PROFESSIONAL_LIMITS[plan];
+
+    if (limit === -1) {
+      return;
+    }
+
+    if (currentCount >= limit) {
       throw new ForbiddenException(
-        `Professional limit of ${subscription.professionalLimit} reached for your subscription plan`,
+        'Professional limit reached for current subscription plan',
       );
     }
   }

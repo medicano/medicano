@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { SubscriptionsService } from './subscriptions.service';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from './schemas/subscription.schema';
 import { SubscriptionsController } from './subscriptions.controller';
-import { Subscription, SubscriptionSchema } from './schemas/subscription.schema';
+import { SubscriptionsService } from './subscriptions.service';
 
 @Module({
   imports: [
