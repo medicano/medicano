@@ -5,15 +5,14 @@ import {
   Param,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { Response as ExpressResponse } from 'express';
+import type { Response as ExpressResponse } from 'express';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ParseMongoIdPipe } from '../common/pipes/parse-mongo-id.pipe';
-
 import { ChatService } from './chat.service';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { CreateChatSessionDto } from './dto/create-chat-session.dto';
@@ -26,23 +25,28 @@ export class ChatController {
 
   @Post('sessions')
   async createSession(
-    @CurrentUser() user: { sub: string },
+    @Req() req: Express.Request,
     @Body() dto: CreateChatSessionDto,
   ) {
-    return this.chatService.createSession(user.sub, dto);
+    return this.chatService.createSession((req.user as any).userId, dto);
   }
 
   @Get('sessions')
-  async listSessions(@CurrentUser() user: { sub: string }) {
-    return this.chatService.listSessions(user.sub);
+  async listSessions(@Req() req: Express.Request) {
+    return this.chatService.listSessions((req.user as any).userId);
   }
 
   @Get('sessions/:sessionId/messages')
   async listMessages(
+    @Req() req: Express.Request,
     @Param('sessionId', ParseMongoIdPipe) sessionId: string,
     @Query() query: GetChatMessagesQueryDto,
   ) {
-    return this.chatService.listMessages(sessionId, query);
+    return this.chatService.listMessages(
+      (req.user as any).userId,
+      sessionId,
+      query,
+    );
   }
 
   @Post('sessions/:sessionId/messages')
@@ -63,10 +67,13 @@ export class ChatController {
     }
 
     const reader = streamResponse.body.getReader();
+
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          break;
+        }
         res.write(value);
       }
     } finally {
