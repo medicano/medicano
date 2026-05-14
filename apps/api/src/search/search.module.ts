@@ -6,16 +6,22 @@ import {
   Professional,
   ProfessionalSchema,
 } from '../professionals/schemas/professional.schema';
-import { Clinic, ClinicSchema } from '../clinics/schemas/clinic.schema';
-import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import {
+  ClinicProfessional,
+  ClinicProfessionalSchema,
+} from '../professionals/schemas/clinic-professional.schema';
+import {
+  Subscription,
+  SubscriptionSchema,
+} from '../subscriptions/schemas/subscription.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Professional.name, schema: ProfessionalSchema },
-      { name: Clinic.name, schema: ClinicSchema },
+      { name: ClinicProfessional.name, schema: ClinicProfessionalSchema },
+      { name: Subscription.name, schema: SubscriptionSchema },
     ]),
-    SubscriptionsModule,
   ],
   controllers: [SearchController],
   providers: [SearchService],

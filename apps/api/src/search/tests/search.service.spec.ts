@@ -1,188 +1,233 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { SearchService } from '../search.service';
 import { Professional } from '../../professionals/schemas/professional.schema';
-import { Clinic } from '../../clinics/schemas/clinic.schema';
-import { Specialty } from '../../common/enums/specialty.enum';
+import { ClinicProfessional } from '../../professionals/schemas/clinic-professional.schema';
+import { Subscription } from '../../subscriptions/schemas/subscription.schema';
+import { SearchQueryDto } from '../dto/search-query.dto';
 
-const mockAddress = {
-  street: 'Rua das Flores',
-  number: '123',
-  city: 'São Paulo',
-  state: 'SP',
-  zipCode: '01310-100',
+const clinicIdActive = new Types.ObjectId();
+const clinicIdInactive = new Types.ObjectId();
+const professionalIdActive = new Types.ObjectId();
+const professionalIdInactive = new Types.ObjectId();
+const professionalIdMultiClinic = new Types.ObjectId();
+
+const mockProfessionalActive = {
+  _id: professionalIdActive,
+  name: 'Dr. Active',
+  specialty: 'Cardiology',
+  address: { city: 'São Paulo', state: 'SP', street: 'Rua A', zip: '00000-000' },
+  avatarUrl: undefined,
 };
 
-const mockProfessionals = [
-  {
-    _id: '64a1b2c3d4e5f6a7b8c9d0e1',
-    userId: '64a1b2c3d4e5f6a7b8c9d0e0',
-    name: 'Dr. João Silva',
-    specialty: Specialty.CARDIOLOGY,
-    cpf: '12345678901',
-    registration: 'CRM12345',
-    address: { ...mockAddress },
-    phone: '11999999999',
-    description: 'Cardiologista experiente',
-    weeklySlots: [],
-    autoConfirm: false,
-    minCancelNoticeHours: 24,
-  },
-  {
-    _id: '64a1b2c3d4e5f6a7b8c9d0e2',
-    userId: '64a1b2c3d4e5f6a7b8c9d0e3',
-    name: 'Dra. Maria Souza',
-    specialty: Specialty.DERMATOLOGY,
-    cpf: '98765432100',
-    registration: 'CRM54321',
-    address: { ...mockAddress, city: 'Rio de Janeiro', state: 'RJ' },
-    phone: '21999999999',
-    description: 'Dermatologista especializada',
-    weeklySlots: [],
-    autoConfirm: true,
-    minCancelNoticeHours: 12,
-  },
-];
-
-const mockProfessionalModel = {
-  find: jest.fn(),
-  findById: jest.fn(),
+const mockProfessionalInactive = {
+  _id: professionalIdInactive,
+  name: 'Dr. Inactive',
+  specialty: 'Neurology',
+  address: { city: 'Rio de Janeiro', state: 'RJ', street: 'Rua B', zip: '11111-111' },
+  avatarUrl: undefined,
 };
 
-const mockClinicModel = {
-  findById: jest.fn(),
+const mockProfessionalMultiClinic = {
+  _id: professionalIdMultiClinic,
+  name: 'Dr. MultiClinic',
+  specialty: 'Orthopedics',
+  address: { city: 'Belo Horizonte', state: 'MG', street: 'Rua C', zip: '22222-222' },
+  avatarUrl: undefined,
 };
+
+function buildProfessionalModel(professionals: unknown[]) {
+  return {
+    find: jest.fn().mockReturnValue({
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(professionals),
+    }),
+  };
+}
+
+function buildSubscriptionModel(subscriptions: unknown[]) {
+  return {
+    find: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(subscriptions),
+    }),
+  };
+}
+
+function buildClinicProfessionalModel(links: unknown[]) {
+  return {
+    find: jest.fn().mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue(links),
+    }),
+  };
+}
+
+async function buildModule(
+  professionals: unknown[],
+  subscriptions: unknown[],
+  clinicProfessionalLinks: unknown[],
+): Promise<SearchService> {
+  const module: TestingModule = await Test.createTestingModule({
+    providers: [
+      SearchService,
+      {
+        provide: getModelToken(Professional.name),
+        useValue: buildProfessionalModel(professionals),
+      },
+      {
+        provide: getModelToken(ClinicProfessional.name),
+        useValue: buildClinicProfessionalModel(clinicProfessionalLinks),
+      },
+      {
+        provide: getModelToken(Subscription.name),
+        useValue: buildSubscriptionModel(subscriptions),
+      },
+    ],
+  }).compile();
+
+  return module.get<SearchService>(SearchService);
+}
 
 describe('SearchService', () => {
-  let service: SearchService;
+  const emptyQuery: SearchQueryDto = {};
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        SearchService,
-        {
-          provide: getModelToken(Professional.name),
-          useValue: mockProfessionalModel,
-        },
-        {
-          provide: getModelToken(Clinic.name),
-          useValue: mockClinicModel,
-        },
-      ],
-    }).compile();
-
-    service = module.get<SearchService>(SearchService);
-    jest.clearAllMocks();
-  });
-
-  describe('search', () => {
-    it('should search by address.city field, not address as string', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockProfessionals[0]]),
-      });
-
-      const results = await service.search({ city: 'São Paulo' });
-
-      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'address.city': expect.any(Object),
-        }),
+  describe('RN20 — subscription status filter', () => {
+    it('should return professional when linked to a clinic with status="active"', async () => {
+      const service = await buildModule(
+        [mockProfessionalActive],
+        [{ clinicId: clinicIdActive }],
+        [{ professionalId: professionalIdActive, clinicId: clinicIdActive }],
       );
+
+      const results = await service.search(emptyQuery);
+
       expect(results).toHaveLength(1);
-      expect(results[0].city).toBe('São Paulo');
+      expect(results[0].id).toBe(professionalIdActive.toString());
+      expect(results[0].name).toBe('Dr. Active');
     });
 
-    it('should search by address.state field', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockProfessionals[1]]),
-      });
+    it('should return professional when linked to a clinic with status="trial"', async () => {
+      const clinicIdTrial = new Types.ObjectId();
+      const professionalIdTrial = new Types.ObjectId();
+      const mockProfessionalTrial = {
+        _id: professionalIdTrial,
+        name: 'Dr. Trial',
+        specialty: 'Dermatology',
+        address: { city: 'Curitiba', state: 'PR', street: 'Rua D', zip: '33333-333' },
+        avatarUrl: undefined,
+      };
 
-      const results = await service.search({ state: 'RJ' });
-
-      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'address.state': expect.any(Object),
-        }),
+      const service = await buildModule(
+        [mockProfessionalTrial],
+        [{ clinicId: clinicIdTrial }],
+        [{ professionalId: professionalIdTrial, clinicId: clinicIdTrial }],
       );
-      expect(results[0].state).toBe('RJ');
+
+      const results = await service.search(emptyQuery);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(professionalIdTrial.toString());
+      expect(results[0].name).toBe('Dr. Trial');
     });
 
-    it('should search by specialty', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockProfessionals[0]]),
-      });
-
-      const results = await service.search({ specialty: Specialty.CARDIOLOGY });
-
-      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({ specialty: Specialty.CARDIOLOGY }),
+    it('should NOT return professional when only linked clinic has status="cancelled"', async () => {
+      // Subscription model returns empty (cancelled clinics are not returned by the $in filter)
+      const service = await buildModule(
+        [mockProfessionalInactive],
+        [], // no active/trial subscriptions
+        [{ professionalId: professionalIdInactive, clinicId: clinicIdInactive }],
       );
-      expect(results[0].specialty).toBe(Specialty.CARDIOLOGY);
-    });
 
-    it('should combine city and specialty filters for compound index usage', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockProfessionals[0]]),
-      });
-
-      await service.search({ city: 'São Paulo', specialty: Specialty.CARDIOLOGY });
-
-      expect(mockProfessionalModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({
-          'address.city': expect.any(Object),
-          specialty: Specialty.CARDIOLOGY,
-        }),
-      );
-    });
-
-    it('should map results to SearchResult shape with city and state from address object', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(mockProfessionals),
-      });
-
-      const results = await service.search({});
-
-      expect(results).toHaveLength(2);
-      expect(results[0]).toMatchObject({
-        name: 'Dr. João Silva',
-        specialty: Specialty.CARDIOLOGY,
-        city: 'São Paulo',
-        state: 'SP',
-        autoConfirm: false,
-      });
-      expect(results[1]).toMatchObject({
-        name: 'Dra. Maria Souza',
-        specialty: Specialty.DERMATOLOGY,
-        city: 'Rio de Janeiro',
-        state: 'RJ',
-        autoConfirm: true,
-      });
-    });
-
-    it('should return empty array when no professionals match', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([]),
-      });
-
-      const results = await service.search({ city: 'Nowhere' });
+      const results = await service.search(emptyQuery);
 
       expect(results).toHaveLength(0);
     });
+
+    it('should return [] when there are no active or trial subscriptions', async () => {
+      const service = await buildModule(
+        [mockProfessionalActive, mockProfessionalInactive],
+        [], // no active/trial subscriptions → short-circuit
+        [],
+      );
+
+      const results = await service.search(emptyQuery);
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('should return professional linked to multiple clinics when at least one is active', async () => {
+      // professionalIdMultiClinic is linked to both clinicIdActive (active) and clinicIdInactive (cancelled)
+      // Only clinicIdActive appears in active subscriptions
+      const service = await buildModule(
+        [mockProfessionalMultiClinic],
+        [{ clinicId: clinicIdActive }],
+        [
+          { professionalId: professionalIdMultiClinic, clinicId: clinicIdActive },
+          { professionalId: professionalIdMultiClinic, clinicId: clinicIdInactive },
+        ],
+      );
+
+      const results = await service.search(emptyQuery);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(professionalIdMultiClinic.toString());
+      expect(results[0].name).toBe('Dr. MultiClinic');
+    });
+
+    it('should NOT return professional with no ClinicProfessional link', async () => {
+      const service = await buildModule(
+        [mockProfessionalActive],
+        [{ clinicId: clinicIdActive }],
+        [], // no links at all
+      );
+
+      const results = await service.search(emptyQuery);
+
+      expect(results).toHaveLength(0);
+    });
+
+    it('should return only professionals linked to active clinics when mixed results exist', async () => {
+      const service = await buildModule(
+        [mockProfessionalActive, mockProfessionalInactive],
+        [{ clinicId: clinicIdActive }],
+        [
+          { professionalId: professionalIdActive, clinicId: clinicIdActive },
+          // professionalIdInactive is only linked to clinicIdInactive which has no active subscription
+        ],
+      );
+
+      const results = await service.search(emptyQuery);
+
+      expect(results).toHaveLength(1);
+      expect(results[0].id).toBe(professionalIdActive.toString());
+    });
   });
 
-  describe('findBySpecialtyAndCity', () => {
-    it('should query using address.city and specialty', async () => {
-      mockProfessionalModel.find.mockReturnValue({
-        exec: jest.fn().mockResolvedValue([mockProfessionals[0]]),
-      });
+  describe('search() output mapping', () => {
+    it('should correctly map professional fields to SearchResult', async () => {
+      const service = await buildModule(
+        [mockProfessionalActive],
+        [{ clinicId: clinicIdActive }],
+        [{ professionalId: professionalIdActive, clinicId: clinicIdActive }],
+      );
 
-      const results = await service.findBySpecialtyAndCity(Specialty.CARDIOLOGY, 'São Paulo');
+      const results = await service.search(emptyQuery);
 
-      expect(mockProfessionalModel.find).toHaveBeenCalledWith({
-        specialty: Specialty.CARDIOLOGY,
-        'address.city': { $regex: expect.any(RegExp) },
+      expect(results[0]).toMatchObject({
+        id: professionalIdActive.toString(),
+        name: 'Dr. Active',
+        specialty: 'Cardiology',
+        address: {
+          city: 'São Paulo',
+          state: 'SP',
+          street: 'Rua A',
+          zip: '00000-000',
+        },
       });
-      expect(results).toHaveLength(1);
     });
   });
 });
