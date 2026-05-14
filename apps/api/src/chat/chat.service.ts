@@ -1,15 +1,15 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { isValidObjectId, Model } from 'mongoose';
+import { Model } from 'mongoose';
 import { streamText, type LanguageModel } from 'ai';
 
-import { Specialty } from '../common/enums/specialty.enum';
-import { ANTHROPIC_MODEL } from './chat.module';
-import { TRIAGE_SYSTEM_PROMPT } from './constants/triage-prompt';
+import { ChatSession, ChatSessionDocument } from './schemas/chat-session.schema';
+import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { RecommendationDto } from './dto/send-message-response.dto';
-import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
-import { ChatSession, ChatSessionDocument } from './schemas/chat-session.schema';
+import { TRIAGE_SYSTEM_PROMPT } from './constants/triage-prompt';
+import { Specialty } from '../common/enums/specialty.enum';
+import { ANTHROPIC_MODEL } from './chat.module';
 
 const MAX_CONTEXT_MESSAGES = 20;
 const MAX_RESPONSE_TOKENS = 1024;
@@ -23,7 +23,8 @@ export class ChatService {
   ) {}
 
   async createSession(): Promise<ChatSessionDocument> {
-    return this.sessionModel.create({});
+    const session = new this.sessionModel();
+    return session.save();
   }
 
   async listSessions(): Promise<ChatSessionDocument[]> {
@@ -35,22 +36,16 @@ export class ChatService {
     return this.messageModel.find({ sessionId }).sort({ createdAt: 1 }).exec();
   }
 
-  async findSessionById(sessionId: string): Promise<ChatSessionDocument> {
-    if (!isValidObjectId(sessionId)) {
-      throw new NotFoundException(`Session ${sessionId} not found`);
-    }
-    const session = await this.sessionModel.findById(sessionId).exec();
-    if (!session) {
-      throw new NotFoundException(`Session ${sessionId} not found`);
-    }
-    return session;
-  }
-
-  async sendMessage(sessionId: string, dto: CreateChatMessageDto): Promise<Response> {
+  async sendMessage(
+    sessionId: string,
+    dto: CreateChatMessageDto,
+  ): Promise<Response> {
     const session = await this.findSessionById(sessionId);
 
     if (session.recommendedSpecialty) {
-      throw new ConflictException('Triage already completed for this session');
+      throw new ConflictException(
+        'This chat session already has a specialty recommendation and is closed.',
+      );
     }
 
     const previousMessages = await this.messageModel
@@ -68,7 +63,10 @@ export class ChatService {
     });
 
     const llmMessages = [
-      ...previousMessages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      ...previousMessages.map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
       { role: 'user' as const, content: dto.content },
     ];
 
@@ -77,7 +75,7 @@ export class ChatService {
       system: TRIAGE_SYSTEM_PROMPT,
       messages: llmMessages,
       maxTokens: MAX_RESPONSE_TOKENS,
-      onFinish: async ({ text }: { text: string }) => {
+      onFinish: async ({ text }) => {
         const recommendation = this.parseRecommendation(text);
 
         await this.messageModel.create({
@@ -103,22 +101,31 @@ export class ChatService {
 
   parseRecommendation(text: string): RecommendationDto | null {
     const specialtyValues = Object.values(Specialty);
-    const pattern = /\[RECOMMENDATION:\s*([^\]]+)\]/i;
-    const match = pattern.exec(text);
+    const pattern = new RegExp(
+      `RECOMMENDATION:\\s*(${specialtyValues.join('|')})`,
+      'i',
+    );
+    const match = text.match(pattern);
 
     if (!match) {
       return null;
     }
 
-    const extracted = match[1].trim().toUpperCase();
-    const matched = specialtyValues.find(
-      (s) => s.toUpperCase() === extracted,
-    );
+    const matched = match[1].toUpperCase();
+    const specialty = specialtyValues.find((s) => s.toUpperCase() === matched);
 
-    if (!matched) {
+    if (!specialty) {
       return null;
     }
 
-    return { specialty: matched };
+    return { specialty };
+  }
+
+  async findSessionById(sessionId: string): Promise<ChatSessionDocument> {
+    const session = await this.sessionModel.findById(sessionId).exec();
+    if (!session) {
+      throw new NotFoundException(`Chat session ${sessionId} not found.`);
+    }
+    return session;
   }
 }
