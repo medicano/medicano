@@ -1,10 +1,7 @@
 export enum Specialty {
-  GENERAL_PRACTICE = 'GENERAL_PRACTICE',
-  PEDIATRICS = 'PEDIATRICS',
-  CARDIOLOGY = 'CARDIOLOGY',
-  DERMATOLOGY = 'DERMATOLOGY',
-  PSYCHIATRY = 'PSYCHIATRY',
-  PSYCHOLOGY = 'psychology',
-  NUTRITION = 'nutrition',
   MEDICINE = 'medicine',
+  PSYCHOLOGY = 'psychology',
+  PSYCHIATRY = 'psychiatry',
+  DENTISTRY = 'dentistry',
+  NUTRITION = 'nutrition',
 }
