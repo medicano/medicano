@@ -6,6 +6,9 @@ const specialtyLabels: Record<Specialty, string> = {
   [Specialty.CARDIOLOGY]: 'Cardiologia',
   [Specialty.DERMATOLOGY]: 'Dermatologia',
   [Specialty.PSYCHIATRY]: 'Psiquiatria',
+  [Specialty.PSYCHOLOGY]: 'Psicologia',
+  [Specialty.NUTRITION]: 'Nutrição',
+  [Specialty.MEDICINE]: 'Medicina',
 };
 
 const specialtiesList = Object.values(Specialty)
@@ -29,6 +32,9 @@ Especialidades e seus casos típicos:
 - Cardiologia (${Specialty.CARDIOLOGY}): Problemas cardíacos, dor no peito, palpitações, pressão alta.
 - Dermatologia (${Specialty.DERMATOLOGY}): Problemas de pele, cabelo e unhas, manchas, acne, alergias cutâneas.
 - Psiquiatria (${Specialty.PSYCHIATRY}): Saúde mental, ansiedade, depressão, transtornos do sono.
+- Psicologia (${Specialty.PSYCHOLOGY}): Acompanhamento psicológico, terapia, apoio emocional.
+- Nutrição (${Specialty.NUTRITION}): Orientação alimentar, dietas, emagrecimento, doenças metabólicas.
+- Medicina (${Specialty.MEDICINE}): Atendimento médico geral e multiprofissional.
 
 Responda sempre em português brasileiro de forma empática e profissional.
 Não faça diagnósticos definitivos. Apenas oriente sobre a especialidade mais indicada.
