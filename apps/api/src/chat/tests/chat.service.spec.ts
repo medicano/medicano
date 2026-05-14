@@ -5,41 +5,61 @@ jest.mock('ai', () => ({
 import { streamText } from 'ai';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ChatService } from '../chat.service';
-import { ANTHROPIC_MODEL } from '../chat.module';
 import { ChatSession } from '../schemas/chat-session.schema';
 import { ChatMessage } from '../schemas/chat-message.schema';
+import { ANTHROPIC_MODEL } from '../chat.module';
+import { ChatSessionType } from '../enums/chat-session-type.enum';
+
+type StreamTextArgs = {
+  model: unknown;
+  system: string;
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  onFinish?: (event: { text: string }) => void | Promise<void>;
+};
+
+type MockSessionDoc = {
+  _id: string;
+  patient: string;
+  type: ChatSessionType;
+  recommendedSpecialty?: string;
+  save: jest.Mock;
+};
+
+type MockSessionModel = {
+  create: jest.Mock;
+  findById: jest.Mock;
+  find: jest.Mock;
+};
+
+type MockMessageModel = {
+  create: jest.Mock;
+  find: jest.Mock;
+};
+
+const flushMicrotasks = () => new Promise<void>((r) => setImmediate(r));
+
+const makeSession = (overrides: Partial<MockSessionDoc> = {}): MockSessionDoc => ({
+  _id: 'sess-1',
+  patient: 'patient-1',
+  type: ChatSessionType.SYMPTOM_TRIAGE,
+  save: jest.fn().mockResolvedValue(undefined),
+  ...overrides,
+});
 
 describe('ChatService', () => {
   let service: ChatService;
-  let sessionModel: {
-    create: jest.Mock;
-    find: jest.Mock;
-    findOne: jest.Mock;
-    findById: jest.Mock;
-  };
-  let messageModel: {
-    create: jest.Mock;
-    find: jest.Mock;
-  };
-
-  const streamTextMock = streamText as jest.MockedFunction<typeof streamText>;
-
-  const fakeStreamReturn = {
-    toDataStreamResponse: () =>
-      new Response('data: chunk\n\n', {
-        headers: { 'Content-Type': 'text/event-stream' },
-      }),
-  };
+  let sessionModel: MockSessionModel;
+  let messageModel: MockMessageModel;
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    (streamText as jest.Mock).mockReset();
 
     sessionModel = {
       create: jest.fn(),
-      find: jest.fn(),
-      findOne: jest.fn(),
       findById: jest.fn(),
+      find: jest.fn(),
     };
 
     messageModel = {
@@ -47,7 +67,7 @@ describe('ChatService', () => {
       find: jest.fn(),
     };
 
-    const moduleRef: TestingModule = await Test.createTestingModule({
+    const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
         { provide: getModelToken(ChatSession.name), useValue: sessionModel },
@@ -56,188 +76,262 @@ describe('ChatService', () => {
       ],
     }).compile();
 
-    service = moduleRef.get(ChatService);
+    service = module.get<ChatService>(ChatService);
   });
 
   describe('createSession', () => {
-    it('creates and returns a new chat session', async () => {
-      const userId = 'user-1';
-      const dto = { type: 'triage' };
-      const created = { _id: 'sess-1', userId, type: 'triage' };
+    it('creates and returns a chat session', async () => {
+      const patientId = 'patient-1';
+      const dto = { type: ChatSessionType.SYMPTOM_TRIAGE };
+      const created = { _id: 'sess-1', patient: patientId, type: dto.type };
 
       sessionModel.create.mockResolvedValue(created);
 
-      const result = await service.createSession(userId, dto as any);
+      const result = await service.createSession(patientId, dto);
 
-      expect(sessionModel.create).toHaveBeenCalledWith(
-        expect.objectContaining({ userId, type: 'triage' }),
-      );
+      expect(sessionModel.create).toHaveBeenCalledWith({
+        patient: patientId,
+        type: dto.type,
+      });
       expect(result).toEqual(created);
     });
   });
 
   describe('listSessions', () => {
-    it('returns all sessions for a user', async () => {
-      const userId = 'user-1';
-      const sessions = [{ _id: 'sess-1', userId }];
+    it('returns sessions for a patient', async () => {
+      const patientId = 'patient-1';
+      const sessions = [
+        { _id: 'sess-1', patient: patientId, type: ChatSessionType.SYMPTOM_TRIAGE },
+      ];
 
       sessionModel.find.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(sessions),
+        sort: () => ({
+          exec: () => Promise.resolve(sessions),
         }),
       });
 
-      const result = await service.listSessions(userId);
+      const result = await service.listSessions(patientId);
 
-      expect(sessionModel.find).toHaveBeenCalledWith({ userId });
+      expect(sessionModel.find).toHaveBeenCalledWith({ patient: patientId });
       expect(result).toEqual(sessions);
     });
   });
 
   describe('listMessages', () => {
-    it('returns all messages for a session', async () => {
-      const sessionId = 'sess-1';
-      const messages = [{ _id: 'msg-1', sessionId }];
+    it('returns messages for a session owned by the patient', async () => {
+      const session = makeSession();
+      const messages = [
+        { _id: 'msg-1', session: 'sess-1', role: 'user', content: 'hello' },
+      ];
 
+      sessionModel.findById.mockResolvedValue(session);
       messageModel.find.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue(messages),
+        sort: () => ({
+          exec: () => Promise.resolve(messages),
         }),
       });
 
-      const result = await service.listMessages(sessionId);
+      const result = await service.listMessages('sess-1', 'patient-1');
 
-      expect(messageModel.find).toHaveBeenCalledWith({ sessionId });
+      expect(sessionModel.findById).toHaveBeenCalledWith('sess-1');
+      expect(messageModel.find).toHaveBeenCalledWith({ session: session._id });
       expect(result).toEqual(messages);
+    });
+
+    it('throws NotFoundException when session does not exist', async () => {
+      sessionModel.findById.mockResolvedValue(null);
+
+      await expect(service.listMessages('missing', 'patient-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('throws ForbiddenException when session belongs to another patient', async () => {
+      sessionModel.findById.mockResolvedValue(makeSession({ patient: 'other' }));
+
+      await expect(service.listMessages('sess-1', 'patient-1')).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
   });
 
   describe('parseRecommendation', () => {
-    it('extracts specialty from a JSON code block', () => {
+    it('returns null when text has no JSON block', () => {
+      const result = (service as any).parseRecommendation('No recommendation here.');
+      expect(result).toBeNull();
+    });
+
+    it('parses recommendedSpecialty from valid JSON block', () => {
       const text =
-        'Based on your symptoms ```json\n{"specialty":"cardiology"}\n```';
+        'You should see a specialist. ```json\n{"recommendedSpecialty":"cardiology"}\n```';
       const result = (service as any).parseRecommendation(text);
       expect(result).toBe('cardiology');
     });
 
-    it('returns null when no JSON block is present', () => {
-      const result = (service as any).parseRecommendation('Plain text');
+    it('returns null when JSON block does not contain recommendedSpecialty', () => {
+      const text = 'Some text. ```json\n{"other":"value"}\n```';
+      const result = (service as any).parseRecommendation(text);
       expect(result).toBeNull();
     });
 
-    it('returns null when JSON block has no specialty field', () => {
-      const text = '```json\n{"other":"value"}\n```';
+    it('returns null when JSON is malformed', () => {
+      const text = 'Some text. ```json\nnot-valid-json\n```';
       const result = (service as any).parseRecommendation(text);
       expect(result).toBeNull();
     });
   });
 
   describe('sendMessage', () => {
-    let session: {
-      _id: string;
-      userId: string;
-      type: string;
-      recommendedSpecialty: string | undefined;
-      save: jest.Mock;
-    };
-    let capturedOnFinish:
-      | ((arg: { text: string }) => Promise<void> | void)
-      | undefined;
-
-    beforeEach(() => {
-      session = {
-        _id: 'sess-1',
-        userId: 'user-1',
-        type: 'triage',
-        recommendedSpecialty: undefined,
-        save: jest.fn().mockResolvedValue(undefined),
-      };
-
-      sessionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(session),
-      });
-
+    it('persists user and assistant messages and updates recommended specialty', async () => {
+      const session = makeSession();
+      sessionModel.findById.mockResolvedValue(session);
       messageModel.find.mockReturnValue({
-        sort: jest.fn().mockReturnValue({
-          exec: jest.fn().mockResolvedValue([]),
+        sort: () => ({
+          exec: () => Promise.resolve([]),
         }),
       });
+      messageModel.create.mockResolvedValue({});
 
-      messageModel.create.mockResolvedValue({ _id: 'msg-x' });
+      const assistantText =
+        'You should see a cardiologist. ```json\n{"recommendedSpecialty":"cardiology"}\n```';
 
-      streamTextMock.mockImplementation((opts: any) => {
-        capturedOnFinish = opts.onFinish;
-        return fakeStreamReturn as any;
+      (streamText as jest.Mock).mockImplementation(({ onFinish }: StreamTextArgs) => {
+        queueMicrotask(() => onFinish?.({ text: assistantText }));
+        return {
+          toDataStreamResponse: () =>
+            new Response('data: ...\n\n', {
+              headers: { 'Content-Type': 'text/event-stream' },
+            }),
+        };
       });
-    });
 
-    it('persists user message and returns a streaming Response', async () => {
-      const response = await service.sendMessage('sess-1', 'user-1', {
-        content: 'Hello',
+      const result = await service.sendMessage('sess-1', 'patient-1', {
+        content: 'I have chest pain',
       });
 
-      expect(messageModel.create).toHaveBeenCalledWith(
+      expect(result).toBeInstanceOf(Response);
+      expect(result.headers.get('Content-Type')).toContain('text/event-stream');
+
+      expect(messageModel.create).toHaveBeenNthCalledWith(
+        1,
         expect.objectContaining({
-          sessionId: 'sess-1',
+          session: session._id,
           role: 'user',
-          content: 'Hello',
+          content: 'I have chest pain',
         }),
       );
-      expect(streamTextMock).toHaveBeenCalledTimes(1);
-      expect(response).toBeInstanceOf(Response);
-    });
 
-    it('persists assistant message after the stream finishes', async () => {
-      await service.sendMessage('sess-1', 'user-1', { content: 'Hello' });
-      await capturedOnFinish!({ text: 'Assistant reply' });
+      expect(streamText).toHaveBeenCalledTimes(1);
+      const callArg = (streamText as jest.Mock).mock.calls[0][0] as StreamTextArgs;
+      expect(callArg.system).toEqual(expect.any(String));
+      expect(callArg.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'I have chest pain' }),
+        ]),
+      );
+      expect(typeof callArg.onFinish).toBe('function');
 
-      expect(messageModel.create).toHaveBeenCalledWith(
+      await flushMicrotasks();
+
+      expect(messageModel.create).toHaveBeenNthCalledWith(
+        2,
         expect.objectContaining({
-          sessionId: 'sess-1',
+          session: session._id,
           role: 'assistant',
-          content: 'Assistant reply',
+          content: assistantText,
         }),
       );
-    });
-
-    it('updates session.recommendedSpecialty when the LLM returns a recommendation', async () => {
-      await service.sendMessage('sess-1', 'user-1', { content: 'Chest pain' });
-      await capturedOnFinish!({
-        text: 'Reply ```json\n{"specialty":"cardiology"}\n```',
-      });
 
       expect(session.recommendedSpecialty).toBe('cardiology');
       expect(session.save).toHaveBeenCalledTimes(1);
     });
 
-    it('does not update session when no recommendation is present', async () => {
-      await service.sendMessage('sess-1', 'user-1', { content: 'Hi' });
-      await capturedOnFinish!({ text: 'Plain reply' });
+    it('does not update session when assistant text has no recommendation', async () => {
+      const session = makeSession();
+      sessionModel.findById.mockResolvedValue(session);
+      messageModel.find.mockReturnValue({
+        sort: () => ({
+          exec: () => Promise.resolve([]),
+        }),
+      });
+      messageModel.create.mockResolvedValue({});
+
+      (streamText as jest.Mock).mockImplementation(({ onFinish }: StreamTextArgs) => {
+        queueMicrotask(() => onFinish?.({ text: 'Tell me more about your symptoms.' }));
+        return {
+          toDataStreamResponse: () => new Response(null),
+        };
+      });
+
+      await service.sendMessage('sess-1', 'patient-1', { content: 'hello' });
+      await flushMicrotasks();
 
       expect(session.recommendedSpecialty).toBeUndefined();
       expect(session.save).not.toHaveBeenCalled();
+
+      expect(messageModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'Tell me more about your symptoms.',
+        }),
+      );
     });
 
-    it('throws when the session does not exist', async () => {
-      sessionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue(null),
-      });
+    it('throws NotFoundException when session does not exist', async () => {
+      sessionModel.findById.mockResolvedValue(null);
 
       await expect(
-        service.sendMessage('missing', 'user-1', { content: 'Hi' }),
-      ).rejects.toThrow();
-      expect(streamTextMock).not.toHaveBeenCalled();
+        service.sendMessage('missing', 'patient-1', { content: 'hi' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(streamText).not.toHaveBeenCalled();
+      expect(messageModel.create).not.toHaveBeenCalled();
     });
 
-    it('throws when the session belongs to another user', async () => {
-      sessionModel.findOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ ...session, userId: 'other-user' }),
-      });
+    it('throws ForbiddenException when session belongs to another patient', async () => {
+      sessionModel.findById.mockResolvedValue(makeSession({ patient: 'other' }));
 
       await expect(
-        service.sendMessage('sess-1', 'user-1', { content: 'Hi' }),
-      ).rejects.toThrow();
-      expect(streamTextMock).not.toHaveBeenCalled();
+        service.sendMessage('sess-1', 'patient-1', { content: 'hi' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(streamText).not.toHaveBeenCalled();
+    });
+
+    it('passes conversation history to streamText', async () => {
+      const session = makeSession();
+      sessionModel.findById.mockResolvedValue(session);
+
+      const priorMessages = [
+        { role: 'user', content: 'first message' },
+        { role: 'assistant', content: 'first response' },
+      ];
+
+      messageModel.find.mockReturnValue({
+        sort: () => ({
+          exec: () => Promise.resolve(priorMessages),
+        }),
+      });
+      messageModel.create.mockResolvedValue({});
+
+      (streamText as jest.Mock).mockImplementation(() => ({
+        toDataStreamResponse: () =>
+          new Response(null, {
+            headers: { 'Content-Type': 'text/event-stream' },
+          }),
+      }));
+
+      await service.sendMessage('sess-1', 'patient-1', { content: 'second message' });
+
+      const callArg = (streamText as jest.Mock).mock.calls[0][0] as StreamTextArgs;
+
+      expect(callArg.messages).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'first message' }),
+          expect.objectContaining({ role: 'assistant', content: 'first response' }),
+          expect.objectContaining({ role: 'user', content: 'second message' }),
+        ]),
+      );
     });
   });
 });
