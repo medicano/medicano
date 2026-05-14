@@ -14,7 +14,7 @@ import {
   SubscriptionDocument,
 } from '../subscriptions/schemas/subscription.schema';
 import { SearchQueryDto } from './dto/search-query.dto';
-import { SearchResult } from './dto/search-result.dto';
+import { ProfessionalSearchResult } from './dto/search-result.dto';
 
 @Injectable()
 export class SearchService {
@@ -27,51 +27,38 @@ export class SearchService {
     private readonly subscriptionModel: Model<SubscriptionDocument>,
   ) {}
 
-  async search(query: SearchQueryDto): Promise<SearchResult[]> {
-    const filter: Record<string, unknown> = {};
-
-    if (query.specialty) {
-      filter['specialty'] = query.specialty;
-    }
-
-    if (query.name) {
-      filter['name'] = { $regex: query.name, $options: 'i' };
-    }
-
-    if (query.city) {
-      filter['address.city'] = { $regex: query.city, $options: 'i' };
-    }
-
-    const professionals = await this.professionalModel
-      .find(filter)
-      .lean()
-      .exec();
-
-    // RN20: filtrar profissionais vinculados a clínicas com assinatura ativa/trial
+  async search(query: SearchQueryDto): Promise<ProfessionalSearchResult[]> {
     const activeSubscriptions = await this.subscriptionModel
-      .find({ status: { $in: ['active', 'trial'] } })
+      .find({ status: 'active' })
       .select('clinicId')
       .lean()
       .exec();
 
-    const activeClinicIds = activeSubscriptions.map((s) =>
-      (s.clinicId as Types.ObjectId).toString(),
-    );
+    const activeClinicIds = activeSubscriptions.map((s) => {
+      const id = s.clinicId;
+      return typeof id === 'string' ? id : (id as Types.ObjectId).toString();
+    });
+    const activeClinicIdsSet = new Set(activeClinicIds);
+    const activeClinicObjectIds = activeClinicIds.map((id) => new Types.ObjectId(id));
 
-    // Curto-circuito: nenhuma clínica ativa → resultado vazio
-    if (activeClinicIds.length === 0) {
-      return [];
-    }
-
-    const activeLinks = await this.clinicProfessionalModel
-      .find({ clinicId: { $in: activeClinicIds } })
-      .select('professionalId')
+    const allLinks = await this.clinicProfessionalModel
+      .find({ clinicId: { $in: activeClinicObjectIds } })
+      .select('clinicId professionalId')
       .lean()
       .exec();
 
     const activeProfessionalIds = new Set(
-      activeLinks.map((l) => (l.professionalId as Types.ObjectId).toString()),
+      allLinks
+        .filter((l) => activeClinicIdsSet.has((l.clinicId as Types.ObjectId).toString()))
+        .map((l) => (l.professionalId as Types.ObjectId).toString()),
     );
+
+    const filter: Record<string, unknown> = {};
+    if (query.specialty) filter['specialty'] = query.specialty;
+    if (query.name) filter['name'] = { $regex: query.name, $options: 'i' };
+    if (query.city) filter['address.city'] = { $regex: query.city, $options: 'i' };
+
+    const professionals = await this.professionalModel.find(filter).lean().exec();
 
     const filtered = professionals.filter((p) =>
       activeProfessionalIds.has((p._id as Types.ObjectId).toString()),
@@ -81,8 +68,7 @@ export class SearchService {
       id: (p._id as Types.ObjectId).toString(),
       name: p.name as string,
       specialty: p.specialty as string,
-      address: p.address as SearchResult['address'],
-      avatarUrl: p.avatarUrl as string | undefined,
+      address: p.address as ProfessionalSearchResult['address'],
     }));
   }
 }

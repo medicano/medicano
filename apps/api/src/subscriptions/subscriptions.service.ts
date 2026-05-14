@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   PLAN_PROFESSIONAL_LIMITS,
   SubscriptionPlan,
@@ -28,7 +28,7 @@ export class SubscriptionsService {
   async create(dto: CreateSubscriptionDto): Promise<SubscriptionDocument> {
     try {
       const subscription = new this.subscriptionModel({
-        clinicId: dto.clinicId,
+        clinicId: new Types.ObjectId(dto.clinicId),
         plan: dto.plan,
         ...(dto.expiresAt ? { expiresAt: new Date(dto.expiresAt) } : {}),
       });
@@ -57,7 +57,20 @@ export class SubscriptionsService {
     return this.subscriptionModel.findOne({ clinicId }).exec();
   }
 
-  async update(
+  async getSubscriptionByClinicId(
+    clinicId: string,
+  ): Promise<SubscriptionDocument | null> {
+    return this.subscriptionModel.findOne({ clinicId }).exec();
+  }
+
+  async createSubscription(dto: CreateSubscriptionDto): Promise<SubscriptionDocument> {
+    return this.subscriptionModel.create({
+      ...dto,
+      clinicId: new Types.ObjectId(dto.clinicId),
+    });
+  }
+
+  async updateSubscription(
     id: string,
     dto: UpdateSubscriptionDto,
   ): Promise<SubscriptionDocument> {
@@ -73,7 +86,7 @@ export class SubscriptionsService {
       updatePayload.expiresAt = new Date(dto.expiresAt);
 
     const subscription = await this.subscriptionModel
-      .findByIdAndUpdate(id, { $set: updatePayload }, { new: true })
+      .findOneAndUpdate({ _id: id }, { $set: updatePayload }, { new: true })
       .exec();
 
     if (!subscription) {
@@ -83,10 +96,10 @@ export class SubscriptionsService {
     return subscription;
   }
 
-  async cancel(id: string): Promise<SubscriptionDocument> {
+  async cancelSubscription(id: string): Promise<SubscriptionDocument> {
     const subscription = await this.subscriptionModel
-      .findByIdAndUpdate(
-        id,
+      .findOneAndUpdate(
+        { _id: id },
         { $set: { status: SubscriptionStatus.INACTIVE } },
         { new: true },
       )
@@ -99,11 +112,24 @@ export class SubscriptionsService {
     return subscription;
   }
 
+  async update(
+    id: string,
+    dto: UpdateSubscriptionDto,
+  ): Promise<SubscriptionDocument> {
+    return this.updateSubscription(id, dto);
+  }
+
+  async cancel(id: string): Promise<SubscriptionDocument> {
+    return this.cancelSubscription(id);
+  }
+
   async enforceClinicProfessionalLimit(
     clinicId: string,
     currentCount: number,
   ): Promise<void> {
-    const sub = await this.findByClinicId(clinicId);
+    const sub = await this.subscriptionModel
+      .findOne({ clinicId, status: SubscriptionStatus.ACTIVE })
+      .exec();
     const plan = sub?.plan ?? SubscriptionPlan.FREE;
     const limit = PLAN_PROFESSIONAL_LIMITS[plan];
 

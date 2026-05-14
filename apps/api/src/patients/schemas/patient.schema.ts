@@ -42,4 +42,3 @@ export type PatientDocument = Patient & Document;
 
 export const PatientSchema = SchemaFactory.createForClass(Patient);
 
-PatientSchema.index({ userId: 1 }, { unique: true });

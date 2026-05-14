@@ -9,7 +9,7 @@ export enum MessageRole {
 @Schema({ timestamps: { createdAt: true, updatedAt: false } })
 export class ChatMessage {
   @Prop({ type: Types.ObjectId, ref: 'ChatSession', required: true })
-  sessionId: Types.ObjectId;
+  session: Types.ObjectId;
 
   @Prop({ type: String, enum: MessageRole, required: true })
   role: MessageRole;
@@ -21,4 +21,4 @@ export class ChatMessage {
 export type ChatMessageDocument = ChatMessage & Document;
 export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessage);
 
-ChatMessageSchema.index({ sessionId: 1, createdAt: 1 });
+ChatMessageSchema.index({ session: 1, createdAt: 1 });

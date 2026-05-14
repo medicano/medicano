@@ -129,7 +129,7 @@ export class NotificationsService {
 
   async notifyAppointmentCancelled(
     appointment: AppointmentDocument,
-    cancelledBy: CancelledBy,
+    cancelledBy: CancelledBy = 'provider',
   ): Promise<void> {
     try {
       const parties = await this.resolveParties(appointment);

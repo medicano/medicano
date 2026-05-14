@@ -53,5 +53,4 @@ export class Professional {
 
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional);
 
-ProfessionalSchema.index({ cpf: 1 }, { unique: true });
 ProfessionalSchema.index({ 'address.city': 1, specialty: 1 });

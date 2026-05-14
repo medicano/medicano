@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,10 +18,7 @@ export class ClinicsService {
     private readonly clinicModel: Model<ClinicDocument>,
   ) {}
 
-  async create(
-    createClinicDto: CreateClinicDto,
-    userId: string,
-  ): Promise<ClinicDocument> {
+  async create(userId: string, createClinicDto: CreateClinicDto): Promise<ClinicDocument> {
     if (createClinicDto.weeklySlots?.length) {
       validateWeeklySlots(createClinicDto.weeklySlots);
     }
@@ -44,47 +42,48 @@ export class ClinicsService {
   }
 
   async findOne(id: string): Promise<ClinicDocument> {
-    const clinic = await this.clinicModel
-      .findById(new Types.ObjectId(id))
-      .exec();
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException(`Clinic with id ${id} not found`);
+    }
+    const clinic = await this.clinicModel.findById(id).exec();
     if (!clinic) {
       throw new NotFoundException(`Clinic with id ${id} not found`);
     }
     return clinic;
   }
 
+  async findById(id: string): Promise<ClinicDocument> {
+    return this.findOne(id);
+  }
+
   async findByUserId(userId: string): Promise<ClinicDocument[]> {
-    return this.clinicModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .exec();
+    return this.clinicModel.find({ userId: new Types.ObjectId(userId) }).exec();
+  }
+
+  async findAllByUser(userId: string): Promise<ClinicDocument[]> {
+    return this.findByUserId(userId);
   }
 
   async update(
     id: string,
+    userId: string,
     updateClinicDto: UpdateClinicDto,
   ): Promise<ClinicDocument> {
     if (updateClinicDto.weeklySlots?.length) {
       validateWeeklySlots(updateClinicDto.weeklySlots);
     }
 
+    const clinic = await this.findOne(id);
+
+    if (clinic.userId.toString() !== userId) {
+      throw new ForbiddenException('You do not own this clinic');
+    }
+
+    Object.assign(clinic, updateClinicDto);
+
     try {
-      const clinic = await this.clinicModel
-        .findByIdAndUpdate(
-          new Types.ObjectId(id),
-          { $set: updateClinicDto },
-          { new: true, runValidators: true },
-        )
-        .exec();
-
-      if (!clinic) {
-        throw new NotFoundException(`Clinic with id ${id} not found`);
-      }
-
-      return clinic;
+      return await clinic.save();
     } catch (error: unknown) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
       if (this.isDuplicateKeyError(error)) {
         throw new ConflictException('CNPJ already registered');
       }
@@ -92,13 +91,12 @@ export class ClinicsService {
     }
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.clinicModel
-      .findByIdAndDelete(new Types.ObjectId(id))
-      .exec();
-    if (!result) {
-      throw new NotFoundException(`Clinic with id ${id} not found`);
+  async remove(id: string, userId: string): Promise<void> {
+    const clinic = await this.findOne(id);
+    if (clinic.userId.toString() !== userId) {
+      throw new ForbiddenException('You do not own this clinic');
     }
+    await this.clinicModel.findByIdAndDelete(id).exec();
   }
 
   private isDuplicateKeyError(error: unknown): boolean {

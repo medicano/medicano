@@ -2,20 +2,20 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "Medicano API",
-    "description": "Coleção completa da API Medicano. Importável no Postman e no Insomnia (File → Import).\n\nVariáveis de coleção:\n- baseUrl: http://localhost:3000\n- token: preenchido automaticamente após login/signup\n- clinicId, professionalId, patientId, appointmentId, sessionId, subscriptionId, attendantId, userId: preencher conforme necessário.",
+    "description": "Coleção completa da API Medicano.\n\nVariáveis de coleção preenchidas automaticamente via scripts:\n- token: após login ou signup\n- clinicId, professionalId, patientId, appointmentId, sessionId, subscriptionId, attendantId, userId\n\nFluxo recomendado:\n1. Auth → Signup (patient) → Login automático\n2. Auth → Signup (clinic) → Login → Clinics → Create Clinic\n3. Professionals → Create Professional\n4. Clinics → Professionals → Assign Professional to Clinic\n5. Subscriptions → Create Subscription (para aparecer na busca)\n6. Search → Search\n7. Appointments → Create Appointment\n8. Chat → Create Session → Send Message",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl",         "value": "http://localhost:3000", "type": "string" },
-    { "key": "token",           "value": "",                      "type": "string" },
-    { "key": "clinicId",        "value": "",                      "type": "string" },
-    { "key": "professionalId",  "value": "",                      "type": "string" },
-    { "key": "patientId",       "value": "",                      "type": "string" },
-    { "key": "appointmentId",   "value": "",                      "type": "string" },
-    { "key": "sessionId",       "value": "",                      "type": "string" },
-    { "key": "subscriptionId",  "value": "",                      "type": "string" },
-    { "key": "attendantId",     "value": "",                      "type": "string" },
-    { "key": "userId",          "value": "",                      "type": "string" }
+    { "key": "baseUrl",        "value": "http://localhost:3000", "type": "string" },
+    { "key": "token",          "value": "",                      "type": "string" },
+    { "key": "clinicId",       "value": "",                      "type": "string" },
+    { "key": "professionalId", "value": "",                      "type": "string" },
+    { "key": "patientId",      "value": "",                      "type": "string" },
+    { "key": "appointmentId",  "value": "",                      "type": "string" },
+    { "key": "sessionId",      "value": "",                      "type": "string" },
+    { "key": "subscriptionId", "value": "",                      "type": "string" },
+    { "key": "attendantId",    "value": "",                      "type": "string" },
+    { "key": "userId",         "value": "",                      "type": "string" }
   ],
   "auth": {
     "type": "bearer",
@@ -33,7 +33,8 @@
               "script": {
                 "exec": [
                   "const res = pm.response.json();",
-                  "if (res.accessToken) pm.collectionVariables.set('token', res.accessToken);"
+                  "if (res.accessToken) pm.collectionVariables.set('token', res.accessToken);",
+                  "if (res.user?._id) pm.collectionVariables.set('userId', res.user._id);"
                 ],
                 "type": "text/javascript"
               }
@@ -45,11 +46,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"patient\",\n  \"email\": \"paciente@exemplo.com\",\n  \"password\": \"senha1234\"\n}",
+              "raw": "{\n  \"role\": \"patient\",\n  \"name\": \"João Silva\",\n  \"email\": \"joao@exemplo.com\",\n  \"password\": \"senha1234\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/auth/signup", "host": ["{{baseUrl}}"], "path": ["auth", "signup"] },
-            "description": "role: patient | clinic | professional | attendant\nPara attendant: omitir email, incluir username e clinicId."
+            "description": "role: patient | clinic | professional\n\nRetorna accessToken — salvo automaticamente na variável 'token'."
           }
         },
         {
@@ -60,7 +61,8 @@
               "script": {
                 "exec": [
                   "const res = pm.response.json();",
-                  "if (res.accessToken) pm.collectionVariables.set('token', res.accessToken);"
+                  "if (res.accessToken) pm.collectionVariables.set('token', res.accessToken);",
+                  "if (res.user?._id) pm.collectionVariables.set('userId', res.user._id);"
                 ],
                 "type": "text/javascript"
               }
@@ -72,11 +74,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"paciente@exemplo.com\",\n  \"password\": \"senha1234\"\n}",
+              "raw": "{\n  \"email\": \"joao@exemplo.com\",\n  \"password\": \"senha1234\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
-            "description": "Roles: patient, clinic, professional."
+            "description": "Roles: patient, clinic, professional.\n\nToken salvo automaticamente."
           }
         },
         {
@@ -111,7 +113,7 @@
             "method": "POST",
             "header": [],
             "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] },
-            "description": "Invalida o token no Redis. Requer Bearer token."
+            "description": "Invalida o token no Redis imediatamente. Requer Bearer token."
           }
         }
       ]
@@ -134,7 +136,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Nome do Paciente\",\n  \"phone\": \"(11) 91234-5678\",\n  \"birthDate\": \"1990-01-15\"\n}",
+              "raw": "{\n  \"name\": \"João Silva\",\n  \"phone\": \"(11) 91234-5678\",\n  \"dateOfBirth\": \"1990-01-15\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/profile/me/patient", "host": ["{{baseUrl}}"], "path": ["profile", "me", "patient"] },
@@ -148,7 +150,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Clínica Saúde Total\",\n  \"description\": \"Clínica multiespecialidade\",\n  \"phone\": \"(11) 3456-7890\",\n  \"email\": \"contato@clinica.com\",\n  \"specialties\": [\"CARDIOLOGY\", \"PEDIATRICS\"],\n  \"address\": {\n    \"street\": \"Av. Paulista\",\n    \"number\": \"1000\",\n    \"complement\": \"Sala 52\",\n    \"neighborhood\": \"Bela Vista\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01310-100\",\n    \"country\": \"BR\"\n  }\n}",
+              "raw": "{\n  \"name\": \"Clínica Saúde Total\",\n  \"description\": \"Clínica multiespecialidade\",\n  \"phone\": \"(11) 3456-7890\",\n  \"email\": \"contato@clinica.com\",\n  \"specialties\": [\"cardiology\", \"pediatrics\"],\n  \"address\": {\n    \"street\": \"Av. Paulista\",\n    \"number\": \"1000\",\n    \"complement\": \"Sala 52\",\n    \"neighborhood\": \"Bela Vista\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01310-100\",\n    \"country\": \"BR\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/profile/me/clinic", "host": ["{{baseUrl}}"], "path": ["profile", "me", "clinic"] },
@@ -162,11 +164,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr. João Silva\",\n  \"bio\": \"Cardiologista com 10 anos de experiência\",\n  \"phone\": \"(11) 99876-5432\",\n  \"email\": \"dr.joao@email.com\",\n  \"specialty\": \"CARDIOLOGY\",\n  \"crm\": \"CRM/SP 123456\",\n  \"address\": {\n    \"street\": \"Rua das Flores\",\n    \"number\": \"200\",\n    \"neighborhood\": \"Jardins\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01452-000\",\n    \"country\": \"BR\"\n  }\n}",
+              "raw": "{\n  \"name\": \"Dr. João Silva\",\n  \"bio\": \"Cardiologista com 10 anos de experiência\",\n  \"phone\": \"(11) 99876-5432\",\n  \"email\": \"dr.joao@email.com\",\n  \"specialty\": \"medicine\",\n  \"registration\": \"CRM/SP 123456\",\n  \"address\": {\n    \"street\": \"Rua das Flores\",\n    \"number\": \"200\",\n    \"neighborhood\": \"Jardins\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01452-000\",\n    \"country\": \"BR\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/profile/me/professional", "host": ["{{baseUrl}}"], "path": ["profile", "me", "professional"] },
-            "description": "Role: professional"
+            "description": "Role: professional\nspecialty: medicine | psychology | psychiatry | dentistry | nutrition"
           }
         }
       ]
@@ -193,15 +195,15 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Clínica Saúde Total\",\n  \"description\": \"Clínica multiespecialidade no centro da cidade\",\n  \"phone\": \"(11) 3456-7890\",\n  \"email\": \"contato@saudetotal.com\",\n  \"specialties\": [\"CARDIOLOGY\", \"GENERAL_PRACTICE\"],\n  \"address\": {\n    \"street\": \"Av. Paulista\",\n    \"number\": \"1000\",\n    \"complement\": \"Sala 52\",\n    \"neighborhood\": \"Bela Vista\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01310-100\",\n    \"country\": \"BR\"\n  }\n}",
+              "raw": "{\n  \"name\": \"Clínica Saúde Total\",\n  \"cnpj\": \"12345678000195\",\n  \"description\": \"Clínica multiespecialidade no centro da cidade\",\n  \"phone\": \"(11) 3456-7890\",\n  \"email\": \"contato@saudetotal.com\",\n  \"specialties\": [\"cardiology\", \"medicine\"],\n  \"address\": {\n    \"street\": \"Av. Paulista\",\n    \"number\": \"1000\",\n    \"complement\": \"Sala 52\",\n    \"neighborhood\": \"Bela Vista\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01310-100\",\n    \"country\": \"BR\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/clinics", "host": ["{{baseUrl}}"], "path": ["clinics"] },
-            "description": "Role: clinic. Specialties: GENERAL_PRACTICE | PEDIATRICS | CARDIOLOGY | DERMATOLOGY | PSYCHIATRY"
+            "description": "Role: clinic\ncnpj: 14 dígitos sem máscara (obrigatório e único)\n\nApós criar, clinicId é salvo automaticamente."
           }
         },
         {
-          "name": "List My Clinics",
+          "name": "List Clinics",
           "request": {
             "method": "GET",
             "header": [],
@@ -223,11 +225,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Clínica Saúde Total Atualizada\",\n  \"phone\": \"(11) 3456-9999\",\n  \"isActive\": true\n}",
+              "raw": "{\n  \"name\": \"Clínica Saúde Total Atualizada\",\n  \"phone\": \"(11) 3456-9999\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/clinics/{{clinicId}}", "host": ["{{baseUrl}}"], "path": ["clinics", "{{clinicId}}"] },
-            "description": "Role: clinic"
+            "description": "Role: clinic (somente o dono)"
           }
         },
         {
@@ -236,7 +238,7 @@
             "method": "DELETE",
             "header": [],
             "url": { "raw": "{{baseUrl}}/clinics/{{clinicId}}", "host": ["{{baseUrl}}"], "path": ["clinics", "{{clinicId}}"] },
-            "description": "Role: clinic"
+            "description": "Role: clinic (somente o dono)"
           }
         },
         {
@@ -265,7 +267,8 @@
                   "raw": "{{baseUrl}}/clinics/{{clinicId}}/professionals/{{professionalId}}",
                   "host": ["{{baseUrl}}"],
                   "path": ["clinics", "{{clinicId}}", "professionals", "{{professionalId}}"]
-                }
+                },
+                "description": "Vincula um profissional à clínica. Sujeito ao limite do plano de assinatura."
               }
             },
             {
@@ -324,7 +327,7 @@
                   "host": ["{{baseUrl}}"],
                   "path": ["clinics", "{{clinicId}}", "attendants"]
                 },
-                "description": "Role: clinic. username: apenas letras, números, _ e -"
+                "description": "Role: clinic\nusername: apenas letras, números, _ e -"
               }
             },
             {
@@ -397,11 +400,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Dr. João Silva\",\n  \"bio\": \"Cardiologista com 10 anos de experiência\",\n  \"phone\": \"(11) 99876-5432\",\n  \"email\": \"dr.joao@email.com\",\n  \"specialty\": \"CARDIOLOGY\",\n  \"crm\": \"CRM/SP 123456\",\n  \"address\": {\n    \"street\": \"Rua das Flores\",\n    \"number\": \"200\",\n    \"neighborhood\": \"Jardins\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01452-000\",\n    \"country\": \"BR\"\n  }\n}",
+              "raw": "{\n  \"name\": \"Dr. João Silva\",\n  \"bio\": \"Cardiologista com 10 anos de experiência\",\n  \"phone\": \"(11) 99876-5432\",\n  \"email\": \"dr.joao@email.com\",\n  \"specialty\": \"medicine\",\n  \"registration\": \"CRM/SP 123456\",\n  \"cpf\": \"12345678901\",\n  \"address\": {\n    \"street\": \"Rua das Flores\",\n    \"number\": \"200\",\n    \"neighborhood\": \"Jardins\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\",\n    \"zipCode\": \"01452-000\",\n    \"country\": \"BR\"\n  }\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/professionals", "host": ["{{baseUrl}}"], "path": ["professionals"] },
-            "description": "specialty: GENERAL_PRACTICE | PEDIATRICS | CARDIOLOGY | DERMATOLOGY | PSYCHIATRY"
+            "description": "specialty: medicine | psychology | psychiatry | dentistry | nutrition\ncpf: 11 dígitos sem máscara\nuserId é extraído automaticamente do Bearer token — não inclua no body"
           }
         },
         {
@@ -427,7 +430,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"bio\": \"Bio atualizada\",\n  \"crm\": \"CRM/SP 654321\"\n}",
+              "raw": "{\n  \"bio\": \"Bio atualizada\",\n  \"registration\": \"CRM/SP 654321\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/professionals/{{professionalId}}", "host": ["{{baseUrl}}"], "path": ["professionals", "{{professionalId}}"] }
@@ -439,174 +442,6 @@
             "method": "DELETE",
             "header": [],
             "url": { "raw": "{{baseUrl}}/professionals/{{professionalId}}", "host": ["{{baseUrl}}"], "path": ["professionals", "{{professionalId}}"] }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Appointments",
-      "item": [
-        {
-          "name": "Create Appointment",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const res = pm.response.json();",
-                  "if (res._id) pm.collectionVariables.set('appointmentId', res._id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"professionalId\": \"{{professionalId}}\",\n  \"patientId\": \"{{patientId}}\",\n  \"startAt\": \"2026-05-10T09:00:00.000Z\",\n  \"durationMinutes\": 30,\n  \"notes\": \"Primeira consulta\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] },
-            "description": "Role: clinic | attendant. durationMinutes: 15–480."
-          }
-        },
-        {
-          "name": "List Appointments",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/appointments?clinicId={{clinicId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["appointments"],
-              "query": [
-                { "key": "clinicId",        "value": "{{clinicId}}",       "disabled": false },
-                { "key": "professionalId",  "value": "{{professionalId}}", "disabled": true },
-                { "key": "patientId",       "value": "{{patientId}}",      "disabled": true },
-                { "key": "date",            "value": "2026-05-10",         "disabled": true },
-                { "key": "dateFrom",        "value": "2026-05-01",         "disabled": true },
-                { "key": "dateTo",          "value": "2026-05-31",         "disabled": true },
-                { "key": "status",          "value": "scheduled",          "disabled": true }
-              ]
-            },
-            "description": "status: scheduled | confirmed | completed | cancelled"
-          }
-        },
-        {
-          "name": "Get Appointment by ID",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}"] }
-          }
-        },
-        {
-          "name": "Update Appointment",
-          "request": {
-            "method": "PUT",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"startAt\": \"2026-05-10T10:00:00.000Z\",\n  \"durationMinutes\": 45,\n  \"notes\": \"Reagendamento solicitado pelo paciente\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}"] },
-            "description": "Role: clinic | attendant"
-          }
-        },
-        {
-          "name": "Update Appointment Status",
-          "request": {
-            "method": "PATCH",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"confirmed\"\n}",
-              "options": { "raw": { "language": "json" } }
-            },
-            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}/status", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}", "status"] },
-            "description": "Role: clinic | attendant | professional. status: scheduled | confirmed | completed | cancelled"
-          }
-        },
-        {
-          "name": "Cancel Appointment",
-          "request": {
-            "method": "DELETE",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}"] },
-            "description": "Role: clinic | attendant. Retorna 204 No Content."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Availability",
-      "item": [
-        {
-          "name": "Get Available Slots",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/availability/{{professionalId}}?fromDate=2026-05-01&toDate=2026-05-31",
-              "host": ["{{baseUrl}}"],
-              "path": ["availability", "{{professionalId}}"],
-              "query": [
-                { "key": "fromDate", "value": "2026-05-01" },
-                { "key": "toDate",   "value": "2026-05-31" }
-              ]
-            },
-            "description": "Retorna os slots disponíveis do profissional no intervalo de datas."
-          }
-        }
-      ]
-    },
-    {
-      "name": "Search",
-      "item": [
-        {
-          "name": "Search Clinics and Professionals",
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/search?type=all&city=São Paulo&specialty=CARDIOLOGY&page=1&limit=10",
-              "host": ["{{baseUrl}}"],
-              "path": ["search"],
-              "query": [
-                { "key": "type",      "value": "all",         "description": "clinic | professional | all" },
-                { "key": "city",      "value": "São Paulo",   "disabled": false },
-                { "key": "specialty", "value": "CARDIOLOGY",  "disabled": true },
-                { "key": "name",      "value": "",            "disabled": true },
-                { "key": "address",   "value": "",            "disabled": true },
-                { "key": "page",      "value": "1" },
-                { "key": "limit",     "value": "10" }
-              ]
-            },
-            "description": "Rota pública (sem autenticação). specialty: GENERAL_PRACTICE | PEDIATRICS | CARDIOLOGY | DERMATOLOGY | PSYCHIATRY"
-          }
-        },
-        {
-          "name": "Get Clinic by ID (public)",
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "GET",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/search/clinics/{{clinicId}}", "host": ["{{baseUrl}}"], "path": ["search", "clinics", "{{clinicId}}"] },
-            "description": "Rota pública."
-          }
-        },
-        {
-          "name": "Get Professional by ID (public)",
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "GET",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/search/professionals/{{professionalId}}", "host": ["{{baseUrl}}"], "path": ["search", "professionals", "{{professionalId}}"] },
-            "description": "Rota pública."
           }
         }
       ]
@@ -633,19 +468,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"plan\": \"BASIC\"\n}",
+              "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"plan\": \"basic\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/subscriptions", "host": ["{{baseUrl}}"], "path": ["subscriptions"] },
-            "description": "plan: BASIC | PREMIUM"
-          }
-        },
-        {
-          "name": "Get My Subscription",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": { "raw": "{{baseUrl}}/subscriptions/me", "host": ["{{baseUrl}}"], "path": ["subscriptions", "me"] }
+            "description": "plan: free | basic | pro\nObservação: profissionais só aparecem na busca se a clínica tiver assinatura com status 'active'."
           }
         },
         {
@@ -657,16 +484,176 @@
           }
         },
         {
+          "name": "Get Subscription by Clinic",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions/clinic/{{clinicId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions", "clinic", "{{clinicId}}"]
+            }
+          }
+        },
+        {
           "name": "Update Subscription",
           "request": {
             "method": "PATCH",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"plan\": \"PREMIUM\"\n}",
+              "raw": "{\n  \"plan\": \"pro\"\n}",
               "options": { "raw": { "language": "json" } }
             },
+            "url": { "raw": "{{baseUrl}}/subscriptions/{{subscriptionId}}", "host": ["{{baseUrl}}"], "path": ["subscriptions", "{{subscriptionId}}"] },
+            "description": "plan: free | basic | pro"
+          }
+        },
+        {
+          "name": "Cancel Subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [],
             "url": { "raw": "{{baseUrl}}/subscriptions/{{subscriptionId}}", "host": ["{{baseUrl}}"], "path": ["subscriptions", "{{subscriptionId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Appointments",
+      "item": [
+        {
+          "name": "Create Appointment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res._id) pm.collectionVariables.set('appointmentId', res._id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clinicId\": \"{{clinicId}}\",\n  \"professionalId\": \"{{professionalId}}\",\n  \"patientId\": \"{{patientId}}\",\n  \"startAt\": \"2026-06-01T09:00:00.000Z\",\n  \"durationMinutes\": 30,\n  \"notes\": \"Primeira consulta\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/appointments", "host": ["{{baseUrl}}"], "path": ["appointments"] },
+            "description": "durationMinutes: 15–480"
+          }
+        },
+        {
+          "name": "List Appointments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/appointments?clinicId={{clinicId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["appointments"],
+              "query": [
+                { "key": "clinicId",       "value": "{{clinicId}}",       "disabled": false },
+                { "key": "professionalId", "value": "{{professionalId}}", "disabled": true },
+                { "key": "patientId",      "value": "{{patientId}}",      "disabled": true },
+                { "key": "status",         "value": "scheduled",          "disabled": true, "description": "scheduled | confirmed | completed | cancelled" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Appointment by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}"] }
+          }
+        },
+        {
+          "name": "Update Appointment",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startAt\": \"2026-06-01T10:00:00.000Z\",\n  \"durationMinutes\": 45,\n  \"notes\": \"Reagendamento solicitado pelo paciente\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}"] }
+          }
+        },
+        {
+          "name": "Update Appointment Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"confirmed\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}/status", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}", "status"] },
+            "description": "status: scheduled | confirmed | completed | cancelled"
+          }
+        },
+        {
+          "name": "Cancel Appointment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/appointments/{{appointmentId}}", "host": ["{{baseUrl}}"], "path": ["appointments", "{{appointmentId}}"] },
+            "description": "Retorna 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Availability",
+      "item": [
+        {
+          "name": "Get Available Slots",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/availability/{{professionalId}}?fromDate=2026-06-01&toDate=2026-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["availability", "{{professionalId}}"],
+              "query": [
+                { "key": "fromDate", "value": "2026-06-01" },
+                { "key": "toDate",   "value": "2026-06-30" }
+              ]
+            },
+            "description": "Retorna os slots disponíveis do profissional no intervalo de datas."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Search",
+      "item": [
+        {
+          "name": "Search Professionals",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [
+                { "key": "specialty", "value": "medicine",    "disabled": true, "description": "medicine | psychology | psychiatry | dentistry | nutrition" },
+                { "key": "city",      "value": "São Paulo",   "disabled": true },
+                { "key": "name",      "value": "",            "disabled": true }
+              ]
+            },
+            "description": "Rota pública (sem autenticação).\nRetorna apenas profissionais vinculados a clínicas com assinatura ativa (status: active).\nspecialty: medicine | psychology | psychiatry | dentistry | nutrition"
           }
         }
       ]
@@ -693,11 +680,11 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"clinicId\": \"{{clinicId}}\"\n}",
+              "raw": "{\n  \"type\": \"triage\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": { "raw": "{{baseUrl}}/chat/sessions", "host": ["{{baseUrl}}"], "path": ["chat", "sessions"] },
-            "description": "clinicId é opcional."
+            "description": "Role: patient\ntype: standard | triage | symptom_triage (obrigatório)\nclinicId: opcional"
           }
         },
         {
@@ -709,13 +696,13 @@
           }
         },
         {
-          "name": "Send Message",
+          "name": "Send Message (SSE)",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"Olá, preciso marcar uma consulta de cardiologia.\"\n}",
+              "raw": "{\n  \"content\": \"Estou com dor de cabeça há 3 dias e febre baixa.\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -723,7 +710,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["chat", "sessions", "{{sessionId}}", "messages"]
             },
-            "description": "Máximo 4096 caracteres."
+            "description": "Retorna Server-Sent Events (SSE). Requer ANTHROPIC_API_KEY configurada no secret AWS.\nMáximo 4096 caracteres por mensagem."
           }
         },
         {

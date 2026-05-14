@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { UpdateProfessionalDto } from './dto/update-professional.dto';
 import { ProfessionalsService } from './professionals.service';
@@ -20,8 +21,11 @@ export class ProfessionalsController {
   constructor(private readonly professionalsService: ProfessionalsService) {}
 
   @Post()
-  async create(@Body() createProfessionalDto: CreateProfessionalDto) {
-    return this.professionalsService.create(createProfessionalDto);
+  async create(
+    @CurrentUser() userId: string,
+    @Body() createProfessionalDto: CreateProfessionalDto,
+  ) {
+    return this.professionalsService.create(userId, createProfessionalDto);
   }
 
   @Get()

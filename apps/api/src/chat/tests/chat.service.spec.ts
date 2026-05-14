@@ -9,7 +9,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ChatService } from '../chat.service';
 import { ChatSession } from '../schemas/chat-session.schema';
 import { ChatMessage } from '../schemas/chat-message.schema';
-import { ANTHROPIC_MODEL } from '../chat.module';
+import { ANTHROPIC_MODEL } from '../constants/chat.tokens';
 import { ChatSessionType } from '../enums/chat-session-type.enum';
 
 type StreamTextArgs = {

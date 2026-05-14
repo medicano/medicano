@@ -4,7 +4,6 @@ import {
   IsEmail,
   IsEnum,
   IsInt,
-  IsMongoId,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -19,9 +18,6 @@ import { AddressDto } from '../../common/dto/address.dto';
 import { WeeklySlotDto } from '../../common/dto/weekly-slot.dto';
 
 export class CreateProfessionalDto {
-  @IsMongoId()
-  userId: string;
-
   @IsString()
   @IsNotEmpty()
   name: string;

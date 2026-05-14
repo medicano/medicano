@@ -3,7 +3,6 @@ import { Specialty } from '../../common/enums/specialty.enum';
 
 export interface RecommendationDto {
   specialty: Specialty;
-  reasoning: string;
 }
 
 export interface SendMessageResponse {

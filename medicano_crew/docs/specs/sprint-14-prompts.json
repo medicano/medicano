@@ -1,0 +1,114 @@
+{
+  "sprint": "sprint-14-corrections",
+  "description": "Corrige sete divergências encontradas entre o código implementado e as specs das sprints 01–12: Specialty enum inconsistente, subscription plans errados (BASIC/PREMIUM em vez de FREE/BASIC/PRO), Clinic sem campos obrigatórios, Professional com crm em vez de registration e sem cpf, AttendantsService não registrado no módulo, NotificationsService não integrado em AppointmentsService, e Search sem filtro de assinatura ativa (RN20).",
+  "context": {
+    "stack": "NestJS 10 + TypeScript 5 + MongoDB (Mongoose) + Redis (ioredis)",
+    "monorepo": "apps/api (NestJS)",
+    "spec_file": "medicano_crew/docs/specs/sprint-14-corrections.md",
+    "dependencies": "Sprints 01–12 devem estar completas. Sprint 13 é independente.",
+    "canonical_imports": {
+      "Role": "apps/api/src/common/enums/role.enum.ts",
+      "Specialty": "apps/api/src/common/enums/specialty.enum.ts",
+      "User, UserSchema": "apps/api/src/auth/schemas/user.schema.ts",
+      "WeeklySlot, WeeklySlotSchema": "apps/api/src/common/schemas/weekly-slot.schema.ts",
+      "WeeklySlotDto": "apps/api/src/common/dto/weekly-slot.dto.ts",
+      "AddressDto": "apps/api/src/common/dto/address.dto.ts",
+      "Address, AddressSchema": "apps/api/src/common/schemas/address.schema.ts",
+      "JwtAuthGuard": "apps/api/src/auth/guards/jwt-auth.guard.ts",
+      "RolesGuard": "apps/api/src/auth/guards/roles.guard.ts",
+      "Roles": "apps/api/src/auth/decorators/roles.decorator.ts",
+      "CurrentUser": "apps/api/src/common/decorators/current-user.decorator.ts",
+      "ParseMongoIdPipe": "apps/api/src/common/pipes/parse-mongo-id.pipe.ts",
+      "NotificationsService": "apps/api/src/notifications/notifications.service.ts",
+      "NotificationsModule": "apps/api/src/notifications/notifications.module.ts"
+    }
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "fix-specialty-enum",
+      "description": "Substituir o Specialty enum por 5 valores lowercase uniformes e reescrever o triage prompt",
+      "files": [
+        "apps/api/src/common/enums/specialty.enum.ts",
+        "apps/api/src/chat/constants/triage-prompt.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia os dois arquivos: apps/api/src/common/enums/specialty.enum.ts e apps/api/src/chat/constants/triage-prompt.ts. Siga todas as convenções em medicano_crew/docs/CONVENTIONS.md e verifique medicano_crew/docs/specs/feature-registry.md.\n\n**Passo 1 — apps/api/src/common/enums/specialty.enum.ts**\n\nSubstituir os 8 valores atuais (com casing inconsistente) pelos 5 exatos abaixo. Não manter nenhum valor antigo.\n\n```typescript\nexport enum Specialty {\n  MEDICINE = 'medicine',\n  PSYCHOLOGY = 'psychology',\n  PSYCHIATRY = 'psychiatry',\n  DENTISTRY = 'dentistry',\n  NUTRITION = 'nutrition',\n}\n```\n\n**Passo 2 — apps/api/src/chat/constants/triage-prompt.ts**\n\nO arquivo atual usa `Specialty.GENERAL_PRACTICE`, `Specialty.CARDIOLOGY` etc., que deixarão de existir. Reescrever o arquivo completo mantendo a mesma estrutura (specialtyLabels + specialtiesList dinâmico + TRIAGE_SYSTEM_PROMPT + TRIAGE_SPECIALTIES), mas adaptando para as 5 especialidades:\n\n```typescript\nconst specialtyLabels: Record<Specialty, string> = {\n  [Specialty.MEDICINE]: 'Clínica Geral / Medicina',\n  [Specialty.PSYCHOLOGY]: 'Psicologia',\n  [Specialty.PSYCHIATRY]: 'Psiquiatria',\n  [Specialty.DENTISTRY]: 'Odontologia',\n  [Specialty.NUTRITION]: 'Nutrição',\n};\n```\n\nNa seção de casos típicos do prompt, usar:\n- Clínica Geral / Medicina (`medicine`): Consultas de rotina, sintomas gerais, febre, gripe, dores em geral\n- Psicologia (`psychology`): Acompanhamento psicológico, terapia, apoio emocional\n- Psiquiatria (`psychiatry`): Saúde mental, ansiedade, depressão, transtornos do sono\n- Odontologia (`dentistry`): Saúde bucal, dores de dente, problemas com gengivas, ortodontia\n- Nutrição (`nutrition`): Orientação alimentar, dietas, emagrecimento, doenças metabólicas\n\nManter o restante do prompt (instrução de perguntas, disclaimer CFM, formato JSON de resposta) idêntico ao atual, apenas removendo as referências às especialidades extintas."
+    },
+    {
+      "id": 2,
+      "name": "fix-subscription-plans",
+      "description": "Renomear planos para FREE/BASIC/PRO, migrar schema de userId para clinicId, remover campos desnormalizados, simplificar service",
+      "files": [
+        "apps/api/src/subscriptions/constants/subscription.constants.ts",
+        "apps/api/src/subscriptions/schemas/subscription.schema.ts",
+        "apps/api/src/subscriptions/subscriptions.service.ts",
+        "apps/api/src/subscriptions/dto/create-subscription.dto.ts",
+        "apps/api/src/subscriptions/dto/update-subscription.dto.ts",
+        "apps/api/src/subscriptions/subscriptions.controller.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia todos os arquivos listados. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\n**1 — apps/api/src/subscriptions/constants/subscription.constants.ts**\n\nSubstituir completamente pelo conteúdo abaixo:\n\n```typescript\nexport enum SubscriptionPlan {\n  FREE = 'free',\n  BASIC = 'basic',\n  PRO = 'pro',\n}\n\nexport enum SubscriptionStatus {\n  TRIAL = 'trial',\n  ACTIVE = 'active',\n  INACTIVE = 'inactive',\n}\n\nexport const PLAN_PROFESSIONAL_LIMITS: Record<SubscriptionPlan, number> = {\n  [SubscriptionPlan.FREE]: 2,\n  [SubscriptionPlan.BASIC]: 10,\n  [SubscriptionPlan.PRO]: -1,\n};\n```\n\n**2 — apps/api/src/subscriptions/schemas/subscription.schema.ts**\n\nSubstituir pelo schema simplificado — remover todos os campos desnormalizados (`clinicLimit`, `professionalLimit`, `appointmentLimit`, `aiTriageEnabled`, `prioritySupport`, `isActive`) e trocar `userId` por `clinicId`:\n\n```typescript\nimport { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';\nimport { Document, Types } from 'mongoose';\nimport { SubscriptionPlan, SubscriptionStatus } from '../constants/subscription.constants';\n\nexport type SubscriptionDocument = Subscription & Document;\n\n@Schema({ timestamps: true })\nexport class Subscription {\n  @Prop({ type: Types.ObjectId, ref: 'Clinic', required: true, unique: true })\n  clinicId: Types.ObjectId;\n\n  @Prop({ type: String, enum: SubscriptionPlan, default: SubscriptionPlan.FREE })\n  plan: SubscriptionPlan;\n\n  @Prop({ type: String, enum: SubscriptionStatus, default: SubscriptionStatus.TRIAL })\n  status: SubscriptionStatus;\n\n  @Prop({ type: Date })\n  expiresAt?: Date;\n}\n\nexport const SubscriptionSchema = SchemaFactory.createForClass(Subscription);\n```\n\n**3 — apps/api/src/subscriptions/subscriptions.service.ts**\n\nReescrever o service completo. Pontos chave:\n- Todos os métodos que usavam `userId` devem usar `clinicId`\n- Renomear `findByUserId` para `findByClinicId(clinicId: string)`\n- `create(clinicId: string, dto: CreateSubscriptionDto)` — não mais copiar limites para o documento\n- `enforceClinicProfessionalLimit(clinicId: string, currentCount: number)`: buscar assinatura por clinicId; se não encontrada, usar FREE (limite 2); se limite === -1, permitir; caso contrário, lançar ForbiddenException\n- Remover `hasReachedClinicLimit` e `getActivePlan` — não são usados externamente\n- Manter `findById`, `update`, `cancel` adaptados para o novo schema\n\n**4 — DTOs**\n\n`create-subscription.dto.ts`: remover campos de limites desnormalizados; adicionar `clinicId: string` com `@IsMongoId()`; `plan` deve usar `SubscriptionPlan` (FREE/BASIC/PRO); `expiresAt?` permanece.\n\n`update-subscription.dto.ts`: manter apenas `plan?`, `status?`, `expiresAt?` como opcionais.\n\n**5 — apps/api/src/subscriptions/subscriptions.controller.ts**\n\nAtualizar a rota `GET /subscriptions/clinic/:clinicId` para chamar `findByClinicId`. Atualizar `POST /subscriptions` para extrair `clinicId` do body (DTO) em vez de `userId` do JWT. Os demais endpoints permanecem iguais."
+    },
+    {
+      "id": 3,
+      "name": "fix-clinic-schema",
+      "description": "Adicionar cnpj, autoConfirm, minCancelNoticeHours e weeklySlots ao schema e DTOs da Clinic",
+      "files": [
+        "apps/api/src/clinics/schemas/clinic.schema.ts",
+        "apps/api/src/clinics/dto/create-clinic.dto.ts",
+        "apps/api/src/clinics/dto/update-clinic.dto.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia todos os arquivos listados. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\n**apps/api/src/clinics/schemas/clinic.schema.ts**\n\nAdicionar ao schema existente (sem remover campos já presentes como `name`, `description`, `phone`, `email`, `address`, `specialties`, `isActive`, `linkedScheduling`, `userId`):\n\n```typescript\n@Prop({ type: String, required: true, unique: true, match: /^\\d{14}$/ })\ncnpj: string;\n\n@Prop({ type: Boolean, default: false })\nautoConfirm: boolean;\n\n@Prop({ type: Number, default: 24, min: 0, max: 168 })\nminCancelNoticeHours: number;\n\n@Prop({ type: [WeeklySlotSchema], default: [] })\nweeklySlots: WeeklySlot[];\n```\n\nImportar `WeeklySlot` e `WeeklySlotSchema` de `../../common/schemas/weekly-slot.schema`.\n\nAdicionar após `SchemaFactory.createForClass`:\n```typescript\nClinicSchema.index({ cnpj: 1 }, { unique: true });\n```\n\n**apps/api/src/clinics/dto/create-clinic.dto.ts**\n\nAdicionar com os validators corretos de class-validator:\n- `cnpj: string` — `@IsString() @Matches(/^\\d{14}$/, { message: 'CNPJ must be 14 digits' })`\n- `autoConfirm?: boolean` — `@IsBoolean() @IsOptional()`\n- `minCancelNoticeHours?: number` — `@IsInt() @Min(0) @Max(168) @IsOptional()`\n- `weeklySlots?: WeeklySlotDto[]` — `@IsArray() @ValidateNested({ each: true }) @Type(() => WeeklySlotDto) @IsOptional()`\n\nImportar `WeeklySlotDto` de `../../common/dto/weekly-slot.dto`.\n\n**apps/api/src/clinics/dto/update-clinic.dto.ts**\n\nAdicionar os mesmos campos, todos `@IsOptional()`. O `cnpj` no update também deve ser opcional."
+    },
+    {
+      "id": 4,
+      "name": "fix-professional-schema",
+      "description": "Renomear crm para registration (obrigatório), adicionar cpf (obrigatório, único), minCancelNoticeHours, e usar WeeklySlot schema no array weeklySlots",
+      "files": [
+        "apps/api/src/professionals/schemas/professional.schema.ts",
+        "apps/api/src/professionals/dto/create-professional.dto.ts",
+        "apps/api/src/professionals/dto/update-professional.dto.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia todos os arquivos listados. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\n**apps/api/src/professionals/schemas/professional.schema.ts**\n\nFazer as seguintes correções no schema existente:\n1. Renomear `crm?: string` (opcional) para `registration: string` (obrigatório: `required: true`)\n2. Adicionar `cpf: string` obrigatório e único: `@Prop({ type: String, required: true, unique: true })`\n3. Adicionar `minCancelNoticeHours: number`: `@Prop({ type: Number, default: 24, min: 0, max: 168 })`\n4. Substituir o `weeklySlots` com schema inline (`{ dayOfWeek, startTime, endTime }`) pelo uso do `WeeklySlotSchema` de `common/schemas/weekly-slot.schema` — isso adiciona `slotDurationMinutes` que é necessário para o cálculo de slots\n\nImportar `WeeklySlot, WeeklySlotSchema` de `../../common/schemas/weekly-slot.schema`.\n\nAdicionar após `SchemaFactory.createForClass`:\n```typescript\nProfessionalSchema.index({ cpf: 1 }, { unique: true });\nProfessionalSchema.index({ 'address.city': 1, specialty: 1 });\n```\n\nManter todos os outros campos existentes (`userId`, `name`, `bio?`, `phone?`, `email?`, `specialty`, `address`, `isActive`, `description?`, `autoConfirm`) sem alteração.\n\n**apps/api/src/professionals/dto/create-professional.dto.ts**\n\nCorrigir:\n- Renomear `crm?` para `registration` (remover `@IsOptional()`, mantê-lo obrigatório)\n- Adicionar `cpf: string` com `@IsString() @IsNotEmpty() @Matches(/^\\d{11}$/, { message: 'CPF must be 11 digits' })`\n- Adicionar `minCancelNoticeHours?: number` com `@IsInt() @Min(0) @Max(168) @IsOptional()`\n- Remover `bio?` se não for parte do schema final (o schema tem `bio?`, mantê-lo se o schema tiver)\n\n**apps/api/src/professionals/dto/update-professional.dto.ts**\n\nMesmas adições, todos opcionais: `registration?`, `cpf?`, `minCancelNoticeHours?`."
+    },
+    {
+      "id": 5,
+      "name": "register-attendants-in-module",
+      "description": "Registrar AttendantsService e AttendantsController no ClinicsModule para ativar os endpoints de atendentes",
+      "files": [
+        "apps/api/src/clinics/clinics.module.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/api/src/clinics/clinics.module.ts, apps/api/src/clinics/services/attendants.service.ts e apps/api/src/clinics/controllers/attendants.controller.ts para entender as dependências. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\nAtualizar apps/api/src/clinics/clinics.module.ts para registrar `AttendantsService` e `AttendantsController`:\n\n- O `AttendantsService` injeta `Model<UserDocument>` (precisa do schema User no MongooseModule.forFeature) e `ClinicsService` (já está nos providers)\n- O `AttendantsController` usa `AttendantsService`\n\nO módulo resultante deve:\n1. No `MongooseModule.forFeature`, adicionar `{ name: User.name, schema: UserSchema }` além do Clinic já existente\n2. Adicionar `AttendantsController` ao array `controllers`\n3. Adicionar `AttendantsService` ao array `providers`\n4. Manter `exports: [ClinicsService]` — AttendantsService não precisa ser exportado\n\nImportar `User` e `UserSchema` de `../auth/schemas/user.schema`, `AttendantsService` de `./services/attendants.service`, `AttendantsController` de `./controllers/attendants.controller`.\n\nNão alterar nenhum outro arquivo."
+    },
+    {
+      "id": 6,
+      "name": "integrate-notifications",
+      "description": "Injetar NotificationsService em AppointmentsService e chamar notificações ao criar, confirmar e cancelar agendamentos",
+      "files": [
+        "apps/api/src/appointments/appointments.service.ts",
+        "apps/api/src/appointments/appointments.module.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/api/src/appointments/appointments.service.ts, apps/api/src/appointments/appointments.module.ts e apps/api/src/notifications/notifications.service.ts para entender as assinaturas dos métodos. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\n**apps/api/src/appointments/appointments.service.ts**\n\nInjetar `NotificationsService` no construtor:\n```typescript\nconstructor(\n  // ... injeções existentes ...\n  private readonly notificationsService: NotificationsService,\n) {}\n```\n\nAdicionar chamadas de notificação nos pontos corretos — usar `void` (fire-and-forget) pois `NotificationsService` já tem try/catch interno e não deve bloquear a resposta:\n\n1. Em `create()`, após `appointment.save()` ou `appointment = await this.appointmentModel.create(...)` retornar com sucesso:\n   ```typescript\n   void this.notificationsService.notifyAppointmentCreated(appointment);\n   ```\n\n2. Em `createAppointment()`, após o `return this.appointmentModel.create(dto)`:\n   ```typescript\n   const appointment = await this.appointmentModel.create(dto);\n   void this.notificationsService.notifyAppointmentCreated(appointment);\n   return appointment;\n   ```\n\n3. Em `updateStatus()`, após `appointment.save()`, verificar o novo status:\n   ```typescript\n   const saved = await appointment.save();\n   if (dto.status === AppointmentStatus.CONFIRMED) {\n     void this.notificationsService.notifyAppointmentConfirmed(saved);\n   } else if (dto.status === AppointmentStatus.CANCELLED) {\n     void this.notificationsService.notifyAppointmentCancelled(saved, 'provider');\n   }\n   return saved;\n   ```\n\n4. Em `cancel()`, após `appointment.save()`:\n   ```typescript\n   await appointment.save();\n   void this.notificationsService.notifyAppointmentCancelled(appointment, 'patient');\n   ```\n\n**apps/api/src/appointments/appointments.module.ts**\n\nAdicionar `NotificationsModule` ao array `imports`. Importar `NotificationsModule` de `../notifications/notifications.module`."
+    },
+    {
+      "id": 7,
+      "name": "fix-search-rn20",
+      "description": "Filtrar profissionais na busca para retornar apenas os vinculados a clínicas com assinatura ativa ou trial (RN20)",
+      "files": [
+        "apps/api/src/search/search.service.ts",
+        "apps/api/src/search/search.module.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/api/src/search/search.service.ts, apps/api/src/search/search.module.ts, apps/api/src/professionals/schemas/clinic-professional.schema.ts e apps/api/src/subscriptions/schemas/subscription.schema.ts. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\nA regra RN20 diz que apenas profissionais vinculados a clínicas com assinatura ativa (status 'active' ou 'trial') devem aparecer na busca.\n\n**apps/api/src/search/search.service.ts**\n\nAdicionar injeções:\n- `@InjectModel(ClinicProfessional.name) private readonly clinicProfessionalModel: Model<ClinicProfessionalDocument>`\n- `@InjectModel(Subscription.name) private readonly subscriptionModel: Model<SubscriptionDocument>`\n\nEm `search()`, após buscar os profissionais com o filtro atual, aplicar o filtro RN20:\n\n```typescript\n// Buscar clínicas com assinatura ativa ou trial\nconst activeSubscriptions = await this.subscriptionModel\n  .find({ status: { $in: ['active', 'trial'] } })\n  .select('clinicId')\n  .lean()\n  .exec();\nconst activeClinicIds = activeSubscriptions.map((s) => s.clinicId.toString());\n\n// Buscar IDs de profissionais vinculados a clínicas ativas\nconst activeLinks = await this.clinicProfessionalModel\n  .find({ clinicId: { $in: activeClinicIds } })\n  .select('professionalId')\n  .lean()\n  .exec();\nconst activeProfessionalIds = new Set(\n  activeLinks.map((l) => l.professionalId.toString()),\n);\n\n// Filtrar\nconst filtered = professionals.filter((p) =>\n  activeProfessionalIds.has((p._id as any).toString()),\n);\n```\n\nRetornar `filtered.map(...)` em vez de `professionals.map(...)`.\n\n**apps/api/src/search/search.module.ts**\n\nAdicionar ao `MongooseModule.forFeature`:\n- `{ name: ClinicProfessional.name, schema: ClinicProfessionalSchema }` — importar de `../professionals/schemas/clinic-professional.schema`\n- `{ name: Subscription.name, schema: SubscriptionSchema }` — importar de `../subscriptions/schemas/subscription.schema`"
+    },
+    {
+      "id": 8,
+      "name": "update-tests",
+      "description": "Atualizar testes que quebram por causa das correções anteriores: subscriptions (novos planos), appointments (mock de notificações), search (mock de subscriptions/clinicProfessionals)",
+      "files": [
+        "apps/api/src/subscriptions/tests/subscriptions.service.spec.ts",
+        "apps/api/src/appointments/tests/appointments.service.spec.ts",
+        "apps/api/src/search/tests/search.service.spec.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia cada arquivo de teste listado e os services correspondentes para entender o estado atual. Siga as convenções em medicano_crew/docs/CONVENTIONS.md.\n\n**1 — apps/api/src/subscriptions/tests/subscriptions.service.spec.ts**\n\nAtualizar para os novos planos FREE/BASIC/PRO e novo schema com `clinicId`:\n- Substituir todas as referências a `SubscriptionPlan.BASIC`/`PREMIUM` pelos novos valores\n- Substituir `userId` por `clinicId` em todos os fixtures e mocks\n- Remover campos desnormalizados (`clinicLimit`, `professionalLimit` etc.) dos objetos de mock\n- Atualizar testes de `enforceClinicProfessionalLimit`:\n  - Deve usar FREE (limite 2) quando não há assinatura\n  - Deve permitir ilimitado quando plano é PRO (limite -1)\n  - Deve bloquear quando currentCount >= limite do plano BASIC (10)\n\n**2 — apps/api/src/appointments/tests/appointments.service.spec.ts**\n\nAdicionar mock do `NotificationsService` ao TestingModule:\n```typescript\nconst mockNotificationsService = {\n  notifyAppointmentCreated: jest.fn(),\n  notifyAppointmentConfirmed: jest.fn(),\n  notifyAppointmentCancelled: jest.fn(),\n};\n// No providers:\n{ provide: NotificationsService, useValue: mockNotificationsService }\n```\n\nAdicionar asserções nos testes de `create` e `createAppointment` que verificam que `notifyAppointmentCreated` foi chamado com o appointment.\n\nAdicionar asserções nos testes de `updateStatus` que verificam que `notifyAppointmentConfirmed` é chamado quando status = CONFIRMED e `notifyAppointmentCancelled` quando status = CANCELLED.\n\nAdicionar asserção no teste de `cancel` que verifica que `notifyAppointmentCancelled` foi chamado com `'patient'`.\n\n**3 — apps/api/src/search/tests/search.service.spec.ts**\n\nAdicionar mocks para os novos modelos injetados:\n```typescript\nconst mockClinicProfessionalModel = {\n  find: jest.fn().mockReturnValue({\n    select: jest.fn().mockReturnValue({\n      lean: jest.fn().mockReturnValue({\n        exec: jest.fn().mockResolvedValue([]),\n      }),\n    }),\n  }),\n};\nconst mockSubscriptionModel = {\n  find: jest.fn().mockReturnValue({\n    select: jest.fn().mockReturnValue({\n      lean: jest.fn().mockReturnValue({\n        exec: jest.fn().mockResolvedValue([]),\n      }),\n    }),\n  }),\n};\n```\n\nAtualizar o TestingModule para fornecer esses mocks com `getModelToken(ClinicProfessional.name)` e `getModelToken(Subscription.name)`.\n\nAdicionar um teste que verifica o comportamento RN20: quando `subscriptionModel.find` retorna clínicas ativas e `clinicProfessionalModel.find` retorna vínculos, apenas os profissionais vinculados aparecem no resultado.\n\nApós todas as alterações, verificar que `npx tsc --noEmit` passaria (não executar, apenas garantir que os tipos estejam corretos nos arquivos editados)."
+    }
+  ]
+}

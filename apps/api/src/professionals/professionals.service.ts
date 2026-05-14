@@ -17,9 +17,9 @@ export class ProfessionalsService {
     private readonly professionalModel: Model<ProfessionalDocument>,
   ) {}
 
-  async create(createProfessionalDto: CreateProfessionalDto): Promise<ProfessionalDocument> {
+  async create(userId: string, createProfessionalDto: CreateProfessionalDto): Promise<ProfessionalDocument> {
     try {
-      const professional = new this.professionalModel(createProfessionalDto);
+      const professional = new this.professionalModel({ ...createProfessionalDto, userId });
       return await professional.save();
     } catch (error: any) {
       if (error?.code === 11000) {

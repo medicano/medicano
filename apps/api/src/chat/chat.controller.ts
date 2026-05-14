@@ -5,13 +5,13 @@ import {
   Param,
   Post,
   Query,
-  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ParseMongoIdPipe } from '../common/pipes/parse-mongo-id.pipe';
 import { ChatService } from './chat.service';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
@@ -25,37 +25,34 @@ export class ChatController {
 
   @Post('sessions')
   async createSession(
-    @Req() req: Express.Request,
+    @CurrentUser() userId: string,
     @Body() dto: CreateChatSessionDto,
   ) {
-    return this.chatService.createSession((req.user as any).userId, dto);
+    return this.chatService.createSession(userId, dto);
   }
 
   @Get('sessions')
-  async listSessions(@Req() req: Express.Request) {
-    return this.chatService.listSessions((req.user as any).userId);
+  async listSessions(@CurrentUser() userId: string) {
+    return this.chatService.listSessions(userId);
   }
 
   @Get('sessions/:sessionId/messages')
   async listMessages(
-    @Req() req: Express.Request,
+    @CurrentUser() userId: string,
     @Param('sessionId', ParseMongoIdPipe) sessionId: string,
-    @Query() query: GetChatMessagesQueryDto,
+    @Query() _query: GetChatMessagesQueryDto,
   ) {
-    return this.chatService.listMessages(
-      (req.user as any).userId,
-      sessionId,
-      query,
-    );
+    return this.chatService.listMessages(sessionId, userId);
   }
 
   @Post('sessions/:sessionId/messages')
   async sendMessage(
+    @CurrentUser() userId: string,
     @Param('sessionId', ParseMongoIdPipe) sessionId: string,
     @Body() dto: CreateChatMessageDto,
     @Res() res: ExpressResponse,
   ): Promise<void> {
-    const streamResponse = await this.chatService.sendMessage(sessionId, dto);
+    const streamResponse = await this.chatService.sendMessage(sessionId, userId, dto);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

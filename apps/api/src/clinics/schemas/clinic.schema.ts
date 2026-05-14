@@ -48,4 +48,3 @@ export class Clinic {
 
 export const ClinicSchema = SchemaFactory.createForClass(Clinic);
 
-ClinicSchema.index({ cnpj: 1 }, { unique: true });

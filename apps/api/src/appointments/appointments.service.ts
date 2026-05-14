@@ -1,83 +1,113 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import { NotificationsService } from '../notifications/notifications.service';
-import { AvailabilityService } from '../availability/availability.service';
-import { Appointment, AppointmentDocument, AppointmentStatus } from './schemas/appointment.schema';
+import {
+  Appointment,
+  AppointmentDocument,
+  AppointmentStatus,
+} from './schemas/appointment.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
-import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
+import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
+
+type CancelledBy = 'patient' | 'provider';
 
 @Injectable()
 export class AppointmentsService {
   constructor(
-    @InjectModel(Appointment.name) private readonly appointmentModel: Model<AppointmentDocument>,
-    private readonly availabilityService: AvailabilityService,
+    @InjectModel(Appointment.name)
+    private readonly appointmentModel: Model<AppointmentDocument>,
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async create(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
-    await this.availabilityService.validateSlot(dto.providerId, dto.scheduledAt);
-
-    const appointment = new this.appointmentModel(dto);
-    const saved = await appointment.save();
-
-    void this.notificationsService.notifyAppointmentCreated(saved);
-
-    return saved;
-  }
-
   async createAppointment(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
     const appointment = await this.appointmentModel.create(dto);
-
-    void this.notificationsService.notifyAppointmentCreated(appointment);
-
+    this.notificationsService.notifyAppointmentCreated(appointment).catch(() => {});
     return appointment;
   }
 
-  async findAll(): Promise<AppointmentDocument[]> {
-    return this.appointmentModel.find().exec();
+  async findAll(query?: GetAppointmentsQueryDto): Promise<AppointmentDocument[]> {
+    const filter: Record<string, unknown> = {};
+    if (query?.clinicId) filter['clinicId'] = query.clinicId;
+    if (query?.professionalId) filter['professionalId'] = query.professionalId;
+    if (query?.patientId) filter['patientId'] = query.patientId;
+    if (query?.status) filter['status'] = query.status;
+    return this.appointmentModel.find(filter).exec();
   }
 
-  async findOne(id: string): Promise<AppointmentDocument> {
+  async getAppointmentById(id: string): Promise<AppointmentDocument> {
     const appointment = await this.appointmentModel.findById(id).exec();
+    if (!appointment) {
+      throw new NotFoundException(`Appointment ${id} not found`);
+    }
+    return appointment;
+  }
 
+  async findById(id: string): Promise<AppointmentDocument> {
+    return this.getAppointmentById(id);
+  }
+
+  async getAppointmentsByClinic(clinicId: string): Promise<AppointmentDocument[]> {
+    return this.appointmentModel.find({ clinicId }).exec();
+  }
+
+  async getAppointmentsByProfessional(professionalId: string): Promise<AppointmentDocument[]> {
+    return this.appointmentModel.find({ professionalId }).exec();
+  }
+
+  async update(id: string, dto: UpdateAppointmentDto): Promise<AppointmentDocument> {
+    const updated = await this.appointmentModel
+      .findByIdAndUpdate(id, { $set: dto }, { new: true, runValidators: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Appointment ${id} not found`);
+    }
+    return updated;
+  }
+
+  async updateStatus(id: string, status: AppointmentStatus): Promise<AppointmentDocument> {
+    const updated = await this.appointmentModel
+      .findByIdAndUpdate(id, { $set: { status } }, { new: true })
+      .exec();
+    if (!updated) {
+      throw new NotFoundException(`Appointment ${id} not found`);
+    }
+
+    if (status === AppointmentStatus.CONFIRMED) {
+      this.notificationsService.notifyAppointmentConfirmed(updated).catch(() => {});
+    } else if (status === AppointmentStatus.CANCELLED) {
+      this.notificationsService.notifyAppointmentCancelled(updated).catch(() => {});
+    }
+
+    return updated;
+  }
+
+  async cancelAppointment(
+    id: string,
+    userId: string,
+    cancelledBy: CancelledBy,
+  ): Promise<AppointmentDocument> {
+    const appointment = await this.appointmentModel.findById(id).exec();
     if (!appointment) {
       throw new NotFoundException(`Appointment ${id} not found`);
     }
 
-    return appointment;
-  }
-
-  async updateStatus(id: string, dto: UpdateAppointmentStatusDto): Promise<AppointmentDocument> {
-    const appointment = await this.findOne(id);
-
-    appointment.status = dto.status;
-
-    const saved = await appointment.save();
-
-    if (dto.status === AppointmentStatus.CONFIRMED) {
-      void this.notificationsService.notifyAppointmentConfirmed(saved);
-    } else if (dto.status === AppointmentStatus.CANCELLED) {
-      void this.notificationsService.notifyAppointmentCancelled(saved, 'provider');
+    if (cancelledBy === 'patient' && appointment.patientId.toString() !== userId) {
+      throw new ForbiddenException('You are not authorized to cancel this appointment');
     }
 
-    return saved;
-  }
+    const cancelled = await this.appointmentModel
+      .findByIdAndUpdate(id, { $set: { status: AppointmentStatus.CANCELLED } }, { new: true })
+      .exec();
 
-  async cancel(id: string): Promise<AppointmentDocument> {
-    const appointment = await this.findOne(id);
+    this.notificationsService.notifyAppointmentCancelled(cancelled!, cancelledBy).catch(() => {});
 
-    if (appointment.status === AppointmentStatus.CANCELLED) {
-      throw new BadRequestException('Appointment is already cancelled');
-    }
-
-    appointment.status = AppointmentStatus.CANCELLED;
-
-    await appointment.save();
-
-    void this.notificationsService.notifyAppointmentCancelled(appointment, 'patient');
-
-    return appointment;
+    return cancelled!;
   }
 }

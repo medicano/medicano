@@ -5,7 +5,7 @@ description = "medicano-crew using crewAI"
 authors = [{ name = "Marcos Miotto", email = "marcos@medicano.app" }]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "crewai[anthropic,tools]==1.14.2",
+    "crewai[anthropic,litellm,tools]==1.14.2",
     "google-cloud-aiplatform>=1.60,<1.100",
     "protobuf>=5.0,<6.0",
     "python-dotenv>=1.0,<2.0",

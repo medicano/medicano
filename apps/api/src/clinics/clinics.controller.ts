@@ -32,8 +32,8 @@ export class ClinicsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  async findAll(@CurrentUser() userId: string) {
-    return this.clinicsService.findAllByUser(userId);
+  async findAll() {
+    return this.clinicsService.findAll();
   }
 
   @Get(':id')

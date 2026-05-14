@@ -57,13 +57,9 @@ export class ProfileService {
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
         { $set: updateDto },
-        { new: true },
+        { new: true, upsert: true },
       )
       .exec();
-
-    if (!patient) {
-      throw new NotFoundException('Patient profile not found');
-    }
 
     return patient;
   }

@@ -1,11 +1,15 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Specialty } from '../../common/enums/specialty.enum';
+import { ChatSessionType } from '../enums/chat-session-type.enum';
 
 @Schema({ timestamps: true })
 export class ChatSession {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  userId: Types.ObjectId;
+  patient: Types.ObjectId;
+
+  @Prop({ type: String, enum: ChatSessionType, required: true })
+  type: ChatSessionType;
 
   @Prop({ type: Types.ObjectId, ref: 'Clinic' })
   clinicId?: Types.ObjectId;
@@ -20,4 +24,4 @@ export class ChatSession {
 export type ChatSessionDocument = ChatSession & Document;
 export const ChatSessionSchema = SchemaFactory.createForClass(ChatSession);
 
-ChatSessionSchema.index({ userId: 1, createdAt: -1 });
+ChatSessionSchema.index({ patient: 1, createdAt: -1 });

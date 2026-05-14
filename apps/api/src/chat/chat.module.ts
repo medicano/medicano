@@ -7,8 +7,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatSession, ChatSessionSchema } from './schemas/chat-session.schema';
 import { ChatMessage, ChatMessageSchema } from './schemas/chat-message.schema';
-
-export const ANTHROPIC_MODEL = Symbol('ANTHROPIC_MODEL');
+import { ANTHROPIC_MODEL } from './constants/chat.tokens';
 
 @Module({
   imports: [
