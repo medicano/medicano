@@ -1,56 +1,57 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 import { Address, AddressSchema } from '../../common/schemas/address.schema';
+import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
 
-export type ProfessionalDocument = Professional & Document;
+export type ProfessionalDocument = HydratedDocument<Professional>;
 
 @Schema({ timestamps: true })
 export class Professional {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
   @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ type: String, required: false })
+  @Prop({ type: String })
   bio?: string;
 
-  @Prop({ type: String, required: false })
+  @Prop({ type: String })
   phone?: string;
 
-  @Prop({ type: String, required: false })
+  @Prop({ type: String })
   email?: string;
 
   @Prop({ type: String, enum: Specialty, required: true })
   specialty: Specialty;
 
-  @Prop({ type: String, required: false })
-  crm?: string;
+  @Prop({ type: String, required: true })
+  registration: string;
+
+  @Prop({ type: String, required: true, unique: true })
+  cpf: string;
+
+  @Prop({ type: Number, default: 24, min: 0, max: 168 })
+  minCancelNoticeHours: number;
 
   @Prop({ type: AddressSchema, required: true })
   address: Address;
 
+  @Prop({ type: [WeeklySlotSchema], default: [] })
+  weeklySlots: WeeklySlot[];
+
   @Prop({ type: Boolean, default: true })
   isActive: boolean;
 
-  @Prop({ type: String, required: false })
+  @Prop({ type: String })
   description?: string;
 
   @Prop({ type: Boolean, default: false })
   autoConfirm: boolean;
-
-  @Prop({
-    type: [
-      {
-        dayOfWeek: { type: Number, min: 0, max: 6, required: true },
-        startTime: { type: String, required: true },
-        endTime: { type: String, required: true },
-      },
-    ],
-    default: [],
-  })
-  weeklySlots: { dayOfWeek: number; startTime: string; endTime: string }[];
 }
 
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional);
+
+ProfessionalSchema.index({ cpf: 1 }, { unique: true });
+ProfessionalSchema.index({ 'address.city': 1, specialty: 1 });
