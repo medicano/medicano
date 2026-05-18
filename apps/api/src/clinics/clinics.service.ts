@@ -10,12 +10,18 @@ import { Clinic, ClinicDocument } from './schemas/clinic.schema';
 import { CreateClinicDto } from './dto/create-clinic.dto';
 import { UpdateClinicDto } from './dto/update-clinic.dto';
 import { validateWeeklySlots } from '../common/utils/validate-weekly-slots';
+import { ClinicProfessional, ClinicProfessionalDocument } from '../professionals/schemas/clinic-professional.schema';
+import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
 
 @Injectable()
 export class ClinicsService {
   constructor(
     @InjectModel(Clinic.name)
     private readonly clinicModel: Model<ClinicDocument>,
+    @InjectModel(ClinicProfessional.name)
+    private readonly clinicProfessionalModel: Model<ClinicProfessionalDocument>,
+    @InjectModel(Professional.name)
+    private readonly professionalModel: Model<ProfessionalDocument>,
   ) {}
 
   async create(userId: string, createClinicDto: CreateClinicDto): Promise<ClinicDocument> {
@@ -89,6 +95,19 @@ export class ClinicsService {
       }
       throw error;
     }
+  }
+
+  async findProfessionalsByClinicId(clinicId: string): Promise<ProfessionalDocument[]> {
+    if (!Types.ObjectId.isValid(clinicId)) {
+      throw new NotFoundException(`Invalid clinic ID: ${clinicId}`);
+    }
+    const links = await this.clinicProfessionalModel
+      .find({ clinicId: new Types.ObjectId(clinicId) })
+      .select('professionalId')
+      .lean()
+      .exec();
+    const professionalIds = links.map((l) => l.professionalId as Types.ObjectId);
+    return this.professionalModel.find({ _id: { $in: professionalIds } }).exec();
   }
 
   async remove(id: string, userId: string): Promise<void> {

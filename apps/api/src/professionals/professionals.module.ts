@@ -10,12 +10,14 @@ import {
   ClinicProfessional,
   ClinicProfessionalSchema,
 } from './schemas/clinic-professional.schema';
+import { Clinic, ClinicSchema } from '../clinics/schemas/clinic.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: Professional.name, schema: ProfessionalSchema },
       { name: ClinicProfessional.name, schema: ClinicProfessionalSchema },
+      { name: Clinic.name, schema: ClinicSchema },
     ]),
   ],
   controllers: [ProfessionalsController],

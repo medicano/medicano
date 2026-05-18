@@ -8,6 +8,7 @@ import {
   Body,
   Param,
   Query,
+  Req,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -30,14 +31,19 @@ export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @Post()
-  @Roles(Role.CLINIC, Role.ATTENDANT)
-  create(@Body() dto: CreateAppointmentDto) {
-    return this.appointmentsService.createAppointment(dto);
+  @Roles(Role.CLINIC, Role.ATTENDANT, Role.PATIENT)
+  create(@CurrentUser() userId: string, @Body() dto: CreateAppointmentDto) {
+    const resolved = { ...dto, patientId: dto.patientId ?? userId };
+    return this.appointmentsService.createAppointment(resolved);
   }
 
   @Get()
-  findAll(@Query() query: GetAppointmentsQueryDto) {
-    return this.appointmentsService.findAll(query);
+  findAll(@Req() req: any, @Query() query: GetAppointmentsQueryDto) {
+    const resolvedQuery = { ...query };
+    if (req.user?.role === 'patient' && !resolvedQuery.patientId) {
+      resolvedQuery.patientId = req.user.userId;
+    }
+    return this.appointmentsService.findAll(resolvedQuery);
   }
 
   @Get(':id')

@@ -13,10 +13,12 @@ export class CreateAppointmentDto {
   readonly clinicId: string;
 
   @IsMongoId()
-  readonly professionalId: string;
+  @IsOptional()
+  readonly professionalId?: string;
 
   @IsMongoId()
-  readonly patientId: string;
+  @IsOptional()
+  readonly patientId?: string;
 
   @IsDateString()
   readonly startAt: string;
@@ -24,7 +26,8 @@ export class CreateAppointmentDto {
   @IsInt()
   @Min(15)
   @Max(480)
-  readonly durationMinutes: number;
+  @IsOptional()
+  readonly durationMinutes?: number;
 
   @IsString()
   @IsOptional()

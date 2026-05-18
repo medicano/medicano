@@ -42,6 +42,12 @@ export class ClinicsController {
     return this.clinicsService.findById(id);
   }
 
+  @Get(':id/professionals')
+  @UseGuards(JwtAuthGuard)
+  async findProfessionals(@Param('id', ParseMongoIdPipe) id: string) {
+    return this.clinicsService.findProfessionalsByClinicId(id);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CLINIC)

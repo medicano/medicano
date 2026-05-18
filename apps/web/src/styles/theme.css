@@ -1,0 +1,165 @@
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 16px;
+  --background: #ffffff;
+  --foreground: #0F172A;
+  --card: #ffffff;
+  --card-foreground: #0F172A;
+  --popover: #ffffff;
+  --popover-foreground: #0F172A;
+  
+  /* Brand colors mapped to UI tokens */
+  --primary: #03045E;
+  --primary-foreground: #ffffff;
+  
+  --secondary: #0077B6;
+  --secondary-foreground: #ffffff;
+  
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  
+  --accent: #CAF0F8;
+  --accent-foreground: #023E8A;
+  
+  --destructive: #EF4444;
+  --destructive-foreground: #ffffff;
+  
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --input-background: #F8FAFC;
+  --switch-background: #E2E8F0;
+  
+  --ring: #00B4D8;
+  
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  
+  --radius: 0.75rem;
+
+  /* Custom Brand colors */
+  --brand-marinho: #03045E;
+  --brand-azul-escuro: #023E8A;
+  --brand-azul-oceano: #0077B6;
+  --brand-turquesa-profundo: #0096C7;
+  --brand-turquesa-vibrante: #00B4D8;
+  --brand-turquesa-claro: #48CAE4;
+  --brand-turquesa-pastel: #90E0EF;
+  --brand-turquesa-palido: #ADE8F4;
+  --brand-quase-branco: #CAF0F8;
+  
+  --brand-verde-vibrante: #10B981;
+  --brand-verde-suave: #34D399;
+  --brand-verde-pastel: #A7F3D0;
+
+  --status-pendente: #F59E0B;
+  --status-cancelado: #EF4444;
+}
+
+@theme inline {
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  
+  --color-brand-marinho: var(--brand-marinho);
+  --color-brand-azul-escuro: var(--brand-azul-escuro);
+  --color-brand-azul-oceano: var(--brand-azul-oceano);
+  --color-brand-turquesa-profundo: var(--brand-turquesa-profundo);
+  --color-brand-turquesa-vibrante: var(--brand-turquesa-vibrante);
+  --color-brand-turquesa-claro: var(--brand-turquesa-claro);
+  --color-brand-turquesa-pastel: var(--brand-turquesa-pastel);
+  --color-brand-turquesa-palido: var(--brand-turquesa-palido);
+  --color-brand-quase-branco: var(--brand-quase-branco);
+  --color-brand-verde-vibrante: var(--brand-verde-vibrante);
+  --color-brand-verde-suave: var(--brand-verde-suave);
+  --color-brand-verde-pastel: var(--brand-verde-pastel);
+  --color-status-pendente: var(--status-pendente);
+  --color-status-cancelado: var(--status-cancelado);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  html {
+    font-size: var(--font-size);
+  }
+
+  h1 {
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--brand-marinho);
+  }
+
+  h2 {
+    font-size: clamp(24px, 3vw, 28px);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--brand-marinho);
+  }
+
+  h3 {
+    font-size: clamp(18px, 2vw, 20px);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  h4 {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  p {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--foreground);
+  }
+  
+  .text-secondary {
+    font-size: 14px;
+    color: var(--muted-foreground);
+  }
+
+  label {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  button {
+    font-weight: 500;
+  }
+}

@@ -1,6 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { IAuthTokens } from '@medicano/types';
 import { Role } from '../common/enums/role.enum';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users/users.service';
@@ -12,6 +11,20 @@ import { SignupDto } from './dto/signup.dto';
 const TOKEN_TTL = 7 * 24 * 3600;
 const STANDARD_ROLES = [Role.PATIENT, Role.CLINIC, Role.PROFESSIONAL];
 
+export interface AuthUser {
+  id: string;
+  role: string;
+  email?: string;
+  username?: string;
+  clinicId?: string;
+  name?: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -20,17 +33,17 @@ export class AuthService {
     private readonly redisService: RedisService,
   ) {}
 
-  async signup(dto: SignupDto): Promise<IAuthTokens> {
+  async signup(dto: SignupDto): Promise<AuthResponse> {
     const user = await this.usersService.createUser(dto);
     const userId = user._id.toString();
     const token = this.signToken(userId, user.role as Role);
 
     await this.redisService.saveToken(userId, token, TOKEN_TTL);
 
-    return { accessToken: token };
+    return { accessToken: token, user: this.toAuthUser(user) };
   }
 
-  async loginStandard(dto: LoginStandardDto): Promise<IAuthTokens> {
+  async loginStandard(dto: LoginStandardDto): Promise<AuthResponse> {
     let user: UserDocument | null = null;
 
     for (const role of STANDARD_ROLES) {
@@ -55,10 +68,10 @@ export class AuthService {
 
     await this.redisService.saveToken(userId, token, TOKEN_TTL);
 
-    return { accessToken: token };
+    return { accessToken: token, user: this.toAuthUser(user) };
   }
 
-  async loginAttendant(dto: LoginAttendantDto): Promise<IAuthTokens> {
+  async loginAttendant(dto: LoginAttendantDto): Promise<AuthResponse> {
     const user = await this.usersService.findByClinicIdAndUsername(
       dto.clinicId,
       dto.username,
@@ -79,7 +92,18 @@ export class AuthService {
 
     await this.redisService.saveToken(userId, token, TOKEN_TTL);
 
-    return { accessToken: token };
+    return { accessToken: token, user: this.toAuthUser(user) };
+  }
+
+  private toAuthUser(user: UserDocument): AuthUser {
+    return {
+      id: user._id.toString(),
+      role: user.role,
+      email: user.email,
+      username: user.username,
+      clinicId: user.clinicId?.toString(),
+      name: user.displayName,
+    };
   }
 
   async logout(userId: string): Promise<void> {

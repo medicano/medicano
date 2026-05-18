@@ -54,7 +54,9 @@ export class AvailabilityService {
     professionalId: string,
     dateString: string,
   ): Promise<AvailableSlotDto[]> {
-    const targetDate = this.normalizeDateToUtcMidnight(dateString);
+    // Use local midnight so setHours() below lands on the correct calendar day
+    const targetDate = new Date(dateString + 'T00:00:00');
+    const dayOfWeek = targetDate.getDay();
 
     const professional = await this.professionalModel
       .findById(professionalId)
@@ -63,8 +65,6 @@ export class AvailabilityService {
     if (!professional) {
       return [];
     }
-
-    const dayOfWeek = targetDate.getUTCDay();
 
     const weeklySlots = (professional.weeklySlots ?? []).filter(
       (slot: { dayOfWeek: number; startTime: string; endTime: string }) =>
@@ -75,14 +75,13 @@ export class AvailabilityService {
       return [];
     }
 
-    const nextDayDate = new Date(targetDate);
-    nextDayDate.setUTCDate(nextDayDate.getUTCDate() + 1);
+    const nextDayDate = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
 
     const existingAppointments = await this.appointmentModel
       .find({
         professionalId,
         startAt: { $gte: targetDate, $lt: nextDayDate },
-        status: { $in: ['confirmed', 'pending'] },
+        status: { $in: ['scheduled', 'confirmed'] },
       })
       .exec();
 
@@ -92,25 +91,33 @@ export class AvailabilityService {
       const [startHour, startMinute] = slot.startTime.split(':').map(Number);
       const [endHour, endMinute] = slot.endTime.split(':').map(Number);
 
-      const slotStart = new Date(targetDate);
-      slotStart.setUTCHours(startHour, startMinute, 0, 0);
+      const blockStart = new Date(targetDate);
+      blockStart.setHours(startHour, startMinute, 0, 0);
 
-      const slotEnd = new Date(targetDate);
-      slotEnd.setUTCHours(endHour, endMinute, 0, 0);
+      const blockEnd = new Date(targetDate);
+      blockEnd.setHours(endHour, endMinute, 0, 0);
 
-      const hasOverlap = existingAppointments.some((appt) => {
-        const apptStart = new Date(appt.startAt);
-        const apptEnd = new Date(appt.endAt);
-        return apptStart < slotEnd && apptEnd > slotStart;
-      });
+      const durationMs = (slot.slotDurationMinutes ?? 30) * 60 * 1000;
+      const now = Date.now();
+      let cursor = blockStart.getTime();
 
-      if (!hasOverlap) {
-        availableSlots.push(
-          new AvailableSlotDto({
-            startAt: slotStart,
-            endAt: slotEnd,
-          }),
-        );
+      while (cursor + durationMs <= blockEnd.getTime()) {
+        if (cursor >= now) {
+          const start = new Date(cursor);
+          const end = new Date(cursor + durationMs);
+
+          const hasOverlap = existingAppointments.some((appt) => {
+            const apptStart = new Date(appt.startAt);
+            const apptEnd = new Date(appt.endAt);
+            return apptStart < end && apptEnd > start;
+          });
+
+          if (!hasOverlap) {
+            availableSlots.push(new AvailableSlotDto({ startAt: start, endAt: end }));
+          }
+        }
+
+        cursor += durationMs;
       }
     }
 

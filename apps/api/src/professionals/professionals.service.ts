@@ -4,8 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Professional, ProfessionalDocument } from './schemas/professional.schema';
+import { ClinicProfessional, ClinicProfessionalDocument } from './schemas/clinic-professional.schema';
+import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { UpdateProfessionalDto } from './dto/update-professional.dto';
 import { UpdateWeeklySlotsDto } from './dto/update-weekly-slots.dto';
@@ -15,6 +17,10 @@ export class ProfessionalsService {
   constructor(
     @InjectModel(Professional.name)
     private readonly professionalModel: Model<ProfessionalDocument>,
+    @InjectModel(ClinicProfessional.name)
+    private readonly clinicProfessionalModel: Model<ClinicProfessionalDocument>,
+    @InjectModel(Clinic.name)
+    private readonly clinicModel: Model<ClinicDocument>,
   ) {}
 
   async create(userId: string, createProfessionalDto: CreateProfessionalDto): Promise<ProfessionalDocument> {
@@ -40,12 +46,24 @@ export class ProfessionalsService {
     return this.professionalModel.find().exec();
   }
 
-  async findById(id: string): Promise<ProfessionalDocument> {
+  async findById(id: string): Promise<ProfessionalDocument & { clinicId?: string; clinicName?: string }> {
     const professional = await this.professionalModel.findById(id).exec();
     if (!professional) {
       throw new NotFoundException(`Professional with id ${id} not found`);
     }
-    return professional;
+    const link = await this.clinicProfessionalModel
+      .findOne({ professionalId: new Types.ObjectId(id) })
+      .lean()
+      .exec();
+    const result = professional.toObject() as ProfessionalDocument & { clinicId?: string; clinicName?: string };
+    if (link) {
+      result.clinicId = link.clinicId.toString();
+      const clinic = await this.clinicModel.findById(link.clinicId).select('name').lean().exec();
+      if (clinic) {
+        result.clinicName = clinic.name;
+      }
+    }
+    return result;
   }
 
   async findByUserId(userId: string): Promise<ProfessionalDocument | null> {

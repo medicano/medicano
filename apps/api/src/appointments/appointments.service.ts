@@ -12,6 +12,8 @@ import {
   AppointmentDocument,
   AppointmentStatus,
 } from './schemas/appointment.schema';
+import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
+import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
@@ -23,22 +25,60 @@ export class AppointmentsService {
   constructor(
     @InjectModel(Appointment.name)
     private readonly appointmentModel: Model<AppointmentDocument>,
+    @InjectModel(Professional.name)
+    private readonly professionalModel: Model<ProfessionalDocument>,
+    @InjectModel(Clinic.name)
+    private readonly clinicModel: Model<ClinicDocument>,
     private readonly notificationsService: NotificationsService,
   ) {}
 
   async createAppointment(dto: CreateAppointmentDto): Promise<AppointmentDocument> {
-    const appointment = await this.appointmentModel.create(dto);
+    const durationMinutes = dto.durationMinutes ?? 30;
+    const startAt = new Date(dto.startAt);
+    const endAt = new Date(startAt.getTime() + durationMinutes * 60 * 1000);
+    const appointment = await this.appointmentModel.create({ ...dto, durationMinutes, endAt });
     this.notificationsService.notifyAppointmentCreated(appointment).catch(() => {});
     return appointment;
   }
 
-  async findAll(query?: GetAppointmentsQueryDto): Promise<AppointmentDocument[]> {
+  async findAll(query?: GetAppointmentsQueryDto): Promise<any[]> {
     const filter: Record<string, unknown> = {};
     if (query?.clinicId) filter['clinicId'] = query.clinicId;
     if (query?.professionalId) filter['professionalId'] = query.professionalId;
     if (query?.patientId) filter['patientId'] = query.patientId;
     if (query?.status) filter['status'] = query.status;
-    return this.appointmentModel.find(filter).exec();
+    if (query?.upcoming === 'true' || query?.upcoming === true) {
+      const todayMidnight = new Date();
+      todayMidnight.setHours(0, 0, 0, 0);
+      filter['startAt'] = { $gte: todayMidnight };
+      if (!query?.status) filter['status'] = { $in: ['scheduled', 'confirmed'] };
+    }
+
+    const appointments = await this.appointmentModel.find(filter).sort({ startAt: 1 }).lean().exec();
+    if (appointments.length === 0) return [];
+
+    const professionalIds = [...new Set(appointments.map((a) => a.professionalId?.toString()).filter(Boolean))];
+    const clinicIds = [...new Set(appointments.map((a) => a.clinicId?.toString()).filter(Boolean))];
+
+    const [professionals, clinics] = await Promise.all([
+      this.professionalModel.find({ _id: { $in: professionalIds } }).select('name specialty').lean().exec(),
+      this.clinicModel.find({ _id: { $in: clinicIds } }).select('name').lean().exec(),
+    ]);
+
+    const proMap = new Map(professionals.map((p) => [(p._id as any).toString(), p]));
+    const clinicMap = new Map(clinics.map((c) => [(c._id as any).toString(), c]));
+
+    return appointments.map((a) => {
+      const pro = proMap.get(a.professionalId?.toString() ?? '');
+      const clinic = clinicMap.get(a.clinicId?.toString() ?? '');
+      return {
+        ...a,
+        id: (a._id as any).toString(),
+        professionalName: pro?.name ?? '',
+        specialty: pro?.specialty ?? '',
+        clinicName: clinic?.name ?? '',
+      };
+    });
   }
 
   async getAppointmentById(id: string): Promise<AppointmentDocument> {

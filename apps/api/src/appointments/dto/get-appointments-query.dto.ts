@@ -1,4 +1,4 @@
-import { IsMongoId, IsDateString, IsEnum, IsOptional } from 'class-validator';
+import { IsMongoId, IsDateString, IsEnum, IsOptional, IsIn } from 'class-validator';
 import { AppointmentStatus } from '../schemas/appointment.schema';
 
 export class GetAppointmentsQueryDto {
@@ -29,4 +29,8 @@ export class GetAppointmentsQueryDto {
   @IsEnum(AppointmentStatus)
   @IsOptional()
   readonly status?: AppointmentStatus;
+
+  @IsIn(['true', 'false', true, false])
+  @IsOptional()
+  readonly upcoming?: string | boolean;
 }

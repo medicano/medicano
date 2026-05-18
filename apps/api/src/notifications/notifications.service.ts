@@ -5,7 +5,6 @@ import { Model } from 'mongoose';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 
 import { AppointmentDocument } from '../appointments/schemas/appointment.schema';
-import { Patient, PatientDocument } from '../patients/schemas/patient.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { ProfessionalsService } from '../professionals/professionals.service';
 
@@ -37,7 +36,6 @@ export class NotificationsService {
 
   constructor(
     private readonly configService: ConfigService,
-    @InjectModel(Patient.name) private readonly patientModel: Model<PatientDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly professionalsService: ProfessionalsService,
   ) {
@@ -221,27 +219,15 @@ export class NotificationsService {
     let professionalEmail: string | null = null;
     let professionalName = 'Professional';
 
-    // Resolve patient
+    // Resolve patient — patientId is the User._id directly
     try {
-      const patient = (await this.patientModel
+      const patientUser = (await this.userModel
         .findById(appointment.patientId)
-        .exec()) as PatientDocument | null;
+        .exec()) as UserDocument | null;
 
-      if (patient) {
-        patientName = (patient as any).name ?? patientName;
-
-        const patientUser = (await this.userModel
-          .findById((patient as any).userId)
-          .exec()) as UserDocument | null;
-
-        if (patientUser) {
-          patientEmail = (patientUser as any).email ?? null;
-          patientName = (patientUser as any).displayName ?? (patientUser as any).name ?? patientName;
-        } else {
-          this.logger.warn(
-            `resolveParties: user not found for patient in appointment ${appointment._id}`,
-          );
-        }
+      if (patientUser) {
+        patientEmail = (patientUser as any).email ?? null;
+        patientName = (patientUser as any).name ?? patientName;
       } else {
         this.logger.warn(`resolveParties: patient not found for appointment ${appointment._id}`);
       }
@@ -256,7 +242,7 @@ export class NotificationsService {
       const professional = await this.professionalsService.findById(String(appointment.professionalId));
 
       if (professional) {
-        professionalName = (professional as any).displayName ?? professionalName;
+        professionalName = (professional as any).name ?? professionalName;
 
         const professionalUser = (await this.userModel
           .findById((professional as any).userId)
@@ -264,8 +250,6 @@ export class NotificationsService {
 
         if (professionalUser) {
           professionalEmail = (professionalUser as any).email ?? null;
-          professionalName =
-            (professionalUser as any).displayName ?? (professionalUser as any).name ?? professionalName;
         } else {
           this.logger.warn(
             `resolveParties: user not found for professional in appointment ${appointment._id}`,

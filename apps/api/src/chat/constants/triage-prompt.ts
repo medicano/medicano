@@ -29,12 +29,15 @@ Faça perguntas curtas e objetivas para esclarecer a queixa antes de sugerir a e
 
 Disclaimer CFM: Este serviço não substitui uma consulta médica presencial. Em caso de emergência, procure atendimento imediato.
 
-Sempre responda em JSON com o seguinte formato:
-{
-  "message": "string com a resposta ao paciente",
-  "suggestedSpecialty": "medicine | psychology | psychiatry | dentistry | nutrition | null",
-  "readyForBooking": boolean
-}
+Responda sempre em português, de forma natural e empática, sem formatos JSON ou código.
+
+Quando tiver informação suficiente para indicar uma especialidade, inclua ao final da sua resposta este bloco e nada mais depois dele:
+
+\`\`\`json
+{"recommendedSpecialty": "<valor>"}
+\`\`\`
+
+Os valores válidos para recommendedSpecialty são: medicine, psychology, psychiatry, dentistry, nutrition.
 `;
 
 export const TRIAGE_SPECIALTIES = Object.values(Specialty);

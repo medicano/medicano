@@ -10,6 +10,7 @@ import {
   ClinicProfessional,
   ClinicProfessionalSchema,
 } from '../professionals/schemas/clinic-professional.schema';
+import { Clinic, ClinicSchema } from '../clinics/schemas/clinic.schema';
 import {
   Subscription,
   SubscriptionSchema,
@@ -20,6 +21,7 @@ import {
     MongooseModule.forFeature([
       { name: Professional.name, schema: ProfessionalSchema },
       { name: ClinicProfessional.name, schema: ClinicProfessionalSchema },
+      { name: Clinic.name, schema: ClinicSchema },
       { name: Subscription.name, schema: SubscriptionSchema },
     ]),
   ],
