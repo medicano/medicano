@@ -119,10 +119,10 @@ apps/api/src/
 |   |-- strategies/     estratégias JWT e local
 |   |-- guards/         guards de rotas protegidas
 |-- users/              gestão de usuários
-|-- clinics/            gestão de clínicas
+|-- clinics/            gestão de estabelecimentos de saúde
 |-- professionals/      gestão de autônomos
 |-- appointments/       agendamentos
-|-- chat/               chatbot de triagem
+|-- chat/               chatbot de orientação
 |-- subscriptions/      planos de assinatura
 |-- config/             configuração e secrets
 |-- app.module.ts       módulo raiz
@@ -138,14 +138,14 @@ conforme o perfil do usuário, implementados como
 estratégias separadas no módulo de autenticação:
 
 \begin{itemize}
-  \item \textbf{Paciente, clínica e autônomo:}
+  \item \textbf{Paciente, estabelecimento de saúde e autônomo:}
         autenticam por e-mail e senha. A estratégia
         valida o e-mail, verifica o hash Bcrypt da
         senha e emite um token JWT armazenado no
         Redis com TTL de 7 dias
   \item \textbf{Funcionário (atendente):}
         autentica por nome de usuário e senha dentro
-        do escopo da clínica vinculada. A estratégia
+        do escopo do estabelecimento de saúde vinculado. A estratégia
         valida a combinação de \texttt{username} +
         \texttt{clinicId} para garantir unicidade
         por escopo
@@ -217,10 +217,10 @@ a sessão e injetado automaticamente nos cabeçalhos
 de autorização por meio de um interceptor global
 do Axios.
 
-\subsection{Chatbot de Triagem}
+\subsection{Chatbot de Orientação}
 \label{subsec:chat-frontend}
 
-A interface do chatbot de triagem utiliza o Vercel
+A interface do chatbot de orientação utiliza o Vercel
 AI SDK no frontend para receber as respostas do
 modelo em modo streaming, exibindo o texto
 progressivamente enquanto ainda é gerado pelo
@@ -483,7 +483,7 @@ futuras incluem:
   \item Extração do módulo de chatbot para um
         microserviço Python independente com
         LangChain, permitindo evolução da lógica
-        de triagem sem impacto no backend principal
+        de orientação sem impacto no backend principal
   \item Implementação de fila de mensagens com
         Amazon SQS para absorção de picos de
         demanda nas chamadas aos modelos de

@@ -82,7 +82,7 @@ sem comprometer o planejamento geral.
 
 O backlog do produto é organizado por ordem de
 prioridade de negócio, sendo os fluxos essenciais do
-MVP — autenticação, triagem por chatbot, busca e
+MVP — autenticação, orientação por chatbot, busca e
 agendamento — priorizados nas primeiras sprints. A
 Tabela~\ref{tab:sprints} apresenta a distribuição do
 escopo ao longo das sprints planejadas.
@@ -103,14 +103,14 @@ escopo ao longo das sprints planejadas.
       & Auth funcionando
       & 2 semanas \\
     \midrule
-    2 & Módulo de clínicas e profissionais,
+    2 & Módulo de estabelecimentos de saúde e profissionais,
         busca com filtros, perfil público
       & Busca de profissionais
       & 2 semanas \\
     \midrule
-    3 & Chatbot de triagem com Vercel AI SDK,
+    3 & Chatbot de orientação com Vercel AI SDK,
         integração com busca da plataforma
-      & Triagem funcionando
+      & Orientação funcionando
       & 2 semanas \\
     \midrule
     4 & Sistema de agendamentos, regras de
@@ -118,12 +118,12 @@ escopo ao longo das sprints planejadas.
       & Agendamento \textit{end-to-end}
       & 2 semanas \\
     \midrule
-    5 & Dashboard da clínica, gestão de agenda,
+    5 & Dashboard do estabelecimento de saúde, gestão de agenda,
         confirmação e cancelamento
-      & Painel da clínica
+      & Painel do estabelecimento de saúde
       & 2 semanas \\
     \midrule
-    6 & Módulo de assinaturas, planos de clínica
+    6 & Módulo de assinaturas, planos de estabelecimento de saúde
         e profissional autônomo, integração de
         pagamento
       & Assinaturas funcionando
@@ -320,7 +320,7 @@ processo funciona da seguinte forma:
   \item Cada nova funcionalidade ou correção é
         desenvolvida em uma branch separada, nomeada
         de forma descritiva — por exemplo,
-        \texttt{feature/chat-triagem} ou
+        \texttt{feature/chat-orientacao} ou
         \texttt{fix/slot-conflict}
   \item Ao finalizar o desenvolvimento, o membro da
         equipe abre um Pull Request no GitHub para
@@ -504,7 +504,7 @@ entrega de sprint.
 
 A cobertura de testes automatizados é focada nos
 fluxos críticos do sistema: autenticação, regras de
-agendamento e lógica de triagem. Fluxos secundários
+agendamento e lógica de orientação. Fluxos secundários
 são cobertos pelos testes manuais realizados ao
 final de cada sprint, conforme o processo definido
 pelo Scrum \cite{schwaber2020}.

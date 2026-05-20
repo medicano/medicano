@@ -30,7 +30,7 @@ inovação em saúde.
 
 A Medicano se insere nesse contexto como uma plataforma
 que digitaliza o processo de agendamento de serviços de
-saúde, integrando funcionalidades de busca, triagem e
+saúde, integrando funcionalidades de busca, orientação e
 confirmação de atendimentos em um único ambiente.
 
 \section{Arquitetura de Software}
@@ -124,7 +124,7 @@ O NestJS é um framework para construção de APIs em
 Node.js que usa TypeScript como linguagem principal.
 Ele organiza o código em módulos independentes, onde
 cada módulo representa um domínio da aplicação — como
-autenticação, clínicas ou agendamentos — com seus
+autenticação, estabelecimentos de saúde ou agendamentos — com seus
 próprios controllers, services e providers
 \cite{nestjs2024}.
 
@@ -296,7 +296,7 @@ conversa, responder perguntas, resumir textos e seguir
 instruções complexas sem precisar ser retreinado para
 cada novo caso de uso. Essa versatilidade os torna
 adequados para aplicações conversacionais como o chatbot
-de triagem da Medicano, onde o modelo precisa interpretar
+de orientação da Medicano, onde o modelo precisa interpretar
 sintomas descritos em linguagem livre e recomendar uma
 especialidade de saúde \cite{brown2020}.
 
@@ -318,7 +318,7 @@ o modelo a raciocinar passo a passo antes de responder
 — aumentam significativamente a precisão em tarefas
 que exigem raciocínio estruturado.
 
-No chatbot de triagem da Medicano, o system prompt
+No chatbot de orientação da Medicano, o system prompt
 instrui o modelo a conduzir uma conversa guiada sobre
 os sintomas do usuário e, ao final, recomendar uma
 das especialidades disponíveis na plataforma. O prompt
@@ -366,7 +366,7 @@ diretrizes para o uso de tecnologias digitais no
 atendimento médico, incluindo restrições sobre
 diagnóstico automatizado \cite{cfm2023}.
 
-O chatbot de triagem da Medicano é projetado
+O chatbot de orientação da Medicano é projetado
 explicitamente como uma ferramenta de orientação e
 direcionamento, e não de diagnóstico. Toda interação
 inclui um aviso claro ao usuário de que as recomendações
@@ -587,7 +587,7 @@ de investir no desenvolvimento completo.
 
 No contexto da Medicano, o MVP contempla os fluxos
 essenciais para validar a proposta de valor da
-plataforma: cadastro e autenticação, triagem por
+plataforma: cadastro e autenticação, orientação por
 chatbot, busca por especialidade e localização,
 agendamento de consultas e gestão de agenda.
 Funcionalidades como notificações por e-mail,

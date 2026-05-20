@@ -6,7 +6,7 @@
 
 Este trabalho apresentou o desenvolvimento da Medicano,
 uma plataforma web de agendamento de serviços de saúde
-com triagem inteligente por chatbot, construída como
+com orientação inteligente por chatbot, construída como
 trabalho de conclusão de curso do Bacharelado em
 Engenharia de Software da PUC Campinas.
 
@@ -24,7 +24,7 @@ de grande escala.
 Ao longo do primeiro semestre letivo de 2026, a equipe
 percorreu sete sprints quinzenais, cobrindo desde a
 configuração da infraestrutura e a autenticação até o
-módulo de agendamentos, o painel da clínica, o módulo
+módulo de agendamentos, o painel do estabelecimento de saúde, o módulo
 de assinaturas e o deploy em produção na AWS. O
 resultado é um sistema funcional, acessível pelo
 domínio \texttt{medicano.app}, com frontend distribuído
@@ -46,7 +46,7 @@ contratos previamente acordados.
 As principais contribuições técnicas deste trabalho são:
 
 \begin{itemize}
-  \item \textbf{Chatbot de triagem com LLM:} integração
+  \item \textbf{Chatbot de orientação com LLM:} integração
         do Vercel AI SDK com modelos de linguagem para
         orientar o paciente à especialidade mais
         adequada em linguagem natural, com respostas
@@ -54,7 +54,7 @@ As principais contribuições técnicas deste trabalho são:
         conversacional fluida
 
   \item \textbf{Plataforma multilocatária:} arquitetura
-        que suporta simultaneamente clínicas com acesso
+        que suporta simultaneamente estabelecimentos de saúde com acesso
         delegado a funcionários, profissionais autônomos
         com agenda individual e pacientes sem vínculo
         institucional, mantendo isolamento de dados
@@ -105,7 +105,7 @@ que devem ser consideradas na avaliação do sistema:
         pode limitar a experiência em dispositivos
         móveis
 
-  \item \textbf{Triagem restrita ao direcionamento
+  \item \textbf{Orientação restrita ao direcionamento
         de especialidade:} o chatbot não realiza
         diagnóstico clínico — direciona o paciente
         à especialidade adequada, mas não substitui
@@ -122,7 +122,7 @@ que devem ser consideradas na avaliação do sistema:
 
   \item \textbf{Cobertura de testes concentrada nos
         fluxos críticos:} testes automatizados cobrem
-        autenticação, regras de agendamento e triagem;
+        autenticação, regras de agendamento e orientação;
         módulos secundários dependem de validação
         manual ao final de cada sprint
 \end{itemize}
@@ -139,7 +139,7 @@ algumas evoluções técnicas já identificadas incluem:
 \begin{itemize}
   \item \textbf{Integração com gateway de pagamento:}
         conclusão do módulo de assinaturas com
-        cobrança recorrente, permitindo que clínicas
+        cobrança recorrente, permitindo que estabelecimentos de saúde
         e profissionais autônomos ativem seus planos
         diretamente pela plataforma
 
@@ -165,8 +165,8 @@ algumas evoluções técnicas já identificadas incluem:
         múltiplas instâncias do servidor sem
         dependência de estado local
 
-  \item \textbf{Extração do módulo de triagem:}
-        separação do chatbot de triagem em um
+  \item \textbf{Extração do módulo de orientação:}
+        separação do chatbot de orientação em um
         microsserviço independente, permitindo
         evoluir a lógica de LLM sem impacto no
         backend principal e habilitando o uso de

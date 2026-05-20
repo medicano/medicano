@@ -21,18 +21,19 @@ de saúde no país.
 
 A ausência de plataformas acessíveis e integradas de agendamento
 de serviços de saúde impõe dificuldades tanto aos pacientes
-quanto aos profissionais e clínicas. Do ponto de vista do
+quanto aos profissionais e estabelecimentos de saúde. Do ponto de vista do
 paciente, a dependência de canais síncronos limita o acesso
 ao agendamento fora do horário comercial e aumenta o tempo
 necessário para confirmar um atendimento. Para os profissionais
-e clínicas, a ausência de um sistema centralizado dificulta a
+e estabelecimentos de saúde, a ausência de um sistema centralizado dificulta a
 visualização da agenda, aumenta a ocorrência de faltas não
 comunicadas e sobrecarrega a equipe administrativa com tarefas
 manuais e repetitivas.
 
-Essa realidade não se restringe às clínicas médicas
+Essa realidade não se restringe aos estabelecimentos de saúde
 convencionais. Profissionais de diversas áreas da saúde, como
-psicólogos, psiquiatras, dentistas e nutricionistas, enfrentam
+médicos especialistas, psicólogos, psiquiatras, dentistas,
+nutricionistas, fisioterapeutas e fonoaudiólogos, enfrentam
 os mesmos desafios de gestão de agenda, uma vez que também
 dependem de canais informais para organizar seus atendimentos.
 
@@ -69,7 +70,7 @@ soluções digitais nessa área.
 Diferentemente de plataformas existentes que focam
 predominantemente em agendamentos médicos, a Medicano propõe
 uma abordagem abrangente, contemplando diferentes áreas da
-saúde e incorporando um chatbot de triagem inteligente baseado
+saúde e incorporando um chatbot de orientação inteligente baseado
 em Large Language Models (LLMs). Esse componente permite que
 o paciente descreva seus sintomas em linguagem natural e seja
 direcionado automaticamente para a especialidade mais adequada,
@@ -89,8 +90,8 @@ importância no ecossistema de inovação brasileiro.
 \label{subsec:general-objective}
 
 Desenvolver uma plataforma web de agendamento de serviços de
-saúde que conecte pacientes a clínicas e profissionais de
-diferentes especialidades, incorporando um chatbot de triagem
+saúde que conecte pacientes o estabelecimento de saúdes e profissionais de
+diferentes especialidades, incorporando um chatbot de orientação
 inteligente baseado em Large Language Models para orientar
 o paciente à especialidade mais adequada às suas necessidades.
 
@@ -105,17 +106,17 @@ o paciente à especialidade mais adequada às suas necessidades.
         de tokens JWT com Redis, permitindo revogação
         imediata de sessões no logout        ← aqui
 
-  \item Desenvolver chatbot de triagem inteligente
+  \item Desenvolver chatbot de orientação inteligente
         utilizando Vercel AI SDK integrado a modelos
         de linguagem de grande escala para
         direcionamento por especialidade
 
   \item Desenvolver módulo de busca de profissionais
-        e clínicas por especialidade e localização
+        e estabelecimentos de saúde por especialidade e localização
 
   \item Construir sistema de gerenciamento de slots
         de disponibilidade para profissionais e
-        clínicas
+        estabelecimentos de saúde
 
   \item Implementar fluxo completo de agendamento,
         confirmação e cancelamento de atendimentos
