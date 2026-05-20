@@ -62,7 +62,7 @@ Cada secret é um JSON no formato:
 }
 ```
 
-A região AWS é lida de `AWS_REGION` (default: `us-east-1`).
+A região AWS é lida de `AWS_REGION` (default: `sa-east-1`).
 
 ### Testes
 

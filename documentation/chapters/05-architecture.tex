@@ -281,10 +281,15 @@ do MongoDB.
 \subsection{Visão Geral da Infraestrutura AWS}
 \label{subsec:aws-overview}
 
-A infraestrutura de produção da Medicano é
-hospedada integralmente na Amazon Web Services.
-A Tabela~\ref{tab:aws-services} descreve os
-serviços utilizados e suas responsabilidades.
+A infraestrutura de produção da Medicano é hospedada
+integralmente na Amazon Web Services, com os recursos
+provisionados na região \texttt{sa-east-1} (São Paulo)
+para minimizar a latência ao público-alvo brasileiro.
+A única exceção é o certificado ACM utilizado pela
+distribuição CloudFront, emitido em \texttt{us-east-1}
+(Norte da Virgínia) por exigência do serviço.
+A Tabela 23 descreve os serviços utilizados e suas
+responsabilidades.
 
 \begin{table}[H]
   \centering
@@ -332,17 +337,27 @@ porta 443 e encaminhando para o NestJS na porta
 automaticamente pelo Let's Encrypt por meio do
 Certbot \cite{reese2008}.
 
-A configuração de DNS é realizada pelo Amazon
-Route 53, com dois registros principais:
+A configuração de DNS é realizada pelo Amazon Route 53,
+com três registros principais:
 
 \begin{itemize}
-  \item \texttt{medicano.app} --- aponta para a
-        distribuição CloudFront, servindo o
-        frontend React
-  \item \texttt{api.medicano.app} --- aponta para
-        o IP elástico da instância EC2, servindo
-        a API NestJS
+  \item \texttt{medicano.app} --- aponta para a distribuição
+        CloudFront, servindo o frontend React
+  \item \texttt{api.medicano.app} --- aponta para o IP elástico
+        da instância EC2, servindo a API NestJS de produção
+        (porta 3000)
+  \item \texttt{staging-api.medicano.app} --- aponta para o
+        mesmo IP elástico, mas com o Nginx encaminhando
+        requisições para a porta 3001, onde executa o
+        processo de \textit{staging}
 \end{itemize}
+
+Os processos de produção e \textit{staging} executam
+simultaneamente na mesma instância EC2, gerenciados pelo
+PM2 em modo \texttt{fork}, com configurações de ambiente
+distintas (\texttt{NODE\_ENV}) e portas separadas.
+Cada subdomínio possui certificado SSL próprio emitido
+pelo Let's Encrypt via Certbot.
 
 \subsection{Segurança e Credenciais}
 \label{subsec:security}
@@ -369,20 +384,20 @@ no cluster Atlas:
   \centering
   \caption{Ambientes do sistema}
   \label{tab:environments}
-  \begin{tabular}{p{3.2cm}p{5cm}p{5cm}}
+  \begin{tabular}{p{2.5cm}p{4cm}p{5cm}}
     \toprule
     \textbf{Ambiente} &
-    \textbf{Prefixo dos secrets} &
+    \textbf{Secret no AWS Secrets Manager} &
     \textbf{Database no Atlas} \\
     \midrule
     Desenvolvimento
-      & \texttt{medicano/development/}
+      & \texttt{medicano/api/development}
       & \texttt{medicano\_development} \\
     \textit{Staging}
-      & \texttt{medicano/staging/}
+      & \texttt{medicano/api/staging}
       & \texttt{medicano\_staging} \\
     Produção
-      & \texttt{medicano/production/}
+      & \texttt{medicano/api/production}
       & \texttt{medicano\_production} \\
     \bottomrule
   \end{tabular}
@@ -402,6 +417,52 @@ de funcionalidades antes da publicação. Ele é
 executado na mesma instância EC2 da produção,
 em processo separado gerenciado pelo PM2, exposto
 em porta distinta e sem tráfego de usuários reais.
+
+\subsection{Pipeline de Integração e Entrega Contínua}
+\label{subsec:cicd}
+
+O processo de \textit{deploy} é automatizado por meio
+do GitHub Actions, eliminando a necessidade de intervenção
+manual a cada nova versão e reduzindo o risco de erros
+operacionais. Dois \textit{workflows} independentes são
+definidos no repositório, refletindo a separação entre
+\textit{frontend} e \textit{backend} adotada na arquitetura.
+
+O \textit{workflow} \texttt{deploy-api.yml} é disparado a
+cada \textit{push} na branch \texttt{main} que afete
+arquivos do \texttt{apps/api}, dos pacotes compartilhados
+ou do próprio \textit{workflow}. Ele executa dois
+\textit{jobs} sequenciais:
+
+\begin{enumerate}
+  \item \textbf{Build and test}: instala as dependências
+        do \textit{monorepo}, compila os tipos
+        compartilhados (\texttt{@medicano/types}) e a API,
+        e executa a suíte de testes automatizados com
+        instâncias efêmeras de MongoDB e Redis fornecidas
+        como \textit{services} pelo runner.
+  \item \textbf{Deploy to EC2}: estabelece conexão SSH
+        com a instância de produção, executa \texttt{git
+        pull}, recompila os artefatos e reinicia os
+        processos PM2 de produção e \textit{staging}.
+\end{enumerate}
+
+O \textit{workflow} \texttt{deploy-web.yml} é análogo
+para o \textit{frontend}: realiza o \textit{build}
+otimizado do React via Vite, sincroniza os artefatos
+estáticos com o \textit{bucket} S3 (com políticas de
+\textit{cache} distintas para \texttt{index.html} e
+para os \textit{assets} versionados por \textit{hash})
+e invalida o \textit{cache} do CloudFront para garantir
+que a versão mais recente seja servida imediatamente.
+
+As credenciais utilizadas pelos \textit{workflows}
+(chave SSH da EC2, credenciais AWS, identificador da
+distribuição CloudFront) são armazenadas como
+\textit{secrets} do repositório GitHub, nunca expostas
+no código-fonte. O acesso ao deploy é restrito por
+políticas de proteção de \textit{branch} configuradas
+no GitHub.
 
 \subsection{Escalabilidade Futura}
 \label{subsec:scalability}
