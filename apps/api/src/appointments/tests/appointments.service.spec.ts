@@ -3,6 +3,8 @@ import { getModelToken } from '@nestjs/mongoose';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AppointmentsService } from '../appointments.service';
 import { Appointment } from '../schemas/appointment.schema';
+import { Professional } from '../../professionals/schemas/professional.schema';
+import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { NotificationsService } from '../../notifications/notifications.service';
 
 const mockNotificationsService = {
@@ -51,6 +53,14 @@ describe('AppointmentsService', () => {
         {
           provide: getModelToken(Appointment.name),
           useValue: mockAppointmentModel,
+        },
+        {
+          provide: getModelToken(Professional.name),
+          useValue: { find: jest.fn() },
+        },
+        {
+          provide: getModelToken(Clinic.name),
+          useValue: { find: jest.fn() },
         },
         {
           provide: NotificationsService,

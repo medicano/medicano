@@ -127,6 +127,17 @@ export class ChatService {
     }
   }
 
+  async getSession(
+    sessionId: string,
+    patientId: string,
+  ): Promise<ChatSessionDocument> {
+    const session = await this.findSessionById(sessionId);
+    if (session.patient.toString() !== patientId) {
+      throw new ForbiddenException('You do not have access to this session.');
+    }
+    return session;
+  }
+
   async findSessionById(sessionId: string): Promise<ChatSessionDocument> {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {

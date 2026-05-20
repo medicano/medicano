@@ -35,12 +35,16 @@ export class ClinicProfessionalsService {
       currentCount,
     );
 
+    const professional = await this.professionalsService.findById(professionalId);
+
     try {
       const clinicProfessional = new this.clinicProfessionalModel({
         clinicId: new Types.ObjectId(clinicId),
         professionalId: new Types.ObjectId(professionalId),
       });
-      return await clinicProfessional.save();
+      const saved = await clinicProfessional.save();
+      await this.clinicsService.addSpecialty(clinicId, professional.specialty);
+      return saved;
     } catch (error: any) {
       if (error?.code === 11000) {
         throw new ConflictException(
@@ -65,10 +69,11 @@ export class ClinicProfessionalsService {
     professionalId: string,
   ): Promise<void> {
     await this.clinicsService.findById(clinicId);
-    await this.professionalsService.findById(professionalId);
+    const professional = await this.professionalsService.findById(professionalId);
     await this.clinicProfessionalModel.deleteOne({
       clinicId: new Types.ObjectId(clinicId),
       professionalId: new Types.ObjectId(professionalId),
     });
+    await this.clinicsService.removeSpecialtyIfUnused(clinicId, professional.specialty);
   }
 }

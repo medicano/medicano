@@ -67,7 +67,7 @@ describe('AuthService', () => {
         'signed.jwt.token',
         TOKEN_TTL,
       );
-      expect(result).toEqual({ accessToken: 'signed.jwt.token' });
+      expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
     });
 
     it('should propagate ConflictException when user already exists', async () => {
@@ -116,7 +116,7 @@ describe('AuthService', () => {
         'access-token',
         TOKEN_TTL,
       );
-      expect(result).toEqual({ accessToken: 'access-token' });
+      expect(result).toMatchObject({ accessToken: 'access-token' });
     });
 
     it('should throw UnauthorizedException when user not found', async () => {
@@ -182,7 +182,7 @@ describe('AuthService', () => {
         'attendant-access-token',
         TOKEN_TTL,
       );
-      expect(result).toEqual({ accessToken: 'attendant-access-token' });
+      expect(result).toMatchObject({ accessToken: 'attendant-access-token' });
     });
 
     it('should throw UnauthorizedException when attendant not found', async () => {

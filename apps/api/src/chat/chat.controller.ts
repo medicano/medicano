@@ -36,6 +36,14 @@ export class ChatController {
     return this.chatService.listSessions(userId);
   }
 
+  @Get('sessions/:sessionId')
+  async getSession(
+    @CurrentUser() userId: string,
+    @Param('sessionId', ParseMongoIdPipe) sessionId: string,
+  ) {
+    return this.chatService.getSession(sessionId, userId);
+  }
+
   @Get('sessions/:sessionId/messages')
   async listMessages(
     @CurrentUser() userId: string,

@@ -4,6 +4,8 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ClinicsService } from '../clinics.service';
 import { Clinic } from '../schemas/clinic.schema';
+import { ClinicProfessional } from '../../professionals/schemas/clinic-professional.schema';
+import { Professional } from '../../professionals/schemas/professional.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
 import { Address } from '../../common/schemas/address.schema';
 
@@ -28,7 +30,7 @@ const mockClinic = {
   phone: '11999999999',
   email: 'contato@clinica.com',
   address: mockAddress,
-  specialties: [Specialty.GENERAL_PRACTICE, Specialty.PEDIATRICS],
+  specialties: [Specialty.MEDICINE, Specialty.NUTRITION],
   isActive: true,
   save: jest.fn().mockResolvedValue(this),
 };
@@ -57,6 +59,14 @@ describe('ClinicsService', () => {
           provide: getModelToken(Clinic.name),
           useValue: mockModel,
         },
+        {
+          provide: getModelToken(ClinicProfessional.name),
+          useValue: { find: jest.fn(), exists: jest.fn() },
+        },
+        {
+          provide: getModelToken(Professional.name),
+          useValue: { find: jest.fn(), exists: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -71,8 +81,9 @@ describe('ClinicsService', () => {
     it('should create a clinic with Address subdocument', async () => {
       const createDto = {
         name: 'Clínica Saúde Total',
-        address: mockAddress,
-        specialties: [Specialty.GENERAL_PRACTICE],
+        cnpj: '12345678000195',
+        address: mockAddress as unknown as Record<string, unknown>,
+        specialties: [Specialty.MEDICINE],
       };
 
       const result = await service.create(mockUserId, createDto);
@@ -105,7 +116,7 @@ describe('ClinicsService', () => {
       const result = await service.findById(mockClinic._id.toHexString());
 
       expect(result).toEqual(mockClinic);
-      expect(result.specialties).toContain(Specialty.GENERAL_PRACTICE);
+      expect(result.specialties).toContain(Specialty.MEDICINE);
     });
 
     it('should throw NotFoundException if clinic not found', async () => {
@@ -138,7 +149,7 @@ describe('ClinicsService', () => {
       const result = await service.update(
         mockClinic._id.toHexString(),
         mockUserId,
-        { address: updatedAddress },
+        { address: updatedAddress as unknown as Record<string, unknown> },
       );
 
       expect(result.address).toEqual(updatedAddress);

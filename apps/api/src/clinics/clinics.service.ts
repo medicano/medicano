@@ -110,6 +110,30 @@ export class ClinicsService {
     return this.professionalModel.find({ _id: { $in: professionalIds } }).exec();
   }
 
+  async addSpecialty(clinicId: string, specialty: string): Promise<void> {
+    await this.clinicModel
+      .findByIdAndUpdate(clinicId, { $addToSet: { specialties: specialty } })
+      .exec();
+  }
+
+  async removeSpecialtyIfUnused(clinicId: string, specialty: string): Promise<void> {
+    const remainingLinks = await this.clinicProfessionalModel
+      .find({ clinicId: new Types.ObjectId(clinicId) })
+      .select('professionalId')
+      .lean()
+      .exec();
+    const remainingIds = remainingLinks.map((l) => l.professionalId as Types.ObjectId);
+    const stillUsed = await this.professionalModel.exists({
+      _id: { $in: remainingIds },
+      specialty,
+    });
+    if (!stillUsed) {
+      await this.clinicModel
+        .findByIdAndUpdate(clinicId, { $pull: { specialties: specialty } })
+        .exec();
+    }
+  }
+
   async remove(id: string, userId: string): Promise<void> {
     const clinic = await this.findOne(id);
     if (clinic.userId.toString() !== userId) {

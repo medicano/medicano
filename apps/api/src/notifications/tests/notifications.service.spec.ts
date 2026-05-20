@@ -60,7 +60,7 @@ describe('NotificationsService', () => {
 
   const appointment = {
     _id: 'appt-1',
-    patientId: 'patient-1',
+    patientId: 'user-patient-1',
     professionalId: 'prof-1',
     startAt: new Date('2025-01-10T10:00:00Z'),
     endAt: new Date('2025-01-10T10:30:00Z'),

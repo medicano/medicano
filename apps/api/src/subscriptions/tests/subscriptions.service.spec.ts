@@ -159,7 +159,7 @@ describe('SubscriptionsService', () => {
   describe('createSubscription', () => {
     it('creates a subscription with clinicId and plan', async () => {
       const dto = {
-        clinicId: 'clinic-2',
+        clinicId: '507f1f77bcf86cd799439011',
         plan: SubscriptionPlan.FREE,
       };
 

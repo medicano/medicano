@@ -54,7 +54,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            cd ~/medicano
+            cd ~/medicano-project
             git pull origin main
             npm ci --workspace=apps/api --workspace=packages/types
             npm run build --workspace=apps/api

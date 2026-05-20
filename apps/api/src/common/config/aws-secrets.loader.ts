@@ -36,7 +36,7 @@ export async function loadAwsSecrets(): Promise<Record<string, string>> {
   const secretName = resolveSecretName();
 
   const client = new SecretsManagerClient({
-    region: process.env.AWS_REGION ?? 'us-east-2',
+    region: process.env.AWS_REGION ?? 'sa-east-1',
   });
 
   const response = await client.send(

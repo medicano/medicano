@@ -3,22 +3,17 @@ import { getModelToken } from '@nestjs/mongoose';
 import { SearchService } from '../search.service';
 import { Professional } from '../../professionals/schemas/professional.schema';
 import { ClinicProfessional } from '../../professionals/schemas/clinic-professional.schema';
+import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { Subscription } from '../../subscriptions/schemas/subscription.schema';
 
 // ---------------------------------------------------------------------------
-// Helper: builds a chainable Mongoose query mock
+// Valid ObjectId constants (service calls new Types.ObjectId on these IDs)
 // ---------------------------------------------------------------------------
-function buildFindChain<T>(result: T) {
-  const chain = {
-    select: jest.fn().mockReturnThis(),
-    lean: jest.fn().mockReturnThis(),
-    exec: jest.fn().mockResolvedValue(result),
-  };
-  return {
-    find: jest.fn().mockReturnValue(chain),
-    __chain: chain,
-  };
-}
+const C1 = '507f1f77bcf86cd799439001';
+const C2 = '507f1f77bcf86cd799439002';
+const P1 = '507f1f77bcf86cd799439011';
+const P2 = '507f1f77bcf86cd799439012';
+const P3 = '507f1f77bcf86cd799439013';
 
 // ---------------------------------------------------------------------------
 // Default (empty) mocks — reset in beforeEach via jest.clearAllMocks()
@@ -87,6 +82,16 @@ describe('SearchService', () => {
           useValue: mockClinicProfessionalModel,
         },
         {
+          provide: getModelToken(Clinic.name),
+          useValue: {
+            find: jest.fn().mockReturnValue({
+              select: jest.fn().mockReturnThis(),
+              lean: jest.fn().mockReturnThis(),
+              exec: jest.fn().mockResolvedValue([]),
+            }),
+          },
+        },
+        {
           provide: getModelToken(Subscription.name),
           useValue: mockSubscriptionModel,
         },
@@ -107,21 +112,21 @@ describe('SearchService', () => {
     it('returns empty array when no professionals match', async () => {
       const result = await service.search({ query: 'cardiology' } as any);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(0);
+      expect(Array.isArray(result.professionals)).toBe(true);
+      expect(result.professionals).toHaveLength(0);
     });
 
     it('returns professionals matching the search query', async () => {
       const professionals = [
-        { _id: 'P1', name: 'Dr. One', specialty: 'cardiology' },
-        { _id: 'P2', name: 'Dr. Two', specialty: 'cardiology' },
+        { _id: P1, name: 'Dr. One', specialty: 'cardiology' },
+        { _id: P2, name: 'Dr. Two', specialty: 'cardiology' },
       ];
 
       // Subscription: both clinics active
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1' }, { clinicId: 'C2' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }, { clinicId: C2 }]),
       });
 
       // Links: P1 → C1, P2 → C2
@@ -129,8 +134,8 @@ describe('SearchService', () => {
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
-          { clinicId: 'C1', professionalId: 'P1' },
-          { clinicId: 'C2', professionalId: 'P2' },
+          { clinicId: C1, professionalId: P1 },
+          { clinicId: C2, professionalId: P2 },
         ]),
       });
 
@@ -142,7 +147,7 @@ describe('SearchService', () => {
 
       const result = await service.search({ query: 'cardiology' } as any);
 
-      expect(result.length).toBeGreaterThanOrEqual(1);
+      expect(result.professionals.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -155,16 +160,15 @@ describe('SearchService', () => {
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
       });
 
-      // ClinicProfessional links: P1 → C1, P2 → C2 (C2 has no active sub)
+      // ClinicProfessional links: only P1 → C1 (simulating DB filtering — C2 has no active sub)
       mockClinicProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
-          { clinicId: 'C1', professionalId: 'P1' },
-          { clinicId: 'C2', professionalId: 'P2' },
+          { clinicId: C1, professionalId: P1 },
         ]),
       });
 
@@ -173,16 +177,16 @@ describe('SearchService', () => {
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
-          { _id: 'P1', name: 'Dr. One' },
-          { _id: 'P2', name: 'Dr. Two' },
+          { _id: P1, name: 'Dr. One' },
+          { _id: P2, name: 'Dr. Two' },
         ]),
       });
 
       const result = await service.search({ query: '' } as any);
 
-      const ids = result.map((r: any) => r._id ?? r.id);
-      expect(ids).toContain('P1');
-      expect(ids).not.toContain('P2');
+      const ids = result.professionals.map((r: any) => r._id ?? r.id);
+      expect(ids).toContain(P1);
+      expect(ids).not.toContain(P2);
     });
 
     it('RN20-02 — returns empty list when no clinic has an active subscription', async () => {
@@ -204,16 +208,16 @@ describe('SearchService', () => {
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
-          { _id: 'P1', name: 'Dr. One' },
+          { _id: P1, name: 'Dr. One' },
         ]),
       });
 
       const result = await service.search({ query: '' } as any);
 
-      expect(result).toHaveLength(0);
+      expect(result.professionals).toHaveLength(0);
     });
 
-    it('RN20-03 — subscription model is queried with status: active filter', async () => {
+    it('RN20-03 — subscription model is queried with active/trial status filter', async () => {
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
@@ -235,7 +239,7 @@ describe('SearchService', () => {
       await service.search({ query: 'dentist' } as any);
 
       expect(mockSubscriptionModel.find).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'active' }),
+        expect.objectContaining({ status: { $in: ['active', 'trial'] } }),
       );
     });
 
@@ -244,7 +248,7 @@ describe('SearchService', () => {
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
       });
 
       // P1 linked to C1, but P3 is NOT linked to any clinic
@@ -252,7 +256,7 @@ describe('SearchService', () => {
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
-          { clinicId: 'C1', professionalId: 'P1' },
+          { clinicId: C1, professionalId: P1 },
         ]),
       });
 
@@ -261,16 +265,16 @@ describe('SearchService', () => {
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
-          { _id: 'P1', name: 'Dr. One' },
-          { _id: 'P3', name: 'Dr. Three' },
+          { _id: P1, name: 'Dr. One' },
+          { _id: P3, name: 'Dr. Three' },
         ]),
       });
 
       const result = await service.search({ query: '' } as any);
 
-      const ids = result.map((r: any) => r._id ?? r.id);
-      expect(ids).toContain('P1');
-      expect(ids).not.toContain('P3');
+      const ids = result.professionals.map((r: any) => r._id ?? r.id);
+      expect(ids).toContain(P1);
+      expect(ids).not.toContain(P3);
     });
   });
 
@@ -282,19 +286,19 @@ describe('SearchService', () => {
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
       });
 
       mockClinicProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1', professionalId: 'P1' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1, professionalId: P1 }]),
       });
 
       mockProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: 'P1', name: 'Dr. One', specialty: 'neurology' }]),
+        exec: jest.fn().mockResolvedValue([{ _id: P1, name: 'Dr. One', specialty: 'neurology' }]),
       });
 
       await service.search({ query: '', specialty: 'neurology' } as any);
@@ -307,19 +311,19 @@ describe('SearchService', () => {
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
       });
 
       mockClinicProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ clinicId: 'C1', professionalId: 'P1' }]),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1, professionalId: P1 }]),
       });
 
       mockProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([{ _id: 'P1', name: 'Dr. One', city: 'São Paulo' }]),
+        exec: jest.fn().mockResolvedValue([{ _id: P1, name: 'Dr. One', city: 'São Paulo' }]),
       });
 
       await service.search({ query: '', city: 'São Paulo' } as any);

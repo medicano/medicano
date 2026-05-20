@@ -16,7 +16,7 @@ if (!AWS_ENVIRONMENTS.includes(env)) {
 const secretName = `medicano/web/${env}`;
 
 const client = new SecretsManagerClient({
-  region: process.env.AWS_REGION ?? 'us-east-2',
+  region: process.env.AWS_REGION ?? 'sa-east-1',
 });
 
 console.log(`Fetching secret: ${secretName}`);

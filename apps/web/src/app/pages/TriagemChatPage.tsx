@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { Send, Bot, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Send, Bot, AlertTriangle, ArrowLeft, Stethoscope } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PatientTopbar } from '../components/PatientTopbar';
@@ -12,6 +12,26 @@ interface Message {
   role: Role;
   content: string;
   time: string;
+}
+
+const SPECIALTY_LABELS: Record<string, string> = {
+  medicine: 'Medicina',
+  psychology: 'Psicologia',
+  psychiatry: 'Psiquiatria',
+  dentistry: 'Odontologia',
+  nutrition: 'Nutrição',
+};
+
+function parseRecommendation(raw: string): string | null {
+  const match = raw.match(/```json\s*([\s\S]*?)\s*```/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]);
+    const value = parsed.recommendedSpecialty;
+    return typeof value === 'string' && value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 const MAX = 4096;
@@ -47,15 +67,23 @@ export function TriagemChatPage() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [typing, setTyping] = useState(false);
+  const [recommendation, setRecommendation] = useState<string | null>(null);
   const cancelRef = useRef<(() => void) | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!sessionId) return;
     setLoading(true);
-    api.get(`/chat/sessions/${sessionId}/messages`)
-      .then(({ data }) => {
-        const msgs = mapMessages(Array.isArray(data) ? data : (data.messages || []));
+
+    Promise.all([
+      api.get(`/chat/sessions/${sessionId}`),
+      api.get(`/chat/sessions/${sessionId}/messages`),
+    ])
+      .then(([sessionRes, messagesRes]) => {
+        if (sessionRes.data?.recommendedSpecialty) {
+          setRecommendation(sessionRes.data.recommendedSpecialty);
+        }
+        const msgs = mapMessages(Array.isArray(messagesRes.data) ? messagesRes.data : (messagesRes.data.messages || []));
         if (msgs.length === 0) {
           msgs.push({
             id: 'welcome',
@@ -112,6 +140,8 @@ export function TriagemChatPage() {
       () => {
         setMessages((m) => m.map((x) => x.id === assistantId ? { ...x, content: cleanContent(rawContent) } : x));
         setTyping(false);
+        const detected = parseRecommendation(rawContent);
+        if (detected) setRecommendation(detected);
       },
       (err) => { console.error(err); setTyping(false); },
     );
@@ -198,34 +228,56 @@ export function TriagemChatPage() {
           )}
         </div>
 
-        <div className="py-4 border-t border-[#E2E8F0]">
-          <div className="relative bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] focus-within:border-[#00B4D8] focus-within:ring-4 focus-within:ring-[#CAF0F8] transition-all">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value.slice(0, MAX))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-              rows={2}
-              placeholder="Descreva o que você está sentindo..."
-              className="w-full bg-transparent resize-none px-5 py-3.5 pr-16 text-[15px] text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
-            />
-            <button
-              onClick={send}
-              disabled={!text.trim() || typing}
-              className="absolute right-3 bottom-3 w-11 h-11 rounded-full bg-[#10B981] hover:bg-[#34D399] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
-              aria-label="Enviar"
-            >
-              <Send size={18} />
-            </button>
+        {recommendation ? (
+          <div className="py-4 border-t border-[#E2E8F0]">
+            <div className="rounded-2xl border border-[#90E0EF] bg-[#CAF0F8] px-5 py-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#0077B6] flex items-center justify-center shrink-0">
+                <Stethoscope size={18} className="text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-[#03045E]">Triagem concluída</p>
+                <p className="text-sm text-[#0077B6]">
+                  Especialidade recomendada: <span className="font-semibold">{SPECIALTY_LABELS[recommendation] ?? recommendation}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => navigate(`/busca?especialidade=${recommendation}`)}
+                className="shrink-0 px-4 py-2 rounded-xl bg-[#0077B6] hover:bg-[#03045E] text-white text-sm font-semibold transition-colors"
+              >
+                Buscar profissionais
+              </button>
+            </div>
           </div>
-          <div className="flex items-center justify-end mt-1.5 text-xs text-[#94A3B8]">
-            {text.length}/{MAX}
+        ) : (
+          <div className="py-4 border-t border-[#E2E8F0]">
+            <div className="relative bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] focus-within:border-[#00B4D8] focus-within:ring-4 focus-within:ring-[#CAF0F8] transition-all">
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value.slice(0, MAX))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                rows={2}
+                placeholder="Descreva o que você está sentindo..."
+                className="w-full bg-transparent resize-none px-5 py-3.5 pr-16 text-[15px] text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
+              />
+              <button
+                onClick={send}
+                disabled={!text.trim() || typing}
+                className="absolute right-3 bottom-3 w-11 h-11 rounded-full bg-[#10B981] hover:bg-[#34D399] disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
+                aria-label="Enviar"
+              >
+                <Send size={18} />
+              </button>
+            </div>
+            <div className="flex items-center justify-end mt-1.5 text-xs text-[#94A3B8]">
+              {text.length}/{MAX}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

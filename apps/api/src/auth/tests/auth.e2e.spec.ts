@@ -11,8 +11,9 @@ const uniqueEmail = (): string =>
 describe('Auth (e2e)', () => {
   let app: INestApplication;
 
+  jest.setTimeout(60_000);
+
   beforeAll(async () => {
-    jest.setTimeout(60_000);
     const secrets = await loadAwsSecrets();
     Object.assign(process.env, secrets);
 
