@@ -11,6 +11,7 @@ import { ChatSession } from '../schemas/chat-session.schema';
 import { ChatMessage } from '../schemas/chat-message.schema';
 import { ANTHROPIC_MODEL } from '../constants/chat.tokens';
 import { ChatSessionType } from '../enums/chat-session-type.enum';
+import { Patient } from '../../patients/schemas/patient.schema';
 
 type StreamTextArgs = {
   model: unknown;
@@ -52,9 +53,11 @@ describe('ChatService', () => {
   let service: ChatService;
   let sessionModel: MockSessionModel;
   let messageModel: MockMessageModel;
+  const patientModel = { findOne: jest.fn() };
 
   beforeEach(async () => {
     (streamText as jest.Mock).mockReset();
+    patientModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
 
     sessionModel = {
       create: jest.fn(),
@@ -72,6 +75,7 @@ describe('ChatService', () => {
         ChatService,
         { provide: getModelToken(ChatSession.name), useValue: sessionModel },
         { provide: getModelToken(ChatMessage.name), useValue: messageModel },
+        { provide: getModelToken(Patient.name), useValue: patientModel },
         { provide: ANTHROPIC_MODEL, useValue: {} },
       ],
     }).compile();

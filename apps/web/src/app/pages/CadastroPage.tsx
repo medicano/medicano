@@ -13,7 +13,12 @@ import {
   EyeOff,
   Hash,
   ShieldCheck,
-  Info
+  Info,
+  Phone,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
 } from 'lucide-react';
 import { AlertCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -22,6 +27,12 @@ import { api } from '../lib/api';
 import { useAuth, type UserRole } from '../contexts/AuthContext';
 
 type AccountType = 'PATIENT' | 'CLINIC' | 'PROFESSIONAL' | 'ATTENDANT';
+
+const STATES = [
+  'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA',
+  'MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN',
+  'RO','RR','RS','SC','SE','SP','TO',
+];
 
 const types: {
   id: AccountType;
@@ -34,7 +45,7 @@ const types: {
   { id: 'PATIENT', label: 'Paciente', desc: 'Agendar consultas', icon: User, bg: 'bg-[#CAF0F8]', accent: 'text-[#00B4D8]' },
   { id: 'CLINIC', label: 'Clínica', desc: 'Gerenciar equipe', icon: Building2, bg: 'bg-[#ADE8F4]', accent: 'text-[#023E8A]' },
   { id: 'PROFESSIONAL', label: 'Profissional', desc: 'Sua agenda individual', icon: Stethoscope, bg: 'bg-[#E0F2FE]', accent: 'text-[#0077B6]' },
-  { id: 'ATTENDANT', label: 'Atendente', desc: 'Operar agenda da clínica', icon: Headset, bg: 'bg-[#A7F3D0]', accent: 'text-[#10B981]' }
+  { id: 'ATTENDANT', label: 'Atendente', desc: 'Operar agenda da clínica', icon: Headset, bg: 'bg-[#A7F3D0]', accent: 'text-[#10B981]' },
 ];
 
 function passwordStrength(pwd: string): { level: 0 | 1 | 2 | 3; label: string; color: string } {
@@ -48,9 +59,33 @@ function passwordStrength(pwd: string): { level: 0 | 1 | 2 | 3; label: string; c
   return { level: 3, label: 'Forte', color: 'bg-[#10B981]' };
 }
 
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+async function fetchCepAddress(cep: string): Promise<{ city: string; state: string } | null> {
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const data = await res.json();
+    if (data.erro) return null;
+    return { city: data.localidade ?? '', state: data.uf ?? '' };
+  } catch {
+    return null;
+  }
+}
+
 export function CadastroPage() {
   const [step, setStep] = useState<1 | 2>(1);
   const [account, setAccount] = useState<AccountType | null>(null);
+
+  // Common fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [clinicId, setClinicId] = useState('');
@@ -58,6 +93,19 @@ export function CadastroPage() {
   const [pwd, setPwd] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPwd, setShowPwd] = useState(false);
+
+  // Patient required fields
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [phone, setPhone] = useState('');
+
+  // Patient optional fields
+  const [showOptional, setShowOptional] = useState(false);
+  const [gender, setGender] = useState('');
+  const [pronouns, setPronouns] = useState('');
+  const [cep, setCep] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -65,25 +113,65 @@ export function CadastroPage() {
 
   const strength = passwordStrength(pwd);
   const isAttendant = account === 'ATTENDANT';
+  const isPatient = account === 'PATIENT';
 
   const roleMap: Record<AccountType, UserRole> = {
     PATIENT: 'patient', CLINIC: 'clinic', PROFESSIONAL: 'professional', ATTENDANT: 'attendant',
   };
 
+  async function handleCepBlur() {
+    const digits = digitsOnly(cep);
+    if (digits.length !== 8) return;
+    const address = await fetchCepAddress(digits);
+    if (address) {
+      setCity(address.city);
+      setState(address.state);
+    }
+  }
+
+  function validatePatientFields(): string | null {
+    if (!dateOfBirth) return 'Data de nascimento é obrigatória.';
+    const dob = new Date(dateOfBirth);
+    if (dob > new Date()) return 'Data de nascimento não pode ser futura.';
+    if (dob.getFullYear() < 1900) return 'Data de nascimento inválida.';
+    const phoneDigits = digitsOnly(phone);
+    if (phoneDigits.length < 10) return 'Telefone deve ter pelo menos 10 dígitos.';
+    return null;
+  }
+
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
     if (pwd !== confirm) { setError('As senhas não conferem.'); return; }
     if (!account) return;
+
+    if (isPatient) {
+      const patientError = validatePatientFields();
+      if (patientError) { setError(patientError); return; }
+    }
+
     setSubmitting(true);
     try {
       const payload: any = { name, password: pwd, role: roleMap[account] };
+
       if (isAttendant) {
         payload.clinicId = clinicId;
         payload.username = username;
       } else {
         payload.email = email;
       }
+
+      if (isPatient) {
+        payload.dateOfBirth = dateOfBirth;
+        payload.phone = '+55' + digitsOnly(phone);
+        if (gender) payload.gender = gender;
+        if (pronouns) payload.pronouns = pronouns;
+        if (cep) payload.cep = digitsOnly(cep);
+        if (city) payload.city = city;
+        if (state) payload.state = state;
+      }
+
       const { data } = await api.post('/auth/signup', payload);
       const token = data?.token ?? data?.accessToken ?? data?.access_token;
       const user = data?.user ?? data?.profile;
@@ -204,7 +292,9 @@ export function CadastroPage() {
                       <span>{error}</span>
                     </div>
                   )}
+
                   <Field icon={User} label="Nome completo" value={name} onChange={setName} placeholder="Seu nome" required />
+
                   {isAttendant ? (
                     <>
                       <div className="flex items-start gap-2 text-xs text-[#03045E] bg-[#CAF0F8]/50 border border-[#90E0EF] rounded-xl px-3 py-2.5">
@@ -216,6 +306,33 @@ export function CadastroPage() {
                     </>
                   ) : (
                     <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com.br" required />
+                  )}
+
+                  {isPatient && (
+                    <>
+                      <Field
+                        icon={Calendar}
+                        label="Data de nascimento"
+                        type="date"
+                        value={dateOfBirth}
+                        onChange={setDateOfBirth}
+                        required
+                      />
+                      <div>
+                        <Field
+                          icon={Phone}
+                          label="Telefone celular"
+                          type="tel"
+                          value={phone}
+                          onChange={(v) => setPhone(maskPhone(v))}
+                          placeholder="(11) 99999-9999"
+                          required
+                        />
+                        <p className="mt-1.5 text-xs text-[#64748B]">
+                          Usaremos apenas para confirmações e lembretes de consulta.
+                        </p>
+                      </div>
+                    </>
                   )}
 
                   <div>
@@ -256,6 +373,83 @@ export function CadastroPage() {
 
                   <Field icon={Lock} label="Confirmar senha" type="password" value={confirm} onChange={setConfirm} placeholder="Repita a senha" required />
 
+                  {isPatient && (
+                    <div className="border border-[#E2E8F0] rounded-2xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowOptional((s) => !s)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors"
+                      >
+                        <span>Informações adicionais (opcional)</span>
+                        {showOptional ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+
+                      {showOptional && (
+                        <div className="px-4 pb-4 pt-1 space-y-5 border-t border-[#E2E8F0]">
+                          <RadioGroup
+                            label="Como você se identifica?"
+                            value={gender}
+                            onChange={setGender}
+                            options={[
+                              { value: 'FEMALE', label: 'Mulher' },
+                              { value: 'MALE', label: 'Homem' },
+                              { value: 'NON_BINARY', label: 'Não-binárie' },
+                              { value: 'OTHER', label: 'Outro' },
+                              { value: 'PREFER_NOT_TO_SAY', label: 'Prefiro não dizer' },
+                            ]}
+                          />
+
+                          <RadioGroup
+                            label="Como você quer ser tratade?"
+                            hint="Usado para personalizar a comunicação na plataforma"
+                            value={pronouns}
+                            onChange={setPronouns}
+                            options={[
+                              { value: 'SHE', label: 'Ela / Dela' },
+                              { value: 'HE', label: 'Ele / Dele' },
+                              { value: 'THEY', label: 'Elu / Delu (linguagem neutra)' },
+                            ]}
+                          />
+
+                          <div className="space-y-3">
+                            <div>
+                              <Field
+                                icon={MapPin}
+                                label="CEP"
+                                value={cep}
+                                onChange={(v) => setCep(digitsOnly(v).slice(0, 8))}
+                                placeholder="00000000"
+                                onBlur={handleCepBlur}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field
+                                icon={MapPin}
+                                label="Cidade"
+                                value={city}
+                                onChange={setCity}
+                                placeholder="São Paulo"
+                              />
+                              <div>
+                                <label className="block text-sm font-semibold text-[#0F172A] mb-2">Estado</label>
+                                <select
+                                  value={state}
+                                  onChange={(e) => setState(e.target.value)}
+                                  className="w-full h-12 px-4 rounded-xl bg-white border border-[#E2E8F0] text-[15px] text-[#0F172A] focus:outline-none focus:border-[#00B4D8] focus:ring-4 focus:ring-[#CAF0F8] transition-all"
+                                >
+                                  <option value="">UF</option>
+                                  {STATES.map((uf) => (
+                                    <option key={uf} value={uf}>{uf}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <Button type="submit" variant="primary" size="lg" className="w-full gap-2" disabled={submitting}>
                     {submitting ? 'Criando conta...' : <>Criar conta <ArrowRight size={18} /></>}
                   </Button>
@@ -281,9 +475,12 @@ export function CadastroPage() {
   );
 }
 
-function Field({ icon: Icon, label, type = 'text', placeholder, value, onChange, required }: {
+function Field({
+  icon: Icon, label, type = 'text', placeholder, value, onChange, required, onBlur,
+}: {
   icon: React.ElementType; label: string; type?: string; placeholder?: string;
   value: string; onChange: (v: string) => void; required?: boolean;
+  onBlur?: () => void;
 }) {
   return (
     <div>
@@ -296,10 +493,42 @@ function Field({ icon: Icon, label, type = 'text', placeholder, value, onChange,
           type={type}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           placeholder={placeholder}
           required={required}
           className="w-full h-12 pl-11 pr-4 rounded-xl bg-white border border-[#E2E8F0] text-[15px] text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#00B4D8] focus:ring-4 focus:ring-[#CAF0F8] transition-all"
         />
+      </div>
+    </div>
+  );
+}
+
+function RadioGroup({
+  label, hint, value, onChange, options,
+}: {
+  label: string; hint?: string;
+  value: string; onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <p className="text-sm font-semibold text-[#0F172A] mb-1">{label}</p>
+      {hint && <p className="text-xs text-[#64748B] mb-2">{hint}</p>}
+      <div className="flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(value === opt.value ? '' : opt.value)}
+            className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
+              value === opt.value
+                ? 'border-[#00B4D8] bg-[#CAF0F8]/40 text-[#0077B6] font-semibold'
+                : 'border-[#E2E8F0] text-[#64748B] hover:border-[#48CAE4]'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );

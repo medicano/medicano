@@ -1,4 +1,4 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from '../auth.service';
 import { Role } from '../../common/enums/role.enum';
@@ -23,6 +23,11 @@ describe('AuthService', () => {
     removeToken: jest.fn(),
   };
 
+  const patientModel = {
+    create: jest.fn(),
+    findOne: jest.fn(),
+  };
+
   const TOKEN_TTL = 7 * 24 * 3600;
 
   beforeEach(() => {
@@ -30,6 +35,7 @@ describe('AuthService', () => {
       usersService as unknown as UsersService,
       jwtService as unknown as JwtService,
       redisService as unknown as RedisService,
+      patientModel as any,
     );
   });
 
@@ -38,48 +44,110 @@ describe('AuthService', () => {
   });
 
   describe('signup', () => {
-    const signupDto = {
-      email: 'patient@example.com',
-      password: 'StrongPassword123!',
-      role: Role.PATIENT,
-      name: 'Patient Name',
-    } as any;
+    describe('role=patient', () => {
+      const patientDto = {
+        email: 'marina@example.com',
+        password: 'StrongPassword123!',
+        role: Role.PATIENT,
+        name: 'Marina Souza',
+        dateOfBirth: '1995-03-15',
+        phone: '+5511987654321',
+      } as any;
 
-    it('should create user, sign JWT, save token, and return access token', async () => {
       const createdUser = {
         _id: { toString: () => 'user-id-1' },
-        email: signupDto.email,
+        email: patientDto.email,
         role: Role.PATIENT,
       };
-      usersService.createUser.mockResolvedValue(createdUser);
-      jwtService.sign.mockReturnValue('signed.jwt.token');
-      redisService.saveToken.mockResolvedValue(undefined);
 
-      const result = await service.signup(signupDto);
+      it('should create User and Patient documents and return access token', async () => {
+        usersService.createUser.mockResolvedValue(createdUser);
+        jwtService.sign.mockReturnValue('signed.jwt.token');
+        redisService.saveToken.mockResolvedValue(undefined);
+        patientModel.create.mockResolvedValue({});
 
-      expect(usersService.createUser).toHaveBeenCalledWith(signupDto);
-      expect(jwtService.sign).toHaveBeenCalledWith({
-        sub: 'user-id-1',
-        role: Role.PATIENT,
+        const result = await service.signup(patientDto);
+
+        expect(usersService.createUser).toHaveBeenCalledWith(patientDto);
+        expect(patientModel.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            userId: 'user-id-1',
+            name: patientDto.name,
+            phone: '5511987654321',
+          }),
+        );
+        expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
       });
-      expect(redisService.saveToken).toHaveBeenCalledWith(
-        'user-id-1',
-        'signed.jwt.token',
-        TOKEN_TTL,
-      );
-      expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
+
+      it('should normalise phone by stripping non-digit characters', async () => {
+        usersService.createUser.mockResolvedValue(createdUser);
+        jwtService.sign.mockReturnValue('token');
+        redisService.saveToken.mockResolvedValue(undefined);
+        patientModel.create.mockResolvedValue({});
+
+        await service.signup({ ...patientDto, phone: '+55 (11) 98765-4321' });
+
+        expect(patientModel.create).toHaveBeenCalledWith(
+          expect.objectContaining({ phone: '5511987654321' }),
+        );
+      });
+
+      it('should throw BadRequestException for a future dateOfBirth', async () => {
+        usersService.createUser.mockResolvedValue(createdUser);
+
+        const futureDate = new Date();
+        futureDate.setFullYear(futureDate.getFullYear() + 1);
+
+        await expect(
+          service.signup({ ...patientDto, dateOfBirth: futureDate.toISOString().slice(0, 10) }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(patientModel.create).not.toHaveBeenCalled();
+      });
+
+      it('should throw BadRequestException for dateOfBirth older than 120 years', async () => {
+        usersService.createUser.mockResolvedValue(createdUser);
+
+        await expect(
+          service.signup({ ...patientDto, dateOfBirth: '1850-01-01' }),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(patientModel.create).not.toHaveBeenCalled();
+      });
+
+      it('should propagate ConflictException when user already exists', async () => {
+        usersService.createUser.mockRejectedValue(
+          new ConflictException('User already exists'),
+        );
+
+        await expect(service.signup(patientDto)).rejects.toThrow(ConflictException);
+        expect(patientModel.create).not.toHaveBeenCalled();
+        expect(jwtService.sign).not.toHaveBeenCalled();
+      });
     });
 
-    it('should propagate ConflictException when user already exists', async () => {
-      usersService.createUser.mockRejectedValue(
-        new ConflictException('User already exists'),
-      );
+    describe('role=clinic', () => {
+      const clinicDto = {
+        email: 'clinic@example.com',
+        password: 'StrongPassword123!',
+        role: Role.CLINIC,
+        name: 'Clínica Teste',
+      } as any;
 
-      await expect(service.signup(signupDto)).rejects.toThrow(
-        ConflictException,
-      );
-      expect(jwtService.sign).not.toHaveBeenCalled();
-      expect(redisService.saveToken).not.toHaveBeenCalled();
+      it('should create User but not Patient document', async () => {
+        const createdUser = {
+          _id: { toString: () => 'clinic-id-1' },
+          email: clinicDto.email,
+          role: Role.CLINIC,
+        };
+        usersService.createUser.mockResolvedValue(createdUser);
+        jwtService.sign.mockReturnValue('clinic.token');
+        redisService.saveToken.mockResolvedValue(undefined);
+
+        await service.signup(clinicDto);
+
+        expect(patientModel.create).not.toHaveBeenCalled();
+      });
     });
   });
 

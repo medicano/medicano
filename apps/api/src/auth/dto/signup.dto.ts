@@ -1,11 +1,17 @@
 import {
+  IsDateString,
   IsEmail,
   IsEnum,
   IsMongoId,
   IsOptional,
   IsString,
+  Length,
+  Matches,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
+import { Gender } from '../../common/enums/gender.enum';
+import { Pronouns } from '../../common/enums/pronouns.enum';
 import { Role } from '../../common/enums/role.enum';
 
 export class SignupDto {
@@ -31,4 +37,38 @@ export class SignupDto {
   @IsString()
   @IsOptional()
   readonly name?: string;
+
+  @IsDateString()
+  @ValidateIf((o) => o.role === Role.PATIENT)
+  readonly dateOfBirth?: string;
+
+  @IsString()
+  @Matches(/^\+?\d{10,14}$/, {
+    message: 'Telefone deve ter entre 10 e 14 dígitos, pode iniciar com +',
+  })
+  @ValidateIf((o) => o.role === Role.PATIENT)
+  readonly phone?: string;
+
+  @IsEnum(Gender)
+  @IsOptional()
+  readonly gender?: Gender;
+
+  @IsEnum(Pronouns)
+  @IsOptional()
+  readonly pronouns?: Pronouns;
+
+  @IsString()
+  @Length(8, 8)
+  @Matches(/^\d{8}$/, { message: 'CEP deve ter 8 dígitos' })
+  @IsOptional()
+  readonly cep?: string;
+
+  @IsString()
+  @IsOptional()
+  readonly city?: string;
+
+  @IsString()
+  @Length(2, 2)
+  @IsOptional()
+  readonly state?: string;
 }

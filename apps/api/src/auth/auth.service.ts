@@ -1,6 +1,13 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { Role } from '../common/enums/role.enum';
+import { Patient, PatientDocument } from '../patients/schemas/patient.schema';
 import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users/users.service';
 import { UserDocument } from './schemas/user.schema';
@@ -10,6 +17,7 @@ import { SignupDto } from './dto/signup.dto';
 
 const TOKEN_TTL = 7 * 24 * 3600;
 const STANDARD_ROLES = [Role.PATIENT, Role.CLINIC, Role.PROFESSIONAL];
+const MAX_AGE_YEARS = 120;
 
 export interface AuthUser {
   id: string;
@@ -31,13 +39,18 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
+    @InjectModel(Patient.name) private readonly patientModel: Model<PatientDocument>,
   ) {}
 
   async signup(dto: SignupDto): Promise<AuthResponse> {
     const user = await this.usersService.createUser(dto);
     const userId = user._id.toString();
-    const token = this.signToken(userId, user.role as Role);
 
+    if (dto.role === Role.PATIENT) {
+      await this.createPatientDocument(userId, dto);
+    }
+
+    const token = this.signToken(userId, user.role as Role);
     await this.redisService.saveToken(userId, token, TOKEN_TTL);
 
     return { accessToken: token, user: this.toAuthUser(user) };
@@ -95,6 +108,36 @@ export class AuthService {
     return { accessToken: token, user: this.toAuthUser(user) };
   }
 
+  async logout(userId: string): Promise<void> {
+    await this.redisService.removeToken(userId);
+  }
+
+  private async createPatientDocument(userId: string, dto: SignupDto): Promise<void> {
+    const dob = new Date(dto.dateOfBirth!);
+    const ageMs = Date.now() - dob.getTime();
+    const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
+
+    if (ageYears < 0 || ageYears > MAX_AGE_YEARS) {
+      throw new BadRequestException('Data de nascimento inválida');
+    }
+
+    await this.patientModel.create({
+      userId,
+      name: dto.name,
+      dateOfBirth: dob,
+      phone: this.normalizePhone(dto.phone!),
+      gender: dto.gender,
+      pronouns: dto.pronouns,
+      cep: dto.cep,
+      city: dto.city,
+      state: dto.state,
+    });
+  }
+
+  private normalizePhone(phone: string): string {
+    return phone.replace(/\D/g, '');
+  }
+
   private toAuthUser(user: UserDocument): AuthUser {
     return {
       id: user._id.toString(),
@@ -104,10 +147,6 @@ export class AuthService {
       clinicId: user.clinicId?.toString(),
       name: user.displayName,
     };
-  }
-
-  async logout(userId: string): Promise<void> {
-    await this.redisService.removeToken(userId);
   }
 
   private signToken(userId: string, role: Role): string {

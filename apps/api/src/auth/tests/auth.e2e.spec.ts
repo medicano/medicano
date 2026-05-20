@@ -8,6 +8,16 @@ import { loadAwsSecrets } from '../../common/config/aws-secrets.loader';
 const uniqueEmail = (): string =>
   `patient-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}@example.com`;
 
+const patientPayload = (overrides: Record<string, unknown> = {}) => ({
+  email: uniqueEmail(),
+  password: 'StrongPassword123!',
+  role: Role.PATIENT,
+  name: 'Patient Tester',
+  dateOfBirth: '1995-03-15',
+  phone: '+5511987654321',
+  ...overrides,
+});
+
 describe('Auth (e2e)', () => {
   let app: INestApplication;
 
@@ -37,17 +47,10 @@ describe('Auth (e2e)', () => {
   });
 
   describe('POST /auth/signup', () => {
-    it('should create a new user and return an access token (201)', async () => {
-      const payload = {
-        email: uniqueEmail(),
-        password: 'StrongPassword123!',
-        role: Role.PATIENT,
-        name: 'Patient Tester',
-      };
-
+    it('should create a new patient user and Patient document, returning an access token (201)', async () => {
       const response = await request(app.getHttpServer())
         .post('/auth/signup')
-        .send(payload)
+        .send(patientPayload())
         .expect(201);
 
       expect(response.body).toHaveProperty('accessToken');
@@ -55,13 +58,55 @@ describe('Auth (e2e)', () => {
       expect(response.body.accessToken.length).toBeGreaterThan(0);
     });
 
+    it('should accept optional fields (gender, pronouns, cep, city, state)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send(
+          patientPayload({
+            gender: 'FEMALE',
+            pronouns: 'SHE',
+            cep: '01310100',
+            city: 'São Paulo',
+            state: 'SP',
+          }),
+        )
+        .expect(201);
+
+      expect(response.body).toHaveProperty('accessToken');
+    });
+
+    it('should return 400 when dateOfBirth is missing for patient', async () => {
+      const payload = patientPayload();
+      delete (payload as any).dateOfBirth;
+
+      await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send(payload)
+        .expect(400);
+    });
+
+    it('should return 400 when phone is missing for patient', async () => {
+      const payload = patientPayload();
+      delete (payload as any).phone;
+
+      await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send(payload)
+        .expect(400);
+    });
+
+    it('should return 400 for a future dateOfBirth', async () => {
+      const future = new Date();
+      future.setFullYear(future.getFullYear() + 1);
+
+      await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send(patientPayload({ dateOfBirth: future.toISOString().slice(0, 10) }))
+        .expect(400);
+    });
+
     it('should return 409 when signing up with a duplicate email', async () => {
-      const payload = {
-        email: uniqueEmail(),
-        password: 'StrongPassword123!',
-        role: Role.PATIENT,
-        name: 'Duplicate User',
-      };
+      const payload = patientPayload();
 
       await request(app.getHttpServer())
         .post('/auth/signup')
@@ -88,22 +133,16 @@ describe('Auth (e2e)', () => {
 
   describe('POST /auth/login', () => {
     it('should log in with valid credentials and return an access token (200/201)', async () => {
-      const email = uniqueEmail();
-      const password = 'StrongPassword123!';
+      const payload = patientPayload();
 
       await request(app.getHttpServer())
         .post('/auth/signup')
-        .send({
-          email,
-          password,
-          role: Role.PATIENT,
-          name: 'Login Tester',
-        })
+        .send(payload)
         .expect(201);
 
       const response = await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ email, password });
+        .send({ email: payload.email, password: payload.password });
 
       expect([200, 201]).toContain(response.status);
       expect(response.body).toHaveProperty('accessToken');
@@ -111,22 +150,16 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 401 for wrong password', async () => {
-      const email = uniqueEmail();
-      const password = 'StrongPassword123!';
+      const payload = patientPayload();
 
       await request(app.getHttpServer())
         .post('/auth/signup')
-        .send({
-          email,
-          password,
-          role: Role.PATIENT,
-          name: 'Wrong Password Tester',
-        })
+        .send(payload)
         .expect(201);
 
       await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ email, password: 'WrongPassword123!' })
+        .send({ email: payload.email, password: 'WrongPassword123!' })
         .expect(401);
     });
 
@@ -143,17 +176,9 @@ describe('Auth (e2e)', () => {
 
   describe('POST /auth/logout', () => {
     it('should return 204 when logging out with a valid bearer token', async () => {
-      const email = uniqueEmail();
-      const password = 'StrongPassword123!';
-
       const signupRes = await request(app.getHttpServer())
         .post('/auth/signup')
-        .send({
-          email,
-          password,
-          role: Role.PATIENT,
-          name: 'Logout Tester',
-        })
+        .send(patientPayload())
         .expect(201);
 
       const accessToken = signupRes.body.accessToken;
@@ -171,22 +196,16 @@ describe('Auth (e2e)', () => {
 
   describe('Full flow: signup → login → logout → revoked token rejected', () => {
     it('should reject the same token after logout', async () => {
-      const email = uniqueEmail();
-      const password = 'StrongPassword123!';
+      const payload = patientPayload();
 
       await request(app.getHttpServer())
         .post('/auth/signup')
-        .send({
-          email,
-          password,
-          role: Role.PATIENT,
-          name: 'Full Flow Tester',
-        })
+        .send(payload)
         .expect(201);
 
       const loginRes = await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ email, password });
+        .send({ email: payload.email, password: payload.password });
 
       expect([200, 201]).toContain(loginRes.status);
       const accessToken = loginRes.body.accessToken;

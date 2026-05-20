@@ -1,7 +1,18 @@
 export enum Specialty {
   MEDICINE = 'medicine',
+  CARDIOLOGY = 'cardiology',
+  DERMATOLOGY = 'dermatology',
+  PEDIATRICS = 'pediatrics',
+  ORTHOPEDICS = 'orthopedics',
+  NEUROLOGY = 'neurology',
+  GYNECOLOGY = 'gynecology',
+  OPHTHALMOLOGY = 'ophthalmology',
+  UROLOGY = 'urology',
+  OTOLARYNGOLOGY = 'otolaryngology',
   PSYCHOLOGY = 'psychology',
   PSYCHIATRY = 'psychiatry',
   DENTISTRY = 'dentistry',
   NUTRITION = 'nutrition',
+  PHYSIOTHERAPY = 'physiotherapy',
+  SPEECH_THERAPY = 'speech_therapy',
 }

@@ -8,11 +8,13 @@ import { JwtStrategy } from './jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { RedisModule } from '../redis/redis.module';
 import { UsersModule } from '../users/users.module';
+import { PatientsModule } from '../patients/patients.module';
 
 @Module({
   imports: [
     RedisModule,
     UsersModule,
+    PatientsModule,
     ConfigModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({

@@ -13,10 +13,10 @@ import { ChatSession, ChatSessionDocument } from './schemas/chat-session.schema'
 import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { CreateChatSessionDto } from './dto/create-chat-session.dto';
-import { TRIAGE_SYSTEM_PROMPT } from './constants/triage-prompt';
+import { buildTriageSystemPrompt } from './constants/triage-prompt';
 import { Specialty } from '../common/enums/specialty.enum';
 import { ANTHROPIC_MODEL } from './constants/chat.tokens';
-
+import { Patient, PatientDocument } from '../patients/schemas/patient.schema';
 
 const MAX_RESPONSE_TOKENS = 1024;
 
@@ -25,6 +25,7 @@ export class ChatService {
   constructor(
     @InjectModel(ChatSession.name) private readonly sessionModel: Model<ChatSessionDocument>,
     @InjectModel(ChatMessage.name) private readonly messageModel: Model<ChatMessageDocument>,
+    @InjectModel(Patient.name) private readonly patientModel: Model<PatientDocument>,
     @Inject(ANTHROPIC_MODEL) private readonly model: LanguageModel,
   ) {}
 
@@ -88,9 +89,19 @@ export class ChatService {
       { role: 'user' as const, content: dto.content },
     ];
 
+    const patient = await this.patientModel.findOne({ userId: patientId }).exec();
+    const systemPrompt = buildTriageSystemPrompt(
+      patient
+        ? {
+            name: patient.name,
+            pronouns: patient.pronouns as 'SHE' | 'HE' | 'THEY' | undefined,
+          }
+        : undefined,
+    );
+
     const result = streamText({
       model: this.model,
-      system: TRIAGE_SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: llmMessages,
       maxTokens: MAX_RESPONSE_TOKENS,
       onFinish: async ({ text }) => {
