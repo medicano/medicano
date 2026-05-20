@@ -85,7 +85,7 @@ Cada secret é um JSON com os campos:
 }
 ```
 
-A região AWS é lida de `AWS_REGION` (padrão: `us-east-1`).
+A região AWS é lida de `AWS_REGION` (padrão: `sa-east-1`).
 
 > Em `NODE_ENV=test` a API **não** chama a AWS — usa config local hardcoded apontando para os containers Docker (`mongodb://localhost:27017/medicano-test`, Redis em `localhost`).
 
