@@ -4,6 +4,16 @@ import {
 } from '@aws-sdk/client-secrets-manager';
 import { writeFileSync } from 'node:fs';
 
+if (process.env.VERCEL === '1') {
+  console.log('Skipping AWS secrets: running on Vercel (env vars injected via Vercel dashboard).');
+  process.exit(0);
+}
+
+if (process.env.SKIP_AWS_SECRETS === '1') {
+  console.log('Skipping AWS secrets: SKIP_AWS_SECRETS=1 is set.');
+  process.exit(0);
+}
+
 const AWS_ENVIRONMENTS = ['development', 'staging', 'production'];
 
 const env = process.env.NODE_ENV ?? 'development';
