@@ -220,38 +220,33 @@ function ClinicDataSection() {
   }, [data]);
 
   function handleSave() {
-    const effectiveName = name.trim() || data.name;
-    const effectiveEmail = email || data.email;
-    const effectivePhone = (phone || data.phone || '').replace(/\D/g, '');
-    const effectiveCnpj = (cnpj || formatCnpj(data.cnpj ?? '')).replace(/\D/g, '');
-    const effectiveWebsite = website || data.website;
-    const effectiveAddress = addressText || data.addressText;
-    const effectiveHours = hours || data.hours;
+    const trimmedName = name.trim();
+    const rawPhone = phone.replace(/\D/g, '');
+    const rawCnpj = cnpj.replace(/\D/g, '');
 
-    if (!effectiveName) {
+    if (!trimmedName) {
       toast.error('O nome da clínica é obrigatório.');
       return;
     }
-    if (effectiveEmail && !/\S+@\S+\.\S+/.test(effectiveEmail)) {
+    if (email && !/\S+@\S+\.\S+/.test(email)) {
       toast.error('Por favor, informe um e-mail válido.');
       return;
     }
-    if (effectiveCnpj && effectiveCnpj.length !== 14) {
+    if (rawCnpj && rawCnpj.length !== 14) {
       toast.error('CNPJ deve ter 14 dígitos.');
       return;
     }
-    const effectiveCity = city || data.city;
     trigger(() =>
       api
         .put('/profile/me/clinic', {
-          name: effectiveName,
-          email: effectiveEmail || undefined,
-          phone: effectivePhone || undefined,
-          cnpj: effectiveCnpj || undefined,
-          website: effectiveWebsite || undefined,
-          addressText: effectiveAddress || undefined,
-          city: effectiveCity || undefined,
-          hours: effectiveHours || undefined,
+          name: trimmedName,
+          email: email || undefined,
+          phone: rawPhone || undefined,
+          cnpj: rawCnpj || undefined,
+          website: website || undefined,
+          addressText: addressText || undefined,
+          city: city || undefined,
+          hours: hours || undefined,
         })
         .then(() => {
           toast.success('Dados da clínica atualizados!');
