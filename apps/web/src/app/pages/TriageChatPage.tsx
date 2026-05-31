@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { PatientTopbar } from '../components/PatientTopbar';
 import { api, streamChatMessage } from '../lib/api';
+import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 
 type Role = 'USER' | 'ASSISTANT';
 interface Message {
@@ -13,14 +14,6 @@ interface Message {
   content: string;
   time: string;
 }
-
-const SPECIALTY_LABELS: Record<string, string> = {
-  medicine: 'Medicina',
-  psychology: 'Psicologia',
-  psychiatry: 'Psiquiatria',
-  dentistry: 'Odontologia',
-  nutrition: 'Nutrição',
-};
 
 function parseRecommendation(raw: string): string | null {
   const match = raw.match(/```json\s*([\s\S]*?)\s*```/);
@@ -59,7 +52,7 @@ function mapMessages(raw: any[]): Message[] {
   });
 }
 
-export function TriagemChatPage() {
+export function TriageChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
 
@@ -165,7 +158,7 @@ export function TriagemChatPage() {
       <div className="flex-1 flex flex-col max-w-4xl w-full mx-auto px-4 lg:px-8 overflow-hidden">
         <div className="py-4 flex items-center gap-3 border-b border-[#E2E8F0]">
           <button
-            onClick={() => navigate('/triagem')}
+            onClick={() => navigate('/triage')}
             className="p-2 rounded-lg hover:bg-[#F8FAFC] text-[#64748B] hover:text-[#0F172A]"
           >
             <ArrowLeft size={18} />
@@ -241,7 +234,7 @@ export function TriagemChatPage() {
                 </p>
               </div>
               <button
-                onClick={() => navigate(`/busca?especialidade=${recommendation}`)}
+                onClick={() => navigate(`/search?especialidade=${recommendation}`)}
                 className="shrink-0 px-4 py-2 rounded-xl bg-[#0077B6] hover:bg-[#03045E] text-white text-sm font-semibold transition-colors"
               >
                 Buscar profissionais

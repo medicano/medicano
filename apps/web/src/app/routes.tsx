@@ -2,22 +2,23 @@ import React from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
-import { CadastroPage } from './pages/CadastroPage';
-import { TriagemListPage } from './pages/TriagemListPage';
-import { TriagemChatPage } from './pages/TriagemChatPage';
-import { AgendamentosPage } from './pages/AgendamentosPage';
+import { RegisterPage } from './pages/RegisterPage';
+import { TriageListPage } from './pages/TriageListPage';
+import { TriageChatPage } from './pages/TriageChatPage';
+import { AppointmentsPage } from './pages/AppointmentsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AppointmentDetailPage } from './pages/AppointmentDetailPage';
-import { ProfissionaisPage } from './pages/ProfissionaisPage';
-import { AssinaturaPage } from './pages/AssinaturaPage';
+import { ProfessionalsPage } from './pages/ProfessionalsPage';
+import { SubscriptionPage } from './pages/SubscriptionPage';
 import { SearchPage } from './pages/SearchPage';
 import { BookingPage } from './pages/BookingPage';
 import { BookingSuccessPage } from './pages/BookingSuccessPage';
 import { HomePage } from './pages/HomePage';
-import { ConfiguracoesPage } from './pages/ConfiguracoesPage';
-import { AtendentesPage } from './pages/AtendentesPage';
-import { NotificacoesPage } from './pages/NotificacoesPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { AttendantsPage } from './pages/AttendantsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { ClinicProfilePage } from './pages/ClinicProfilePage';
+import { AvailabilityPage } from './pages/AvailabilityPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
 
@@ -34,54 +35,52 @@ function RootPage() {
     );
   }
   if (!isAuthenticated) return <LandingPage />;
-  if (user?.role === 'patient') return <HomePage />;
+  if (user?.role === 'patient') return <Navigate to="/home" replace />;
   return <Navigate to="/dashboard" replace />;
 }
 
 const patient = (el: React.ReactNode) => <ProtectedRoute roles={['patient']}>{el}</ProtectedRoute>;
 const staff = (el: React.ReactNode) => <ProtectedRoute roles={['clinic', 'professional', 'attendant']}>{el}</ProtectedRoute>;
 const clinicOnly = (el: React.ReactNode) => <ProtectedRoute roles={['clinic']}>{el}</ProtectedRoute>;
+const clinicOrPro = (el: React.ReactNode) => <ProtectedRoute roles={['clinic', 'professional']}>{el}</ProtectedRoute>;
 const anyAuth = (el: React.ReactNode) => <ProtectedRoute>{el}</ProtectedRoute>;
 
 export const router = createBrowserRouter([
-  // Root — smart: LandingPage se não autenticado, HomePage se paciente, /dashboard se staff
+  // Root — shows LandingPage if unauthenticated, redirects based on role otherwise
   { path: '/', element: <RootPage /> },
   { path: '/login', Component: LoginPage },
-  { path: '/cadastro', Component: CadastroPage },
+  { path: '/register', Component: RegisterPage },
 
   // Patient
-  { path: '/busca', element: patient(<SearchPage />) },
-  { path: '/clinica/:clinicId', element: patient(<ClinicProfilePage />) },
-  { path: '/agendar/sucesso', element: patient(<BookingSuccessPage />) },
-  { path: '/agendar/:professionalId', element: patient(<BookingPage />) },
-  { path: '/triagem', element: patient(<TriagemListPage />) },
-  { path: '/triagem/:sessionId', element: patient(<TriagemChatPage />) },
+  { path: '/home', element: patient(<HomePage />) },
+  { path: '/search', element: patient(<SearchPage />) },
+  { path: '/clinic/:clinicId', element: patient(<ClinicProfilePage />) },
+  { path: '/book/success', element: patient(<BookingSuccessPage />) },
+  { path: '/book/:professionalId', element: patient(<BookingPage />) },
+  { path: '/triage', element: patient(<TriageListPage />) },
+  { path: '/triage/:sessionId', element: patient(<TriageChatPage />) },
 
-  // Shared (paciente vê seus próprios, staff vê os da clínica)
-  { path: '/agendamentos', element: anyAuth(<AgendamentosPage />) },
-  { path: '/agendamentos/:id', element: anyAuth(<AppointmentDetailPage />) },
-  { path: '/notificacoes', element: anyAuth(<NotificacoesPage />) },
-  { path: '/configuracoes', element: anyAuth(<ConfiguracoesPage />) },
+  // Shared
+  { path: '/appointments', element: anyAuth(<AppointmentsPage />) },
+  { path: '/appointments/:id', element: anyAuth(<AppointmentDetailPage />) },
+  { path: '/notifications', element: anyAuth(<NotificationsPage />) },
+  { path: '/settings', element: anyAuth(<SettingsPage />) },
 
   // Staff
   { path: '/dashboard', element: staff(<DashboardPage />) },
-  { path: '/profissionais', element: staff(<ProfissionaisPage />) },
-  { path: '/atendentes', element: clinicOnly(<AtendentesPage />) },
-  { path: '/assinatura', element: clinicOnly(<AssinaturaPage />) },
+  { path: '/professionals', element: staff(<ProfessionalsPage />) },
+  { path: '/availability', element: clinicOrPro(<AvailabilityPage />) },
+  { path: '/attendants', element: clinicOnly(<AttendantsPage />) },
+  { path: '/subscription', element: clinicOnly(<SubscriptionPage />) },
 
-  // Legacy redirects (manter retrocompatibilidade)
-  { path: '/home', element: <Navigate to="/" replace /> },
-  { path: '/signup', element: <Navigate to="/cadastro" replace /> },
-  { path: '/search', element: <Navigate to="/busca" replace /> },
-  { path: '/booking', element: <Navigate to="/busca" replace /> },
-  { path: '/booking/success', element: <Navigate to="/agendar/sucesso" replace /> },
-  { path: '/triage', element: <Navigate to="/triagem" replace /> },
-  { path: '/triage/:sessionId', element: <Navigate to="/triagem/:sessionId" replace /> },
-  { path: '/appointments', element: <Navigate to="/agendamentos" replace /> },
-  { path: '/dashboard/appointment/:id', element: <Navigate to="/agendamentos/:id" replace /> },
-  { path: '/dashboard/professionals', element: <Navigate to="/profissionais" replace /> },
-  { path: '/dashboard/subscription', element: <Navigate to="/assinatura" replace /> },
-  { path: '/dashboard/settings', element: <Navigate to="/configuracoes" replace /> },
+  // Legacy redirects
+  { path: '/signup', element: <Navigate to="/register" replace /> },
+  { path: '/booking', element: <Navigate to="/search" replace /> },
+  { path: '/booking/success', element: <Navigate to="/book/success" replace /> },
+  { path: '/dashboard/appointment/:id', element: <Navigate to="/appointments/:id" replace /> },
+  { path: '/dashboard/professionals', element: <Navigate to="/professionals" replace /> },
+  { path: '/dashboard/subscription', element: <Navigate to="/subscription" replace /> },
+  { path: '/dashboard/settings', element: <Navigate to="/settings" replace /> },
 
   // 404
   { path: '*', element: <Navigate to="/" replace /> },

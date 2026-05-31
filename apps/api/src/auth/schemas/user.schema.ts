@@ -41,5 +41,5 @@ UserSchema.methods.comparePassword = async function (
   return bcrypt.compare(password, this.passwordHash);
 };
 
-UserSchema.index({ role: 1, email: 1 }, { sparse: true, unique: true });
+UserSchema.index({ email: 1 }, { sparse: true, unique: true });
 UserSchema.index({ clinicId: 1, username: 1 }, { sparse: true, unique: true });

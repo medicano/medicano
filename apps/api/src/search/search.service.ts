@@ -22,6 +22,7 @@ export interface ClinicResult {
   specialties: string[];
   city: string;
   phone: string;
+  distance?: number;
 }
 
 export interface ProfessionalResult {
@@ -31,11 +32,23 @@ export interface ProfessionalResult {
   city: string;
   clinicId: string;
   clinicName: string;
+  distance?: number;
 }
 
 export interface SearchResult {
   clinics: ClinicResult[];
   professionals: ProfessionalResult[];
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 @Injectable()
@@ -52,23 +65,24 @@ export class SearchService {
   ) {}
 
   async search(query: SearchQueryDto): Promise<SearchResult> {
-    const activeSubscriptions = await this.subscriptionModel
-      .find({ status: { $in: ['active', 'trial'] } })
-      .select('clinicId')
+    const allSubscriptions = await this.subscriptionModel
+      .find({})
+      .select('clinicId status')
       .lean()
       .exec();
 
-    const activeClinicIds = activeSubscriptions.map((s) =>
-      (s.clinicId as Types.ObjectId).toString(),
+    const inactiveClinicIds = new Set(
+      allSubscriptions
+        .filter((s) => s.status === 'inactive')
+        .map((s) => (s.clinicId as Types.ObjectId).toString()),
     );
-    const activeClinicObjectIds = activeClinicIds.map((id) => new Types.ObjectId(id));
 
     const searchClinics = !query.type || query.type === 'all' || query.type === 'clinic';
     const searchProfessionals = !query.type || query.type === 'all' || query.type === 'professional';
 
     const [clinics, professionals] = await Promise.all([
-      searchClinics ? this.searchClinics(query, activeClinicObjectIds) : Promise.resolve([]),
-      searchProfessionals ? this.searchProfessionals(query, activeClinicObjectIds) : Promise.resolve([]),
+      searchClinics ? this.searchClinics(query, inactiveClinicIds) : Promise.resolve([]),
+      searchProfessionals ? this.searchProfessionals(query, inactiveClinicIds) : Promise.resolve([]),
     ]);
 
     return { clinics, professionals };
@@ -76,30 +90,48 @@ export class SearchService {
 
   private async searchClinics(
     query: SearchQueryDto,
-    activeClinicObjectIds: Types.ObjectId[],
+    inactiveClinicIds: Set<string>,
   ): Promise<ClinicResult[]> {
-    const filter: Record<string, unknown> = { _id: { $in: activeClinicObjectIds } };
+    const excludedIds = [...inactiveClinicIds].map((id) => new Types.ObjectId(id));
+    const filter: Record<string, unknown> = { _id: { $nin: excludedIds }, isActive: { $ne: false } };
     if (query.name) filter['name'] = { $regex: query.name, $options: 'i' };
     if (query.city) filter['address.city'] = { $regex: query.city, $options: 'i' };
     if (query.specialty) filter['specialties'] = query.specialty;
 
-    const docs = await this.clinicModel.find(filter).lean().exec();
+    const docs = await this.clinicModel.find(filter).select('+lat +lng').lean().exec();
 
-    return docs.map((c) => ({
-      id: (c._id as Types.ObjectId).toString(),
-      name: c.name,
-      specialties: (c.specialties as string[]) ?? [],
-      city: (c.address as any)?.city ?? '',
-      phone: c.phone ?? '',
-    }));
+    const results = docs.map((c) => {
+      const result: ClinicResult = {
+        id: (c._id as Types.ObjectId).toString(),
+        name: c.name,
+        specialties: (c.specialties as string[]) ?? [],
+        city: (c as any).city ?? (c.address as any)?.city ?? '',
+        phone: c.phone ?? '',
+      };
+      if (query.userLat != null && query.userLng != null && (c as any).lat && (c as any).lng) {
+        result.distance = Math.round(haversineKm(query.userLat, query.userLng, (c as any).lat, (c as any).lng) * 10) / 10;
+      }
+      return result;
+    });
+
+    if (query.userLat != null) {
+      results.sort((a, b) => {
+        if (a.distance == null) return 1;
+        if (b.distance == null) return -1;
+        return a.distance - b.distance;
+      });
+    }
+
+    return results;
   }
 
   private async searchProfessionals(
     query: SearchQueryDto,
-    activeClinicObjectIds: Types.ObjectId[],
+    inactiveClinicIds: Set<string>,
   ): Promise<ProfessionalResult[]> {
+    const excludedIds = [...inactiveClinicIds].map((id) => new Types.ObjectId(id));
     const links = await this.clinicProfessionalModel
-      .find({ clinicId: { $in: activeClinicObjectIds } })
+      .find({ clinicId: { $nin: excludedIds } })
       .select('clinicId professionalId')
       .lean()
       .exec();
@@ -131,17 +163,24 @@ export class SearchService {
     );
     const clinicDocs = await this.clinicModel
       .find({ _id: { $in: neededClinicIds } })
-      .select('name')
+      .select('name lat lng')
       .lean()
       .exec();
     const clinicNameMap = new Map(
       clinicDocs.map((c) => [(c._id as Types.ObjectId).toString(), c.name]),
     );
 
-    return filtered.map((p) => {
+    const clinicCoordMap = new Map<string, { lat: number; lng: number }>();
+    clinicDocs.forEach((c) => {
+      if ((c as any).lat && (c as any).lng) {
+        clinicCoordMap.set((c._id as Types.ObjectId).toString(), { lat: (c as any).lat, lng: (c as any).lng });
+      }
+    });
+
+    const results = filtered.map((p) => {
       const profId = (p._id as Types.ObjectId).toString();
       const clinicId = profToClinicId.get(profId) ?? '';
-      return {
+      const result: ProfessionalResult = {
         id: profId,
         name: p.name as string,
         specialty: p.specialty as string,
@@ -149,6 +188,23 @@ export class SearchService {
         clinicId,
         clinicName: clinicNameMap.get(clinicId) ?? '',
       };
+      if (query.userLat != null && query.userLng != null) {
+        const coords = clinicCoordMap.get(clinicId);
+        if (coords) {
+          result.distance = Math.round(haversineKm(query.userLat, query.userLng, coords.lat, coords.lng) * 10) / 10;
+        }
+      }
+      return result;
     });
+
+    if (query.userLat != null) {
+      results.sort((a, b) => {
+        if (a.distance == null) return 1;
+        if (b.distance == null) return -1;
+        return a.distance - b.distance;
+      });
+    }
+
+    return results;
   }
 }

@@ -88,7 +88,7 @@ export function LoginPage() {
                   <p className="text-xs text-[#64748B] bg-[#CAF0F8]/40 border border-[#90E0EF] rounded-lg px-3 py-2.5 leading-relaxed">
                     Use as credenciais fornecidas pela sua clínica.
                   </p>
-                  <Field icon={Building2} label="Código da clínica" value={clinicId} onChange={setClinicId} placeholder="Ex: 65a1f2c4d…" required />
+                  <Field icon={Building2} label="Código da clínica" value={clinicId} onChange={setClinicId} placeholder="Ex: saude-total" required />
                   <Field icon={Hash} label="Nome de usuário" value={username} onChange={setUsername} placeholder="recepcao.ana" required />
                 </>
               )}
@@ -131,7 +131,7 @@ export function LoginPage() {
               {tab === 'padrao' ? (
                 <>
                   Ainda não tem conta?{' '}
-                  <Link to="/cadastro" className="font-semibold text-[#0077B6] hover:text-[#00B4D8]">Criar uma conta</Link>
+                  <Link to="/register" className="font-semibold text-[#0077B6] hover:text-[#00B4D8]">Criar uma conta</Link>
                 </>
               ) : (
                 <>Não tem acesso? <span className="font-semibold text-[#0077B6]">Peça para a sua clínica</span></>

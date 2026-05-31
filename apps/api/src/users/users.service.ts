@@ -36,25 +36,25 @@ export class UsersService {
 
     if (role === Role.ATTENDANT) {
       if (!username) {
-        throw new BadRequestException('Attendant requires username');
+        throw new BadRequestException('Atendente precisa de nome de usuário');
       }
       if (!clinicId) {
-        throw new BadRequestException('Attendant requires clinicId');
+        throw new BadRequestException('Atendente precisa de um estabelecimento vinculado');
       }
       if (email) {
-        throw new BadRequestException('Attendant cannot have email');
+        throw new BadRequestException('Atendente não pode ter email');
       }
     }
 
     if (role !== Role.ATTENDANT) {
       if (!email) {
-        throw new BadRequestException('Email is required');
+        throw new BadRequestException('Email é obrigatório');
       }
       if (username) {
-        throw new BadRequestException('Username not allowed for this role');
+        throw new BadRequestException('Nome de usuário não permitido para este perfil');
       }
       if (clinicId) {
-        throw new BadRequestException('ClinicId not allowed for this role');
+        throw new BadRequestException('Estabelecimento não permitido para este perfil');
       }
     }
 
@@ -73,10 +73,14 @@ export class UsersService {
       return await this.usersRepository.create(userData);
     } catch (error: unknown) {
       if ((error as { code?: number }).code === 11000) {
-        throw new ConflictException('User already exists');
+        throw new ConflictException('Usuário já cadastrado');
       }
       throw error;
     }
+  }
+
+  async findByEmail(email: string): Promise<UserDocument | null> {
+    return this.usersRepository.findByEmail(email);
   }
 
   async findByEmailAndRole(
@@ -96,7 +100,7 @@ export class UsersService {
   async getById(id: string): Promise<UserDocument> {
     const user = await this.usersRepository.findById(id);
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Usuário não encontrado');
     }
     return user;
   }

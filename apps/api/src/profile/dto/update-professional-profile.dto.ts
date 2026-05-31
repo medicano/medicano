@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsString,
   IsOptional,
   IsEnum,
@@ -33,6 +34,10 @@ export class UpdateProfessionalProfileDto {
   @IsString()
   @IsOptional()
   crm?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  autoConfirm?: boolean;
 
   @ValidateNested()
   @Type(() => AddressDto)

@@ -10,6 +10,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
 import { Role } from '../../common/enums/role.enum';
@@ -71,4 +72,21 @@ export class SignupDto {
   @Length(2, 2)
   @IsOptional()
   readonly state?: string;
+
+  @IsString()
+  @Matches(/^\d{14}$/, { message: 'CNPJ deve ter 14 dígitos' })
+  @ValidateIf((o) => o.role === Role.CLINIC)
+  readonly cnpj?: string;
+
+  @IsString()
+  @IsOptional()
+  readonly regNum?: string;
+
+  @IsString()
+  @IsOptional()
+  readonly cpf?: string;
+
+  @IsString()
+  @IsOptional()
+  readonly specialty?: string;
 }

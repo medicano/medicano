@@ -29,12 +29,12 @@ export class AddressDto {
 
   @IsString()
   @IsNotEmpty()
-  @Length(2, 2, { message: 'state must be a 2-letter UF code' })
+  @Length(2, 2, { message: 'Estado deve ser uma sigla de UF com 2 letras' })
   state: string;
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^\d{5}-?\d{3}$/, { message: 'zipCode must be a valid CEP (e.g. 12345-678)' })
+  @Matches(/^\d{5}-?\d{3}$/, { message: 'CEP inválido (ex: 12345-678)' })
   zipCode: string;
 
   @IsString()

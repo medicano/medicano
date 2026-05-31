@@ -42,7 +42,7 @@ export class UpdateProfessionalDto {
   registration?: string;
 
   @IsString()
-  @Matches(/^\d{11}$/, { message: 'CPF must be 11 digits' })
+  @Matches(/^\d{11}$/, { message: 'CPF deve ter 11 dígitos' })
   @IsOptional()
   cpf?: string;
 

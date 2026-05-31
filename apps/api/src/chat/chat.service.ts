@@ -47,7 +47,7 @@ export class ChatService {
     const session = await this.findSessionById(sessionId);
 
     if (session.patient.toString() !== patientId) {
-      throw new ForbiddenException('You do not have access to this session.');
+      throw new ForbiddenException('Você não tem acesso a esta sessão.');
     }
 
     return this.messageModel.find({ session: session._id }).sort({ createdAt: 1 }).exec();
@@ -61,12 +61,12 @@ export class ChatService {
     const session = await this.findSessionById(sessionId);
 
     if (session.patient.toString() !== patientId) {
-      throw new ForbiddenException('You do not have access to this session.');
+      throw new ForbiddenException('Você não tem acesso a esta sessão.');
     }
 
     if (session.recommendedSpecialty) {
       throw new ConflictException(
-        'This chat session already has a specialty recommendation and is closed.',
+        'Esta sessão de chat já possui uma recomendação de especialidade e está encerrada.',
       );
     }
 
@@ -144,7 +144,7 @@ export class ChatService {
   ): Promise<ChatSessionDocument> {
     const session = await this.findSessionById(sessionId);
     if (session.patient.toString() !== patientId) {
-      throw new ForbiddenException('You do not have access to this session.');
+      throw new ForbiddenException('Você não tem acesso a esta sessão.');
     }
     return session;
   }
@@ -152,7 +152,7 @@ export class ChatService {
   async findSessionById(sessionId: string): Promise<ChatSessionDocument> {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {
-      throw new NotFoundException(`Chat session ${sessionId} not found.`);
+      throw new NotFoundException('Sessão de chat não encontrada.');
     }
     return session;
   }

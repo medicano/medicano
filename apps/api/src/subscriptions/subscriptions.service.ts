@@ -36,7 +36,7 @@ export class SubscriptionsService {
     } catch (error: any) {
       if (error?.code === 11000) {
         throw new ConflictException(
-          'A subscription for this clinic already exists',
+          'Já existe uma assinatura para este estabelecimento',
         );
       }
       throw error;
@@ -46,7 +46,7 @@ export class SubscriptionsService {
   async findById(id: string): Promise<SubscriptionDocument> {
     const subscription = await this.subscriptionModel.findById(id).exec();
     if (!subscription) {
-      throw new NotFoundException(`Subscription with id ${id} not found`);
+      throw new NotFoundException('Assinatura não encontrada');
     }
     return subscription;
   }
@@ -90,7 +90,7 @@ export class SubscriptionsService {
       .exec();
 
     if (!subscription) {
-      throw new NotFoundException(`Subscription with id ${id} not found`);
+      throw new NotFoundException('Assinatura não encontrada');
     }
 
     return subscription;
@@ -106,7 +106,7 @@ export class SubscriptionsService {
       .exec();
 
     if (!subscription) {
-      throw new NotFoundException(`Subscription with id ${id} not found`);
+      throw new NotFoundException('Assinatura não encontrada');
     }
 
     return subscription;
@@ -139,7 +139,7 @@ export class SubscriptionsService {
 
     if (currentCount >= limit) {
       throw new ForbiddenException(
-        'Professional limit reached for current subscription plan',
+        'Limite de profissionais atingido para o plano atual',
       );
     }
   }

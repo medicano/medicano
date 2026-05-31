@@ -4,6 +4,8 @@ import { Model, Types } from 'mongoose';
 import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
 import { Patient, PatientDocument } from '../patients/schemas/patient.schema';
+import { UserDocument } from '../auth/schemas/user.schema';
+import { Role } from '../common/enums/role.enum';
 import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
 import { UpdateProfessionalProfileDto } from './dto/update-professional-profile.dto';
 import { UpdatePatientProfileDto } from '../patients/dto/update-patient-profile.dto';
@@ -17,18 +19,20 @@ export class ProfileService {
     private readonly professionalModel: Model<ProfessionalDocument>,
     @InjectModel(Patient.name)
     private readonly patientModel: Model<PatientDocument>,
+    @InjectModel('User')
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   async getMyProfile(
     userId: string,
   ): Promise<ClinicDocument | ProfessionalDocument | PatientDocument | null> {
     const clinic = await this.clinicModel
-      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
+      .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
     if (clinic) return clinic;
 
     const professional = await this.professionalModel
-      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
+      .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
     if (professional) return professional;
 
@@ -39,13 +43,19 @@ export class ProfileService {
 
   async getClinicProfile(userId: string): Promise<ClinicDocument | null> {
     return this.clinicModel
-      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
+      .findOne({ userId: new Types.ObjectId(userId), isActive: { $ne: false } })
       .exec();
   }
 
   async getProfessionalProfile(userId: string): Promise<ProfessionalDocument | null> {
     return this.professionalModel
-      .findOne({ userId: new Types.ObjectId(userId), isActive: true })
+      .findOne({ userId: new Types.ObjectId(userId), isActive: { $ne: false } })
+      .exec();
+  }
+
+  async getPatientProfile(userId: string): Promise<PatientDocument | null> {
+    return this.patientModel
+      .findOne({ userId: new Types.ObjectId(userId) })
       .exec();
   }
 
@@ -68,19 +78,42 @@ export class ProfileService {
     userId: string,
     updateDto: UpdateClinicProfileDto,
   ): Promise<ClinicDocument> {
+    const geoUpdate: { lat?: number; lng?: number } = {};
+    if (updateDto.addressText) {
+      const coords = await this.geocodeAddress(updateDto.addressText);
+      if (coords) {
+        geoUpdate.lat = coords.lat;
+        geoUpdate.lng = coords.lng;
+      }
+    }
+
     const clinic = await this.clinicModel
       .findOneAndUpdate(
-        { userId: new Types.ObjectId(userId), isActive: true },
-        { $set: updateDto },
-        { new: true },
+        { userId: new Types.ObjectId(userId), isActive: { $ne: false } },
+        { $set: { ...updateDto, ...geoUpdate } },
+        { new: true, runValidators: true },
       )
       .exec();
 
     if (!clinic) {
-      throw new NotFoundException('Clinic profile not found');
+      throw new NotFoundException('Perfil do estabelecimento não encontrado');
     }
 
     return clinic;
+  }
+
+  private async geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=br`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Medicano/1.0 (contato@medicano.app)' },
+      });
+      const data = await res.json() as any[];
+      if (!data[0]) return null;
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    } catch {
+      return null;
+    }
   }
 
   async updateProfessionalProfile(
@@ -91,14 +124,30 @@ export class ProfileService {
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId), isActive: true },
         { $set: updateDto },
-        { new: true },
+        { new: true, runValidators: true },
       )
       .exec();
 
     if (!professional) {
-      throw new NotFoundException('Professional profile not found');
+      throw new NotFoundException('Perfil do profissional não encontrado');
     }
 
     return professional;
+  }
+
+  async deleteAccount(userId: string, role: Role): Promise<void> {
+    if (role === Role.CLINIC) {
+      await this.clinicModel
+        .findOneAndUpdate({ userId: new Types.ObjectId(userId) }, { $set: { isActive: false } })
+        .exec();
+    } else if (role === Role.PROFESSIONAL) {
+      await this.professionalModel
+        .findOneAndUpdate({ userId: new Types.ObjectId(userId) }, { $set: { isActive: false } })
+        .exec();
+    }
+
+    await this.userModel
+      .findByIdAndUpdate(userId, { $set: { isActive: false } })
+      .exec();
   }
 }

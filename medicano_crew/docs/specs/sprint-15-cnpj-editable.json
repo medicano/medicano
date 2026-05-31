@@ -1,0 +1,67 @@
+{
+  "sprint": "sprint-15-cnpj-editable",
+  "description": "Torna o campo CNPJ da clínica editável nas configurações de perfil. Envolve: adicionar cnpj ao UpdateClinicProfileDto (backend), garantir que o campo existe no Clinic schema, normalizar o dado no fetch do perfil (frontend), e renderizar o campo com máscara no ClinicDataSection da SettingsPage.",
+  "context": {
+    "stack": "NestJS 11 + TypeScript 5 + MongoDB (Mongoose) | React 19 + Vite + Tailwind (apps/web)",
+    "monorepo": "apps/api (NestJS) + apps/web (React)",
+    "dependencies": "Sprint 10 (profile) deve estar completa. O endpoint PUT /profile/me/clinic deve existir em apps/api/src/profile/profile.controller.ts.",
+    "canonical_imports": {
+      "UpdateClinicProfileDto": "apps/api/src/profile/dto/update-clinic-profile.dto.ts",
+      "ProfileService": "apps/api/src/profile/profile.service.ts",
+      "Clinic, ClinicSchema": "apps/api/src/clinics/schemas/clinic.schema.ts",
+      "AddressDto": "apps/api/src/common/dto/address.dto.ts",
+      "JwtAuthGuard": "apps/api/src/auth/guards/jwt-auth.guard.ts",
+      "useAuth": "apps/web/src/app/contexts/AuthContext.tsx",
+      "api": "apps/web/src/app/lib/api.ts"
+    }
+  },
+  "prompts": [
+    {
+      "id": 1,
+      "name": "backend-dto-cnpj",
+      "description": "Adicionar campo cnpj opcional ao UpdateClinicProfileDto para que o endpoint PUT /profile/me/clinic aceite e persista o CNPJ",
+      "files": [
+        "apps/api/src/profile/dto/update-clinic-profile.dto.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/api/src/profile/dto/update-clinic-profile.dto.ts. Siga todas as convenções em CLAUDE.md.\n\nAdicionar ao final da classe `UpdateClinicProfileDto`, antes do fechamento da chave:\n\n```typescript\n@IsString()\n@IsOptional()\ncnpj?: string;\n```\n\nO campo deve aceitar o CNPJ com ou sem máscara (o frontend envia formatado como XX.XXX.XXX/XXXX-XX). Não adicionar validação de formato — o frontend já aplica a máscara e o schema do Clinic tem sua própria validação.\n\nVerificar que `IsString` e `IsOptional` já estão importados de `class-validator` no topo do arquivo; se não estiverem, adicionar ao import existente.\n\nNão alterar nenhum outro arquivo."
+    },
+    {
+      "id": 2,
+      "name": "backend-clinic-schema-cnpj",
+      "description": "Garantir que o campo cnpj existe no Clinic schema como campo opcional editável (sem unique no update path)",
+      "files": [
+        "apps/api/src/clinics/schemas/clinic.schema.ts"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/api/src/clinics/schemas/clinic.schema.ts. Siga todas as convenções em CLAUDE.md.\n\nVerificar se o campo `cnpj` já existe no schema:\n\n- Se existir como `@Prop({ type: String, required: true, unique: true })` — manter exatamente como está. Nenhuma alteração necessária.\n- Se não existir — adicionar o campo abaixo de `@Prop({ type: String })` do `name`:\n\n```typescript\n@Prop({ type: String })\ncnpj?: string;\n```\n\nNão adicionar `required: true` nem `unique: true` neste passo — o campo deve ser editável sem forçar unicidade no update (o create-clinic.dto.ts já valida isso no cadastro).\n\nNão alterar nenhum outro arquivo."
+    },
+    {
+      "id": 3,
+      "name": "frontend-normalize-cnpj",
+      "description": "Incluir cnpj na normalização dos dados retornados por GET /profile/me na SettingsPage para que o campo seja pré-preenchido",
+      "files": [
+        "apps/web/src/app/pages/SettingsPage.tsx"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/web/src/app/pages/SettingsPage.tsx. Siga todas as convenções em CLAUDE.md.\n\nNo `useEffect` que chama `api.get('/profile/me')`, localizar o bloco de normalização dentro do `.then()`. Adicionar `cnpj` ao spread de dados normalizados, imediatamente após a linha `...(d ?? {})`:\n\n```typescript\ncnpj: d?.cnpj ?? '',\n```\n\nO resultado do spread deve ficar assim (mostrando apenas as linhas relevantes):\n\n```typescript\n.then(({ data: d }) => setData({\n  ...authFallback,\n  ...(d ?? {}),\n  cnpj:    d?.cnpj     ?? '',           // ← adicionar esta linha\n  city:    d?.address?.city    ?? d?.city   ?? '',\n  state:   d?.address?.state   ?? d?.state  ?? '',\n  cep:     d?.address?.zipCode ?? d?.cep    ?? '',\n  // ... demais campos ...\n}))\n```\n\nNão alterar nenhum outro trecho do arquivo."
+    },
+    {
+      "id": 4,
+      "name": "frontend-clinic-data-section-cnpj",
+      "description": "Adicionar campo CNPJ com máscara ao ClinicDataSection na SettingsPage, incluído no payload do save",
+      "files": [
+        "apps/web/src/app/pages/SettingsPage.tsx"
+      ],
+      "request": "Antes de qualquer alteração, leia apps/web/src/app/pages/SettingsPage.tsx. Siga todas as convenções em CLAUDE.md.\n\nLocalizar a função `ClinicDataSection`. Fazer as seguintes adições:\n\n**1 — Estado**\n\nApós a linha `const [hours, setHours] = useState(data.hours ?? '');`, adicionar:\n\n```typescript\nconst [cnpj, setCnpj] = useState(data.cnpj ?? '');\n```\n\n**2 — Função de máscara**\n\nApós a função `validate()` e antes de `handleSave()`, adicionar:\n\n```typescript\nfunction cnpjMask(v: string): string {\n  const d = v.replace(/\\D/g, '').slice(0, 14);\n  return d\n    .replace(/^(\\d{2})(\\d)/, '$1.$2')\n    .replace(/^(\\d{2})\\.(\\d{3})(\\d)/, '$1.$2.$3')\n    .replace(/\\.(\\d{3})(\\d)/, '.$1/$2')\n    .replace(/(\\d{4})(\\d)/, '$1-$2');\n}\n```\n\n**3 — Campo no JSX**\n\nLocalizar `<TextField label=\"Telefone\" ... />` dentro do retorno JSX de `ClinicDataSection`. Adicionar imediatamente após esse campo:\n\n```tsx\n<TextField\n  label=\"CNPJ\"\n  icon={FileText}\n  value={cnpj}\n  onChange={(v) => setCnpj(cnpjMask(v))}\n  placeholder=\"00.000.000/0000-00\"\n/>\n```\n\nO ícone `FileText` já está importado de `lucide-react` no topo do arquivo.\n\n**4 — Payload do save**\n\nLocalizar a linha `trigger(() => api.put('/profile/me/clinic', { name, email, phone }).then(() => {}));` dentro de `handleSave`. Adicionar `cnpj` ao objeto enviado:\n\n```typescript\ntrigger(() => api.put('/profile/me/clinic', { name, email, phone, cnpj: cnpj || undefined }).then(() => {}));\n```\n\nUsar `cnpj || undefined` para não enviar string vazia ao backend.\n\nNão alterar nenhum outro trecho do arquivo."
+    },
+    {
+      "id": 5,
+      "name": "reviewer-cnpj",
+      "description": "Revisar todas as alterações da sprint e verificar conformidade com CLAUDE.md antes de commitar",
+      "files": [
+        "apps/api/src/profile/dto/update-clinic-profile.dto.ts",
+        "apps/api/src/clinics/schemas/clinic.schema.ts",
+        "apps/web/src/app/pages/SettingsPage.tsx"
+      ],
+      "request": "Leia todos os arquivos listados. Siga as convenções em CLAUDE.md.\n\nVerificar obrigatoriamente:\n\n- [ ] `UpdateClinicProfileDto` contém `cnpj?: string` decorado com `@IsString()` e `@IsOptional()`\n- [ ] `Clinic` schema possui campo `cnpj` (obrigatório ou opcional — sem regressão nos campos existentes)\n- [ ] `SettingsPage.tsx` — `useEffect` de normalização inclui `cnpj: d?.cnpj ?? ''`\n- [ ] `ClinicDataSection` declara `const [cnpj, setCnpj] = useState(data.cnpj ?? '')`\n- [ ] Função `cnpjMask` presente e limitada a 14 dígitos numéricos\n- [ ] Campo `<TextField label=\"CNPJ\" ... />` renderizado com `icon={FileText}`\n- [ ] `handleSave` envia `cnpj: cnpj || undefined` (não envia string vazia)\n- [ ] `npx tsc -p tsconfig.build.json --noEmit` passaria sem erros no backend\n- [ ] `npx tsc --noEmit` passaria sem erros no frontend\n- [ ] Nenhum campo existente foi removido ou renomeado nos arquivos alterados\n- [ ] Nenhum arquivo fora da lista acima foi modificado"
+    }
+  ]
+}

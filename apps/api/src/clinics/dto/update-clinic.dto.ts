@@ -50,7 +50,7 @@ export class UpdateClinicDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^\d{14}$/, { message: 'CNPJ must be 14 digits' })
+  @Matches(/^\d{14}$/, { message: 'CNPJ deve ter 14 dígitos' })
   cnpj?: string;
 
   @IsOptional()

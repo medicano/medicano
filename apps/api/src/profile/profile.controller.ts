@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Put,
   UseGuards,
 } from '@nestjs/common';
@@ -24,6 +26,27 @@ export class ProfileController {
   getMyProfile(@CurrentUser() user: any) {
     const userId = this.extractUserId(user);
     return this.profileService.getMyProfile(userId);
+  }
+
+  @Get('me/clinic')
+  @Roles(Role.CLINIC)
+  getClinicProfile(@CurrentUser() user: any) {
+    const userId = this.extractUserId(user);
+    return this.profileService.getClinicProfile(userId);
+  }
+
+  @Get('me/professional')
+  @Roles(Role.PROFESSIONAL)
+  getProfessionalProfile(@CurrentUser() user: any) {
+    const userId = this.extractUserId(user);
+    return this.profileService.getProfessionalProfile(userId);
+  }
+
+  @Get('me/patient')
+  @Roles(Role.PATIENT)
+  getPatientProfile(@CurrentUser() user: any) {
+    const userId = this.extractUserId(user);
+    return this.profileService.getPatientProfile(userId);
   }
 
   @Put('me/patient')
@@ -54,6 +77,13 @@ export class ProfileController {
   ) {
     const userId = this.extractUserId(user);
     return this.profileService.updateProfessionalProfile(userId, dto);
+  }
+
+  @Delete('me')
+  @HttpCode(204)
+  deleteAccount(@CurrentUser() user: any) {
+    const userId = this.extractUserId(user);
+    return this.profileService.deleteAccount(userId, user?.role);
   }
 
   private extractUserId(user: any): string {

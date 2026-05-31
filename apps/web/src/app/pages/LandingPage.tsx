@@ -31,7 +31,7 @@ export function LandingPage() {
       
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-[#E2E8F0]">
-        <div className="max-w-[1440px] mx-auto px-8 h-20 flex items-center justify-between">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-8 h-16 sm:h-20 flex items-center justify-between">
           <MedicanoLogo />
           
           <div className="hidden lg:flex items-center gap-8 text-[15px] font-medium text-[#64748B]">
@@ -57,7 +57,7 @@ export function LandingPage() {
       <main className="flex-1">
         
         {/* HERO SECTION */}
-        <section className="relative pt-20 pb-28 px-8 overflow-hidden bg-gradient-to-b from-[#F8FAFC] to-white">
+        <section className="relative pt-12 sm:pt-20 pb-16 sm:pb-28 px-4 sm:px-8 overflow-hidden bg-gradient-to-b from-[#F8FAFC] to-white">
           {/* Background Decorative */}
           <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-[800px] h-[800px] bg-[#CAF0F8] rounded-full opacity-40 blur-3xl pointer-events-none"></div>
           
@@ -94,7 +94,7 @@ export function LandingPage() {
               <div className="space-y-6 min-h-[160px] flex flex-col justify-center">
                 {audience === 'paciente' ? (
                   <>
-                    <h1 className="text-5xl md:text-6xl font-extrabold text-[#03045E] leading-[1.1] tracking-tight">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-[#03045E] leading-[1.1] tracking-tight">
                       Sua próxima consulta a <span className="text-[#00B4D8]">poucos cliques.</span>
                     </h1>
                     <p className="text-lg text-[#64748B] leading-relaxed max-w-xl">
@@ -103,7 +103,7 @@ export function LandingPage() {
                   </>
                 ) : (
                   <>
-                    <h1 className="text-5xl md:text-6xl font-extrabold text-[#03045E] leading-[1.1] tracking-tight">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-[#03045E] leading-[1.1] tracking-tight">
                       Mais tempo cuidando.<br/><span className="text-[#0077B6]">Menos no telefone.</span>
                     </h1>
                     <p className="text-lg text-[#64748B] leading-relaxed max-w-xl">
@@ -222,7 +222,7 @@ export function LandingPage() {
         </section>
 
         {/* STATS / HOOK SECTION */}
-        <section className="py-20 px-8 bg-[#F8FAFC]">
+        <section className="py-12 sm:py-20 px-4 sm:px-8 bg-[#F8FAFC]">
           <div className="max-w-[1440px] mx-auto">
             <div className="grid md:grid-cols-3 gap-6">
               <div className="bg-[#023E8A] rounded-3xl p-10 text-center shadow-lg shadow-[#023E8A]/10 border border-[#0077B6]/20">
@@ -242,7 +242,7 @@ export function LandingPage() {
         </section>
 
         {/* COMO FUNCIONA SECTION */}
-        <section id="como-funciona" className="py-24 px-8 bg-white">
+        <section id="como-funciona" className="py-14 sm:py-24 px-4 sm:px-8 bg-white">
           <div className="max-w-[1440px] mx-auto">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-4xl font-bold text-[#03045E] mb-4">Agendar sua consulta em 4 passos</h2>
@@ -288,7 +288,7 @@ export function LandingPage() {
         </section>
 
         {/* ESPECIALIDADES */}
-        <section id="especialidades" className="py-24 px-8 bg-[#F8FAFC] border-y border-[#E2E8F0]">
+        <section id="especialidades" className="py-14 sm:py-24 px-4 sm:px-8 bg-[#F8FAFC] border-y border-[#E2E8F0]">
           <div className="max-w-[1440px] mx-auto">
             <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
               <div className="max-w-xl">
@@ -320,7 +320,7 @@ export function LandingPage() {
         </section>
 
         {/* PARA PROFISSIONAIS / B2B */}
-        <section id="profissionais" className="py-24 px-8 bg-gradient-to-br from-[#CAF0F8]/40 via-[#E0F2FE]/30 to-white">
+        <section id="profissionais" className="py-14 sm:py-24 px-4 sm:px-8 bg-gradient-to-br from-[#CAF0F8]/40 via-[#E0F2FE]/30 to-white">
           <div className="max-w-[1440px] mx-auto grid lg:grid-cols-2 gap-16 items-center">
 
             <div className="space-y-8">
@@ -412,7 +412,7 @@ export function LandingPage() {
         </section>
 
         {/* PLANOS B2B */}
-        <section id="planos" className="py-24 px-8 bg-white">
+        <section id="planos" className="py-14 sm:py-24 px-4 sm:px-8 bg-white">
           <div className="max-w-[1440px] mx-auto">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-4xl font-bold text-[#03045E] mb-4">Planos que cabem no seu consultório</h2>
@@ -502,7 +502,7 @@ export function LandingPage() {
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-[#023E8A] pt-20 pb-10 px-8">
+      <footer className="bg-[#023E8A] pt-12 sm:pt-20 pb-8 sm:pb-10 px-4 sm:px-8">
         <div className="max-w-[1440px] mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-10 mb-16">
           <div className="col-span-2 lg:col-span-2">
             <MedicanoLogo className="mb-6" inverted />

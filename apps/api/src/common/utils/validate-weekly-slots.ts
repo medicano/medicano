@@ -16,7 +16,7 @@ export function validateWeeklySlots(slots: WeeklySlotDto[]): void {
   for (const slot of slots) {
     if (slot.startTime >= slot.endTime) {
       throw new BadRequestException(
-        `Invalid time range: startTime (${slot.startTime}) must be before endTime (${slot.endTime})`,
+        `Intervalo de horário inválido: o início (${slot.startTime}) deve ser anterior ao fim (${slot.endTime})`,
       );
     }
   }
@@ -36,7 +36,7 @@ export function validateWeeklySlots(slots: WeeklySlotDto[]): void {
       current.endTime > next.startTime
     ) {
       throw new BadRequestException(
-        `Overlapping slots detected on day ${current.dayOfWeek}: ${current.startTime}-${current.endTime} and ${next.startTime}-${next.endTime}`,
+        `Horários sobrepostos no dia ${current.dayOfWeek}: ${current.startTime}-${current.endTime} e ${next.startTime}-${next.endTime}`,
       );
     }
   }

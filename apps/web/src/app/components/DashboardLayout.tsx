@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import {
-  CalendarDays, Users, CreditCard, Settings, LogOut, Menu, X, UserCog, Bell, Stethoscope,
+  CalendarDays, Users, CreditCard, Settings, LogOut, Menu, X, UserCog, Bell, Stethoscope, Clock,
 } from 'lucide-react';
 import { MedicanoLogo } from './MedicanoLogo';
 import { ConfirmModal } from './ConfirmModal';
@@ -35,12 +35,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const items: Array<{ to: string; label: string; icon: any; end?: boolean; roles: string[]; badge?: number }> = [
     { to: '/dashboard', label: 'Agenda', icon: CalendarDays, end: true, roles: ['clinic', 'professional', 'attendant'] },
-    { to: '/agendamentos', label: 'Agendamentos', icon: CalendarDays, roles: ['clinic', 'professional', 'attendant'] },
-    { to: '/profissionais', label: 'Profissionais', icon: Stethoscope, roles: ['clinic', 'professional', 'attendant'] },
-    { to: '/atendentes', label: 'Atendentes', icon: UserCog, roles: ['clinic'] },
-    { to: '/notificacoes', label: 'Notificações', icon: Bell, roles: ['clinic', 'professional', 'attendant'], badge: unread },
-    { to: '/assinatura', label: 'Assinatura', icon: CreditCard, roles: ['clinic'] },
-    { to: '/configuracoes', label: 'Configurações', icon: Settings, roles: ['clinic', 'professional', 'attendant'] },
+    { to: '/appointments', label: 'Agendamentos', icon: CalendarDays, roles: ['clinic', 'professional', 'attendant'] },
+    { to: '/professionals', label: 'Profissionais', icon: Stethoscope, roles: ['clinic', 'professional', 'attendant'] },
+    { to: '/attendants', label: 'Atendentes', icon: UserCog, roles: ['clinic'] },
+    { to: '/availability', label: 'Disponibilidade', icon: Clock, roles: ['clinic', 'professional'] },
+    { to: '/notifications', label: 'Notificações', icon: Bell, roles: ['clinic', 'professional', 'attendant'], badge: unread },
+    { to: '/subscription', label: 'Assinatura', icon: CreditCard, roles: ['clinic'] },
+    { to: '/settings', label: 'Configurações', icon: Settings, roles: ['clinic', 'professional', 'attendant'] },
   ].filter((i) => i.roles.includes(role));
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>

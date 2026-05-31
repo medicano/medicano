@@ -136,9 +136,11 @@ class MedicanoDevFlow(Flow[DevFlowState]):
                 "--env-file", str(CREW_DIR / ".env"),
                 "--message-file", str(prompt_file),
                 "--yes-always",
+                "--no-suggest-shell-commands",
                 *read_flags,
             ],
             cwd=str(PROJECT_ROOT),
+            stdin=subprocess.DEVNULL,  # EOF on stdin → Aider won't wait for interactive input
             check=True,
         )
 

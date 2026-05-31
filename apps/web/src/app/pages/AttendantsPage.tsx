@@ -6,8 +6,11 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 
-export function AtendentesPage() {
-  const atendApi = useApi<any[]>('/atendentes');
+export function AttendantsPage() {
+  const profileApi = useApi<any>('/profile/me');
+  const clinicId = profileApi.data?._id ?? profileApi.data?.id ?? null;
+
+  const atendApi = useApi<any[]>(clinicId ? `/clinics/${clinicId}/attendants` : null);
   const list = extractList(atendApi.data);
 
   const [creating, setCreating] = useState(false);
@@ -20,7 +23,8 @@ export function AtendentesPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      await api.post('/atendentes', data);
+      if (!clinicId) throw new Error('Clínica não encontrada');
+      await api.post(`/clinics/${clinicId}/attendants`, data);
       atendApi.refetch();
       setCreating(false);
     } catch (err: any) {
@@ -35,7 +39,8 @@ export function AtendentesPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      await api.put(`/atendentes/${editing.id}`, data);
+      if (!clinicId) throw new Error('Clínica não encontrada');
+      await api.put(`/clinics/${clinicId}/attendants/${editing.id}`, data);
       atendApi.refetch();
       setEditing(null);
     } catch (err: any) {
@@ -48,7 +53,8 @@ export function AtendentesPage() {
   async function handleRemove() {
     if (!removing) return;
     try {
-      await api.delete(`/atendentes/${removing.id}`);
+      if (!clinicId) return;
+      await api.delete(`/clinics/${clinicId}/attendants/${removing.id}`);
       atendApi.refetch();
     } catch (e) { console.error(e); }
     setRemoving(null);

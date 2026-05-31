@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Calendar, Clock, User, Stethoscope, Building2, FileText, Edit3, Lock } from 'lucide-react';
+
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Button } from '../components/ui/Button';
 import { StatusBadge, type AppointmentStatus } from '../components/StatusBadge';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { api } from '../lib/api';
 import { mapStatus, formatDateLong, formatSlot } from '../lib/format';
+import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
+import { useAuth } from '../contexts/AuthContext';
 
 export function AppointmentDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const isStaff = user?.role === 'clinic' || user?.role === 'professional' || user?.role === 'attendant';
   const [apt, setApt] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,9 +77,9 @@ export function AppointmentDetailPage() {
   if (!apt) {
     return (
       <DashboardLayout>
-        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#00B4D8] mb-6">
+        <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#00B4D8] mb-6">
           <ArrowLeft size={16} /> Voltar
-        </Link>
+        </button>
         <p className="text-[#64748B]">Agendamento não encontrado.</p>
       </DashboardLayout>
     );
@@ -81,14 +87,13 @@ export function AppointmentDetailPage() {
 
   return (
     <DashboardLayout>
-      <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#00B4D8] mb-6">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#00B4D8] mb-6">
         <ArrowLeft size={16} /> Voltar
-      </Link>
+      </button>
 
       <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <p className="text-xs text-[#64748B] font-mono">{apt.id}</p>
-          <h1 className="text-3xl font-extrabold text-[#03045E] tracking-tight mt-1">Agendamento</h1>
+          <h1 className="text-3xl font-extrabold text-[#03045E] tracking-tight">Agendamento</h1>
         </div>
         <StatusBadge status={status} size="lg" />
       </div>
@@ -100,7 +105,7 @@ export function AppointmentDetailPage() {
           <hr className="border-[#E2E8F0]" />
           <Row icon={User} label="Paciente" value={apt.patientName || apt.patientId || '—'} />
           <Row icon={Stethoscope} label="Profissional" value={apt.professionalName || apt.professionalId || '—'} />
-          {apt.specialty && <Row icon={Stethoscope} label="Especialidade" value={apt.specialty} />}
+          {apt.specialty && <Row icon={Stethoscope} label="Especialidade" value={SPECIALTY_LABELS[apt.specialty] ?? apt.specialty} />}
           <Row icon={Building2} label="Clínica" value={apt.clinicName || apt.clinicId || '—'} />
           <hr className="border-[#E2E8F0]" />
           <div>
@@ -123,46 +128,48 @@ export function AppointmentDetailPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 h-fit space-y-3">
-          <h3 className="font-bold text-[#03045E] mb-1">Ações</h3>
-          {finalized ? (
-            <div className="flex items-start gap-2 text-sm text-[#64748B] bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-3">
-              <Lock size={14} className="mt-0.5 shrink-0" />
-              Este agendamento está finalizado e não aceita mais alterações.
-            </div>
-          ) : (
-            <>
-              {status === 'SCHEDULED' && (
-                <>
-                  <Button variant="primary" className="w-full" disabled={saving}
-                    onClick={() => setConfirm({ next: 'CONFIRMED', title: 'Confirmar agendamento?', desc: 'O paciente será notificado.' })}>
-                    Confirmar
-                  </Button>
-                  <button onClick={() => setConfirm({ next: 'CANCELLED', danger: true, title: 'Cancelar agendamento?', desc: 'Esta ação não pode ser desfeita.' })}
-                    className="w-full h-11 rounded-xl border-2 border-[#FCA5A5] text-[#B91C1C] hover:bg-[#FEE2E2] font-medium transition-colors">
-                    Cancelar agendamento
-                  </button>
-                </>
-              )}
-              {status === 'CONFIRMED' && (
-                <>
-                  <Button variant="primary" className="w-full" disabled={saving}
-                    onClick={() => setConfirm({ next: 'COMPLETED', title: 'Marcar como concluído?', desc: 'O atendimento será movido para o histórico.' })}>
-                    Marcar como concluído
-                  </Button>
-                  <button onClick={() => setConfirm({ next: 'CANCELLED', danger: true, title: 'Cancelar agendamento?', desc: 'Esta ação não pode ser desfeita.' })}
-                    className="w-full h-11 rounded-xl border-2 border-[#FCA5A5] text-[#B91C1C] hover:bg-[#FEE2E2] font-medium transition-colors">
-                    Cancelar agendamento
-                  </button>
-                </>
-              )}
-            </>
-          )}
-          <button onClick={() => setEditOpen(true)} disabled={finalized || saving}
-            className="w-full h-11 rounded-xl border-2 border-[#E2E8F0] text-[#03045E] hover:border-[#00B4D8] hover:bg-[#F8FAFC] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">
-            <Edit3 size={16} /> Editar
-          </button>
-        </div>
+        {isStaff && (
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 h-fit space-y-3">
+            <h3 className="font-bold text-[#03045E] mb-1">Ações</h3>
+            {finalized ? (
+              <div className="flex items-start gap-2 text-sm text-[#64748B] bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-3">
+                <Lock size={14} className="mt-0.5 shrink-0" />
+                Este agendamento está finalizado e não aceita mais alterações.
+              </div>
+            ) : (
+              <>
+                {status === 'SCHEDULED' && (
+                  <>
+                    <Button variant="primary" className="w-full" disabled={saving}
+                      onClick={() => setConfirm({ next: 'CONFIRMED', title: 'Confirmar agendamento?', desc: 'O paciente será notificado.' })}>
+                      Confirmar
+                    </Button>
+                    <button onClick={() => setConfirm({ next: 'CANCELLED', danger: true, title: 'Cancelar agendamento?', desc: 'Esta ação não pode ser desfeita.' })}
+                      className="w-full h-11 rounded-xl border-2 border-[#FCA5A5] text-[#B91C1C] hover:bg-[#FEE2E2] font-medium transition-colors">
+                      Cancelar agendamento
+                    </button>
+                  </>
+                )}
+                {status === 'CONFIRMED' && (
+                  <>
+                    <Button variant="primary" className="w-full" disabled={saving}
+                      onClick={() => setConfirm({ next: 'COMPLETED', title: 'Marcar como concluído?', desc: 'O atendimento será movido para o histórico.' })}>
+                      Marcar como concluído
+                    </Button>
+                    <button onClick={() => setConfirm({ next: 'CANCELLED', danger: true, title: 'Cancelar agendamento?', desc: 'Esta ação não pode ser desfeita.' })}
+                      className="w-full h-11 rounded-xl border-2 border-[#FCA5A5] text-[#B91C1C] hover:bg-[#FEE2E2] font-medium transition-colors">
+                      Cancelar agendamento
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+            <button onClick={() => setEditOpen(true)} disabled={finalized || saving}
+              className="w-full h-11 rounded-xl border-2 border-[#E2E8F0] text-[#03045E] hover:border-[#00B4D8] hover:bg-[#F8FAFC] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2">
+              <Edit3 size={16} /> Editar
+            </button>
+          </div>
+        )}
       </div>
 
       <ConfirmModal

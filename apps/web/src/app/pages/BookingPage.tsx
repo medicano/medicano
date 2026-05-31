@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Building2, CalendarCheck, Clock, AlertCircle, Shuffle } from 'lucide-react';
 import { PatientTopbar } from '../components/PatientTopbar';
@@ -8,6 +8,7 @@ import { Calendar } from '../components/ui/calendar';
 import { api } from '../lib/api';
 import { useApi, extractList } from '../lib/hooks';
 import { formatDateLong, initials as toInitials } from '../lib/format';
+import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 
 interface ProfessionalInfo {
   id: string;
@@ -22,14 +23,6 @@ interface Slot {
   available: boolean;
   label: string;
 }
-
-const SPECIALTY_LABELS: Record<string, string> = {
-  medicine: 'Clínica Geral / Medicina',
-  psychology: 'Psicologia',
-  psychiatry: 'Psiquiatria',
-  dentistry: 'Odontologia',
-  nutrition: 'Nutrição',
-};
 
 function toLocalTime(iso: string) {
   if (!iso.includes('T')) return iso;
@@ -75,7 +68,7 @@ export function BookingPage() {
     if (preDate && !isNaN(preDate.getTime())) {
       const d = new Date(preDate); d.setHours(0, 0, 0, 0); return d;
     }
-    const today = new Date(); today.setHours(0, 0, 0, 0); return today;
+    return undefined;
   });
   const [slot, setSlot] = useState<string | null>(preSlot || null);
   const [notes, setNotes] = useState('');
@@ -90,28 +83,58 @@ export function BookingPage() {
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  // When we pre-load slots from the range fetch, skip the next per-day fetch
+  const skipFetchRef = useRef(false);
 
   useEffect(() => {
-    if (!date) { setSlots([]); return; }
-    if (!professionalId && !clinicIdParam) { setSlots([]); return; }
+    if (isAny || !professionalId) { setSlots([]); return; }
+    if (skipFetchRef.current) { skipFetchRef.current = false; return; }
+
     setSlotsLoading(true);
-    setSlot(null);
 
-    if (isAny) { setSlots([]); setSlotsLoading(false); return; }
+    if (!date) {
+      // Initial load: ask backend for the next available day + its slots in one call
+      api.get(`/availability/${professionalId}/next`)
+        .then(({ data }) => {
+          if (data?.date && data?.slots?.length) {
+            const d = new Date(data.date + 'T00:00:00'); d.setHours(0, 0, 0, 0);
+            const normalized: Slot[] = data.slots.map((s: any) => ({
+              start: s.start ?? s.startAt ?? s.time,
+              available: s.available !== false && !s.taken,
+              label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time),
+            }));
+            skipFetchRef.current = true;
+            setDate(d);
+            setSlots(normalized);
+          } else {
+            const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
+            setDate(tomorrow);
+            setSlots([]);
+          }
+        })
+        .catch(() => {
+          const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(0, 0, 0, 0);
+          setDate(tomorrow);
+          setSlots([]);
+        })
+        .finally(() => setSlotsLoading(false));
+      return;
+    }
 
+    // Normal: user picked a specific date
     const dateStr = isoDate(date);
-
-    api.get(`/availability/${professionalId}`, { params: { fromDate: dateStr, toDate: dateStr } })
+    api.get(`/availability/${professionalId}/slots`, { params: { fromDate: dateStr, toDate: dateStr } })
       .then(({ data }) => {
         const list = extractList<any>(data);
-        const normalized: Slot[] = list.map((s) => ({
+        const normalized: Slot[] = list.map((s: any) => ({
           start: s.start ?? s.startAt ?? s.time,
           available: s.available !== false && !s.taken,
           label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time),
         }));
         setSlots(normalized);
+        setSlot(prev => normalized.some(s => s.start === prev) ? prev : null);
       })
-      .catch(() => setSlots([]))
+      .catch(() => { setSlots([]); setSlot(null); })
       .finally(() => setSlotsLoading(false));
   }, [date, professionalId, clinicIdParam, isAny]);
 
@@ -134,7 +157,7 @@ export function BookingPage() {
         payload.clinicId = clinicIdParam;
       }
       const { data } = await api.post('/appointments', payload);
-      navigate('/agendar/sucesso', {
+      navigate('/book/success', {
         state: {
           professionalName: isAny ? 'A definir pela clínica' : professional.name,
           specialty: isAny ? '' : (SPECIALTY_LABELS[professional.specialty] ?? professional.specialty),

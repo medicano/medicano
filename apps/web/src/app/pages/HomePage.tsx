@@ -8,6 +8,7 @@ import { StatusBadge, type AppointmentStatus } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi, extractList } from '../lib/hooks';
 import { mapStatus, formatDateShort, formatSlot } from '../lib/format';
+import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 
 interface UpcomingAppt {
   id: string;
@@ -77,12 +78,12 @@ export function HomePage() {
               Como você está se sentindo hoje? Use a triagem inteligente para receber recomendações personalizadas ou agende diretamente.
             </p>
             <div className="flex flex-wrap gap-3 mt-6">
-              <Link to="/triagem">
+              <Link to="/triage">
                 <Button variant="primary" className="gap-2">
                   <MessageSquareHeart size={18} /> Iniciar triagem
                 </Button>
               </Link>
-              <Link to="/busca">
+              <Link to="/search">
                 <Button variant="outline" className="gap-2 bg-white/10 border-white/30 text-white hover:bg-white hover:text-[#023E8A]">
                   <Search size={18} /> Buscar profissional
                 </Button>
@@ -93,21 +94,21 @@ export function HomePage() {
 
         <section className="grid md:grid-cols-3 gap-4 mb-12">
           <QuickAction
-            to="/triagem"
+            to="/triage"
             icon={<MessageSquareHeart size={22} />}
             title="Triagem inteligente"
             description="Receba recomendações com base nos seus sintomas."
             accent="from-[#48CAE4] to-[#0077B6]"
           />
           <QuickAction
-            to="/busca"
+            to="/search"
             icon={<Search size={22} />}
             title="Buscar atendimento"
             description="Encontre clínicas e profissionais por especialidade."
             accent="from-[#90E0EF] to-[#00B4D8]"
           />
           <QuickAction
-            to="/agendamentos"
+            to="/appointments"
             icon={<CalendarClock size={22} />}
             title="Meus agendamentos"
             description="Acompanhe seus atendimentos agendados."
@@ -116,7 +117,7 @@ export function HomePage() {
         </section>
 
         <section className="mb-12">
-          <SectionHeader title="Próximos agendamentos" linkLabel="Ver todos" to="/agendamentos" />
+          <SectionHeader title="Próximos agendamentos" linkLabel="Ver todos" to="/appointments" />
           {upcoming.length === 0 ? (
             <div className="bg-white border border-[#E2E8F0] rounded-3xl p-10 text-center">
               <div className="w-16 h-16 rounded-2xl bg-[#CAF0F8] flex items-center justify-center mx-auto mb-4">
@@ -133,14 +134,14 @@ export function HomePage() {
         </section>
 
         <section className="mb-12">
-          <SectionHeader title="Especialidades" linkLabel="Ver todas" to="/busca" />
+          <SectionHeader title="Especialidades" linkLabel="Ver todas" to="/search" />
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {specialtiesList.map((s) => {
               const Icon = s.icon;
               return (
                 <Link
                   key={s.name}
-                  to={`/busca?especialidade=${s.value}`}
+                  to={`/search?especialidade=${s.value}`}
                   className="group bg-white border border-[#E2E8F0] rounded-2xl p-5 hover:border-[#00B4D8] hover:shadow-md transition-all"
                 >
                   <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${s.color} flex items-center justify-center mb-3`}>
@@ -154,7 +155,7 @@ export function HomePage() {
         </section>
 
         <section className="mb-4">
-          <SectionHeader title="Recomendados para você" linkLabel="Ver todos" to="/busca" />
+          <SectionHeader title="Recomendados para você" linkLabel="Ver todos" to="/search" />
           <div className="grid md:grid-cols-3 gap-4">
             {recommendations.map((r) => {
               const initials = r.name.replace(/^(Dr\.|Dra\.)\s*/, '').split(' ').map((p) => p[0]).slice(0, 2).join('');
@@ -166,14 +167,14 @@ export function HomePage() {
                     </div>
                     <div className="min-w-0">
                       <p className="font-bold text-[#03045E] truncate">{r.name}</p>
-                      <p className="text-xs font-semibold text-[#0077B6]">{r.specialty}</p>
+                      <p className="text-xs font-semibold text-[#0077B6]">{SPECIALTY_LABELS[r.specialty] ?? r.specialty}</p>
                     </div>
                   </div>
                   <div className="text-sm text-[#64748B] space-y-1 mb-4 flex-1">
                     <p className="inline-flex items-center gap-1.5"><Building2 size={14} /> {r.clinicName}</p>
                     <p className="inline-flex items-center gap-1.5"><Stethoscope size={14} /> {r.city}</p>
                   </div>
-                  <Link to={`/agendar/${r.id}`}>
+                  <Link to={`/book/${r.id}`}>
                     <Button variant="primary" className="w-full gap-2">
                       <Calendar size={16} /> Agendar
                     </Button>
@@ -225,7 +226,7 @@ function UpcomingCard({ appt }: { appt: UpcomingAppt }) {
   const initials = appt.professionalName.replace(/^(Dr\.|Dra\.)\s*/, '').split(' ').map((p) => p[0]).slice(0, 2).join('');
   return (
     <Link
-      to={`/agendamentos/${appt.id}`}
+      to={`/appointments/${appt.id}`}
       className="bg-white border border-[#E2E8F0] rounded-2xl p-5 hover:border-[#00B4D8] hover:shadow-md transition-all block"
     >
       <div className="flex items-start gap-4">
@@ -236,7 +237,7 @@ function UpcomingCard({ appt }: { appt: UpcomingAppt }) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="font-bold text-[#03045E] truncate">{appt.professionalName}</p>
-              <p className="text-xs font-semibold text-[#0077B6]">{appt.specialty}</p>
+              <p className="text-xs font-semibold text-[#0077B6]">{SPECIALTY_LABELS[appt.specialty] ?? appt.specialty}</p>
             </div>
             <StatusBadge status={appt.status} />
           </div>

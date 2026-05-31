@@ -5,8 +5,11 @@ import { Button } from '../components/ui/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
+import { SpecialtyCombobox, SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
+import { useAuth } from '../contexts/AuthContext';
+import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 
-const PLAN_LIMITS: Record<string, number> = { FREE: 2, BASIC: 10, PRO: 999 };
+const PLAN_LIMITS: Record<string, number> = { free: 2, basic: 10, pro: 999 };
 
 const DAYS = [
   { value: 0, label: 'Domingo' },
@@ -18,14 +21,6 @@ const DAYS = [
   { value: 6, label: 'Sábado' },
 ];
 
-const SPECIALTY_LABELS: Record<string, string> = {
-  medicine: 'Clínica Geral',
-  psychology: 'Psicologia',
-  psychiatry: 'Psiquiatria',
-  dentistry: 'Odontologia',
-  nutrition: 'Nutrição',
-};
-
 interface WeeklySlot {
   dayOfWeek: number;
   startTime: string;
@@ -33,14 +28,19 @@ interface WeeklySlot {
   slotDurationMinutes: number;
 }
 
-export function ProfissionaisPage() {
-  const prosApi = useApi<any[]>('/professionals');
-  const subApi = useApi<any>('/assinatura');
+export function ProfessionalsPage() {
+  const { user } = useAuth();
+  const profileApi = useApi<any>(user?.role !== 'attendant' ? '/profile/me' : null);
+  const clinicId = user?.clinicId ?? profileApi.data?._id ?? profileApi.data?.id ?? null;
 
+  const prosApi = useApi<any[]>(clinicId ? `/clinics/${clinicId}/professionals` : null);
+  const subApi = useApi<any>(clinicId ? `/subscriptions/clinic/${clinicId}` : null);
+
+  const isAttendant = user?.role === 'attendant';
   const list = extractList(prosApi.data);
-  const planName: string = subApi.data?.plan ?? 'FREE';
+  const planName: string = (subApi.data?.plan ?? 'free').toLowerCase();
   const planLimit = PLAN_LIMITS[planName] ?? 10;
-  const atLimit = list.length >= planLimit;
+  const atLimit = !isAttendant && list.length >= planLimit;
 
   const [toRemove, setToRemove] = useState<any | null>(null);
   const [creating, setCreating] = useState(false);
@@ -49,13 +49,12 @@ export function ProfissionaisPage() {
 
   const [newName, setNewName] = useState('');
   const [newSpecialty, setNewSpecialty] = useState('');
-  const [newCity, setNewCity] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
   const [schedulePro, setSchedulePro] = useState<any | null>(null);
 
   function resetForm() {
-    setNewName(''); setNewSpecialty(''); setNewCity(''); setNewPhone('');
+    setNewName(''); setNewSpecialty(''); setNewPhone('');
     setCreateError(null);
   }
 
@@ -64,7 +63,15 @@ export function ProfissionaisPage() {
     setSubmitting(true);
     setCreateError(null);
     try {
-      await api.post('/professionals', { name: newName, specialty: newSpecialty, city: newCity, phone: newPhone });
+      const { data: pro } = await api.post('/professionals', {
+        name: newName,
+        specialty: SPECIALTY_LABEL_TO_ENUM[newSpecialty] || undefined,
+        phone: newPhone || undefined,
+      });
+      const proId = pro?._id ?? pro?.id;
+      if (clinicId && proId) {
+        await api.post(`/clinics/${clinicId}/professionals/${proId}`);
+      }
       prosApi.refetch();
       setCreating(false);
       resetForm();
@@ -78,7 +85,12 @@ export function ProfissionaisPage() {
   async function handleRemove() {
     if (!toRemove) return;
     try {
-      await api.delete(`/professionals/${toRemove.id}`);
+      const proId = toRemove.id ?? toRemove._id;
+      if (clinicId) {
+        await api.delete(`/clinics/${clinicId}/professionals/${proId}`);
+      } else {
+        await api.delete(`/professionals/${proId}`);
+      }
       prosApi.refetch();
     } catch (e) { console.error(e); }
     setToRemove(null);
@@ -93,9 +105,11 @@ export function ProfissionaisPage() {
             <span className="font-bold">{list.length}</span> de <span className="font-bold">{planLimit === 999 ? '∞' : planLimit}</span> profissionais ({planName})
           </p>
         </div>
-        <Button variant="primary" disabled={atLimit} className="gap-2" onClick={() => { resetForm(); setCreating(true); }}>
-          <Plus size={18} /> Adicionar profissional
-        </Button>
+        {!isAttendant && (
+          <Button variant="primary" disabled={atLimit} className="gap-2" onClick={() => { resetForm(); setCreating(true); }}>
+            <Plus size={18} /> Adicionar profissional
+          </Button>
+        )}
       </div>
 
       {atLimit && (
@@ -104,7 +118,7 @@ export function ProfissionaisPage() {
           <p className="text-sm text-[#92400E] flex-1">
             Você atingiu o limite de profissionais do plano atual. Faça upgrade para adicionar mais.
           </p>
-          <a href="/assinatura" className="text-sm font-bold text-[#92400E] underline shrink-0">Ver planos</a>
+          <a href="/subscription" className="text-sm font-bold text-[#92400E] underline shrink-0">Ver planos</a>
         </div>
       )}
 
@@ -116,10 +130,14 @@ export function ProfissionaisPage() {
             <Users size={36} className="text-[#0077B6]" />
           </div>
           <h2 className="text-2xl font-bold text-[#03045E]">Nenhum profissional cadastrado</h2>
-          <p className="text-[#64748B] mt-2 mb-6 max-w-md mx-auto">Adicione profissionais à sua clínica para começar a agendar atendimentos.</p>
-          <Button variant="primary" className="gap-2" onClick={() => { resetForm(); setCreating(true); }}>
-            <Plus size={18} /> Adicionar profissional
-          </Button>
+          <p className="text-[#64748B] mt-2 mb-6 max-w-md mx-auto">
+            {isAttendant ? 'Nenhum profissional cadastrado na sua clínica.' : 'Adicione profissionais à sua clínica para começar a agendar atendimentos.'}
+          </p>
+          {!isAttendant && (
+            <Button variant="primary" className="gap-2" onClick={() => { resetForm(); setCreating(true); }}>
+              <Plus size={18} /> Adicionar profissional
+            </Button>
+          )}
         </div>
       ) : (
         <div className="bg-white border border-[#E2E8F0] rounded-2xl overflow-hidden">
@@ -127,7 +145,7 @@ export function ProfissionaisPage() {
             <div></div><div>Nome</div><div>Especialidade</div><div>Cidade</div><div className="text-right">Ações</div>
           </div>
           {list.map((p) => (
-            <div key={p.id} className="grid grid-cols-[48px_1fr_auto] md:grid-cols-[60px_1fr_1fr_1fr_180px] gap-4 items-center px-6 py-4 border-b border-[#E2E8F0] last:border-b-0">
+            <div key={p._id ?? p.id} className="grid grid-cols-[48px_1fr_auto] md:grid-cols-[60px_1fr_1fr_1fr_180px] gap-4 items-center px-6 py-4 border-b border-[#E2E8F0] last:border-b-0">
               <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#48CAE4] to-[#0077B6] text-white font-bold flex items-center justify-center text-sm">
                 {p.name?.slice(0, 2).toUpperCase()}
               </div>
@@ -138,18 +156,22 @@ export function ProfissionaisPage() {
               <div className="text-sm text-[#0F172A] hidden md:block">{SPECIALTY_LABELS[p.specialty] ?? p.specialty}</div>
               <div className="text-sm text-[#64748B] hidden md:block">{p.address?.city || p.city || '—'}</div>
               <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={() => setSchedulePro(p)}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#023E8A] px-3 py-2 rounded-lg hover:bg-[#CAF0F8]/40 transition-colors"
-                >
-                  <Clock size={14} /> <span className="hidden md:inline">Horários</span>
-                </button>
-                <button
-                  onClick={() => setToRemove(p)}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#B91C1C] hover:text-[#7F1D1D] px-3 py-2 rounded-lg hover:bg-[#FEE2E2] transition-colors"
-                >
-                  <Trash2 size={14} /> <span className="hidden md:inline">Remover</span>
-                </button>
+                {!isAttendant && (
+                  <button
+                    onClick={() => setSchedulePro(p)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#023E8A] px-3 py-2 rounded-lg hover:bg-[#CAF0F8]/40 transition-colors"
+                  >
+                    <Clock size={14} /> <span className="hidden md:inline">Horários</span>
+                  </button>
+                )}
+                {!isAttendant && (
+                  <button
+                    onClick={() => setToRemove(p)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#B91C1C] hover:text-[#7F1D1D] px-3 py-2 rounded-lg hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <Trash2 size={14} /> <span className="hidden md:inline">Remover</span>
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -158,7 +180,7 @@ export function ProfissionaisPage() {
 
       {creating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#03045E]/40 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#E2E8F0]">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#E2E8F0] max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between p-6 pb-4">
               <h3 className="text-lg font-bold text-[#03045E]">Adicionar profissional</h3>
               <button onClick={() => setCreating(false)} className="text-[#64748B] hover:text-[#0F172A]"><X size={20} /></button>
@@ -167,8 +189,6 @@ export function ProfissionaisPage() {
               {createError && <p className="text-sm text-[#B91C1C] bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-3 py-2">{createError}</p>}
               {[
                 { label: 'Nome completo', value: newName, setter: setNewName, placeholder: 'Dr. João Silva', required: true },
-                { label: 'Especialidade', value: newSpecialty, setter: setNewSpecialty, placeholder: 'Cardiologia', required: true },
-                { label: 'Cidade', value: newCity, setter: setNewCity, placeholder: 'São Paulo', required: false },
                 { label: 'Telefone', value: newPhone, setter: setNewPhone, placeholder: '(11) 9xxxx-xxxx', required: false },
               ].map(({ label, value, setter, placeholder, required }) => (
                 <label key={label} className="block">
@@ -177,6 +197,11 @@ export function ProfissionaisPage() {
                     className="w-full h-11 px-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#00B4D8] focus:bg-white transition-colors" />
                 </label>
               ))}
+              <SpecialtyCombobox
+                label="Especialidade *"
+                value={newSpecialty}
+                onChange={setNewSpecialty}
+              />
               <div className="flex items-center justify-end gap-3 pt-2">
                 <Button type="button" variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
                 <Button type="submit" variant="primary" disabled={submitting}>{submitting ? 'Salvando…' : 'Adicionar'}</Button>

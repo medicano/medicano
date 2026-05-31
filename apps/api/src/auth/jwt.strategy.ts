@@ -21,7 +21,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   async validate(payload: { sub: string; role: Role }): Promise<{ userId: string; role: Role }> {
     const token = await this.redisService.getToken(payload.sub);
     if (!token) {
-      throw new UnauthorizedException('Session expired or revoked');
+      throw new UnauthorizedException('Sessão expirada ou revogada');
     }
     return { userId: payload.sub, role: payload.role };
   }

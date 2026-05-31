@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 
 import { Specialty } from '../../common/enums/specialty.enum';
 
@@ -36,4 +36,14 @@ export class SearchQueryDto {
   @Max(50)
   @IsOptional()
   limit?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  userLat?: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsOptional()
+  userLng?: number;
 }

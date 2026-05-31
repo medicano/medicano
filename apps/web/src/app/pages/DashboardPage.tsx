@@ -94,7 +94,7 @@ export function DashboardPage() {
           </div>
         ) : (
           filtered.map((r) => (
-            <Link key={r.id} to={`/agendamentos/${r.id}`}
+            <Link key={r.id} to={`/appointments/${r.id}`}
               className="grid grid-cols-2 md:grid-cols-[1.3fr_1fr_1fr_0.7fr_1fr_0.6fr] gap-4 px-6 py-4 border-b border-[#E2E8F0] last:border-b-0 hover:bg-[#F8FAFC] transition-colors items-center">
               <div className="font-bold text-[#03045E]">{formatDateShort(r.startAt)} • {formatSlot(r.startAt)}</div>
               <div className="text-sm text-[#0F172A] truncate">{r.patientName || r.patientId}</div>

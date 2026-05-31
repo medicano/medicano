@@ -7,7 +7,7 @@ import { Button } from '../components/ui/Button';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 
-export function TriagemListPage() {
+export function TriageListPage() {
   const navigate = useNavigate();
   const sessionsApi = useApi<any[]>('/chat/sessions');
   const sessions = extractList(sessionsApi.data);
@@ -18,7 +18,7 @@ export function TriagemListPage() {
     try {
       const { data } = await api.post('/chat/sessions', { type: 'triage' });
       const sessionId = data.id ?? data._id;
-      navigate(`/triagem/${sessionId}`);
+      navigate(`/triage/${sessionId}`);
     } catch (e) {
       console.error(e);
       setCreating(false);
@@ -66,7 +66,7 @@ export function TriagemListPage() {
             {sessions.map((s) => (
               <button
                 key={s.id ?? s._id}
-                onClick={() => navigate(`/triagem/${s.id ?? s._id}`)}
+                onClick={() => navigate(`/triage/${s.id ?? s._id}`)}
                 className="w-full flex items-center gap-4 bg-white border border-[#E2E8F0] hover:border-[#48CAE4] rounded-2xl p-5 transition-all hover:shadow-sm group text-left"
               >
                 <div className="w-12 h-12 rounded-xl bg-[#CAF0F8]/60 text-[#0077B6] flex items-center justify-center shrink-0">

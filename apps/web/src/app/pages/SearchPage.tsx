@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { Search, MapPin, Phone, ChevronDown, Building2, SearchX, Calendar } from 'lucide-react';
+import { Search, MapPin, Phone, Building2, SearchX, Calendar, Navigation } from 'lucide-react';
+import { SpecialtyCombobox } from '../components/SpecialtyCombobox';
 import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
 import { Button } from '../components/ui/Button';
 import { api } from '../lib/api';
+import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
+import { SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
 
 type ResultType = 'all' | 'clinics' | 'professionals';
 
@@ -15,6 +18,7 @@ interface ClinicResult {
   specialties: string[];
   city: string;
   phone: string;
+  distance?: number;
 }
 
 interface ProfessionalResult {
@@ -25,20 +29,14 @@ interface ProfessionalResult {
   clinicId: string;
   clinicName: string;
   city: string;
+  distance?: number;
 }
 
 type Result = ClinicResult | ProfessionalResult;
 
-const SPECIALTIES: { label: string; value: string }[] = [
-  { label: 'Medicina', value: 'medicine' },
-  { label: 'Psicologia', value: 'psychology' },
-  { label: 'Psiquiatria', value: 'psychiatry' },
-  { label: 'Odontologia', value: 'dentistry' },
-  { label: 'Nutrição', value: 'nutrition' },
-];
-
-const SPECIALTY_LABELS: Record<string, string> = Object.fromEntries(
-  SPECIALTIES.map(({ value, label }) => [value, label])
+// Maps English slugs (URL params from HomePage) → Portuguese labels (combobox values)
+const SPECIALTY_FROM_SLUG = Object.fromEntries(
+  Object.entries(SPECIALTY_LABEL_TO_ENUM).map(([label, slug]) => [slug, label])
 );
 
 function normalizeProfessional(p: any): ProfessionalResult {
@@ -50,6 +48,7 @@ function normalizeProfessional(p: any): ProfessionalResult {
     clinicId: p.clinicId ?? '',
     clinicName: p.clinicName ?? p.clinic?.name ?? '',
     city: p.city ?? p.address?.city ?? '',
+    distance: p.distance,
   };
 }
 
@@ -61,12 +60,13 @@ function normalizeClinic(c: any): ClinicResult {
     specialties: Array.isArray(c.specialties) ? c.specialties : [],
     city: c.city ?? c.address?.city ?? '',
     phone: c.phone ?? '',
+    distance: c.distance,
   };
 }
 
 export function SearchPage() {
   const [searchParams] = useSearchParams();
-  const initialSpecialty = searchParams.get('especialidade') ?? '';
+  const initialSpecialty = SPECIALTY_FROM_SLUG[searchParams.get('especialidade') ?? ''] ?? '';
 
   const [query, setQuery] = useState('');
   const [specialty, setSpecialty] = useState(initialSpecialty);
@@ -76,6 +76,23 @@ export function SearchPage() {
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType });
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+
+  const requestLocation = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocating(false);
+      },
+      () => setLocating(false),
+      { timeout: 10000, enableHighAccuracy: true, maximumAge: 60000 },
+    );
+  }, []);
+
+  useEffect(() => { requestLocation(); }, [requestLocation]);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,9 +101,16 @@ export function SearchPage() {
 
     const params: Record<string, string> = {};
     if (submittedFilters.query) params.name = submittedFilters.query;
-    if (submittedFilters.specialty) params.specialty = submittedFilters.specialty;
+    if (submittedFilters.specialty) {
+      const slug = SPECIALTY_LABEL_TO_ENUM[submittedFilters.specialty];
+      if (slug) params.specialty = slug;
+    }
     if (submittedFilters.city) params.city = submittedFilters.city;
     if (submittedFilters.type !== 'all') params.type = submittedFilters.type === 'clinics' ? 'clinic' : 'professional';
+    if (userLocation) {
+      params.userLat = String(userLocation.lat);
+      params.userLng = String(userLocation.lng);
+    }
 
     api.get('/search', { params })
       .then(({ data }) => {
@@ -104,7 +128,7 @@ export function SearchPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [submittedFilters]);
+  }, [submittedFilters, userLocation]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -136,20 +160,20 @@ export function SearchPage() {
             />
           </div>
 
+          {userLocation && (
+            <p className="mb-3 flex items-center gap-1.5 text-xs text-[#00B4D8] font-medium">
+              <Navigation size={12} /> Usando sua localização — resultados ordenados por proximidade
+            </p>
+          )}
+
           <div className="grid md:grid-cols-[1fr_1fr_auto] gap-4 items-end">
             <div>
-              <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Especialidade</label>
-              <div className="relative">
-                <select
-                  value={specialty}
-                  onChange={(e) => setSpecialty(e.target.value)}
-                  className="w-full h-11 pl-4 pr-10 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] appearance-none focus:outline-none focus:border-[#00B4D8] transition-colors"
-                >
-                  <option value="">Todas</option>
-                  {SPECIALTIES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] pointer-events-none" />
-              </div>
+              <SpecialtyCombobox
+                label="Especialidade"
+                value={specialty}
+                onChange={setSpecialty}
+                placeholder="Todas as especialidades"
+              />
             </div>
 
             <div>
@@ -238,17 +262,22 @@ function ClinicCard({ clinic }: { clinic: ClinicResult }) {
           <div className="flex flex-wrap gap-2 mt-2">
             {clinic.specialties.map((s) => (
               <span key={s} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#CAF0F8] text-[#023E8A]">
-                {SPECIALTY_LABELS[s] ?? s}
+                {SPECIALTY_FROM_SLUG[s] ?? s}
               </span>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 text-sm text-[#64748B]">
-            <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {clinic.city}</span>
-            <span className="inline-flex items-center gap-1.5"><Phone size={14} /> {clinic.phone}</span>
+            {clinic.city && <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {clinic.city}</span>}
+            {clinic.phone && <span className="inline-flex items-center gap-1.5"><Phone size={14} /> {clinic.phone}</span>}
+            {clinic.distance != null && (
+              <span className="inline-flex items-center gap-1.5 text-[#00B4D8] font-semibold">
+                <Navigation size={14} /> {clinic.distance < 1 ? `${Math.round(clinic.distance * 1000)} m` : `${clinic.distance} km`}
+              </span>
+            )}
           </div>
         </div>
         <div className="shrink-0">
-          <Link to={`/clinica/${clinic.id}`}>
+          <Link to={`/clinic/${clinic.id}`}>
             <Button variant="secondary">Ver clínica</Button>
           </Link>
         </div>
@@ -267,14 +296,19 @@ function ProfessionalCard({ pro }: { pro: ProfessionalResult }) {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-xl font-bold text-[#03045E]">{pro.name}</h3>
-          <p className="text-sm font-semibold text-[#0077B6] mt-1">{SPECIALTY_LABELS[pro.specialty] ?? pro.specialty}</p>
+          <p className="text-sm font-semibold text-[#0077B6] mt-1">{SPECIALTY_FROM_SLUG[pro.specialty] ?? pro.specialty}</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-2 text-sm text-[#64748B]">
-            <span className="inline-flex items-center gap-1.5"><Building2 size={14} /> {pro.clinicName}</span>
-            <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {pro.city}</span>
+            {pro.clinicName && <span className="inline-flex items-center gap-1.5"><Building2 size={14} /> {pro.clinicName}</span>}
+            {pro.city && <span className="inline-flex items-center gap-1.5"><MapPin size={14} /> {pro.city}</span>}
+            {pro.distance != null && (
+              <span className="inline-flex items-center gap-1.5 text-[#00B4D8] font-semibold">
+                <Navigation size={14} /> {pro.distance < 1 ? `${Math.round(pro.distance * 1000)} m` : `${pro.distance} km`}
+              </span>
+            )}
           </div>
         </div>
         <div className="shrink-0">
-          <Link to={`/agendar/${pro.id}${pro.clinicId ? `?clinicId=${pro.clinicId}` : ''}`}>
+          <Link to={`/book/${pro.id}${pro.clinicId ? `?clinicId=${pro.clinicId}` : ''}`}>
             <Button variant="primary" className="gap-2">
               <Calendar size={16} /> Agendar
             </Button>

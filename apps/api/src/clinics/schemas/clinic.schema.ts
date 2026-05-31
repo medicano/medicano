@@ -13,6 +13,9 @@ export class Clinic {
   description?: string;
 
   @Prop({ type: String })
+  city?: string;
+
+  @Prop({ type: String })
   phone?: string;
 
   @Prop({ type: String })
@@ -35,6 +38,33 @@ export class Clinic {
 
   @Prop({ type: String, required: true, unique: true, match: /^\d{14}$/ })
   cnpj: string;
+
+  @Prop({ type: String })
+  website?: string;
+
+  @Prop({ type: String })
+  hours?: string;
+
+  @Prop({ type: String })
+  addressText?: string;
+
+  @Prop({ type: Number })
+  lat?: number;
+
+  @Prop({ type: Number })
+  lng?: number;
+
+  @Prop({ type: String, unique: true, sparse: true })
+  customCode?: string;
+
+  @Prop({ type: Boolean, default: false })
+  allowConsecutiveAttendants: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  notifyEmail: boolean;
+
+  @Prop({ type: Boolean, default: false })
+  notifySms: boolean;
 
   @Prop({ type: Boolean, default: false })
   autoConfirm: boolean;

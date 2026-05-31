@@ -3,7 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 
 export function AppFooter() {
   return (
-    <footer className="bg-white border-t border-[#E2E8F0] py-10 px-8 mt-auto">
+    <footer className="bg-white border-t border-[#E2E8F0] py-10 px-4 sm:px-8 mt-auto">
       <div className="max-w-[1440px] mx-auto grid md:grid-cols-3 gap-8 text-sm">
         <div>
           <h4 className="font-bold text-[#0F172A] mb-3">Sobre</h4>

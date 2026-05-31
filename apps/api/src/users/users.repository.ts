@@ -15,6 +15,10 @@ export class UsersRepository {
     return user.save();
   }
 
+  async findByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ email }).select('+passwordHash').exec();
+  }
+
   async findByEmailAndRole(
     email: string,
     role: Role,

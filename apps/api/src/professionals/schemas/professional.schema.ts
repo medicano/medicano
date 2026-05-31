@@ -23,20 +23,20 @@ export class Professional {
   @Prop({ type: String })
   email?: string;
 
-  @Prop({ type: String, enum: Specialty, required: true })
-  specialty: Specialty;
+  @Prop({ type: String, enum: Specialty })
+  specialty?: Specialty;
 
-  @Prop({ type: String, required: true })
-  registration: string;
+  @Prop({ type: String })
+  registration?: string;
 
-  @Prop({ type: String, required: true, unique: true })
-  cpf: string;
+  @Prop({ type: String })
+  cpf?: string;
 
   @Prop({ type: Number, default: 24, min: 0, max: 168 })
   minCancelNoticeHours: number;
 
-  @Prop({ type: AddressSchema, required: true })
-  address: Address;
+  @Prop({ type: AddressSchema })
+  address?: Address;
 
   @Prop({ type: [WeeklySlotSchema], default: [] })
   weeklySlots: WeeklySlot[];

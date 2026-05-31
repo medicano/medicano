@@ -1,11 +1,11 @@
-import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
-  ValidateNested,
 } from 'class-validator';
-import { AddressDto } from '../../common/dto/address.dto';
+import { Gender } from '../../common/enums/gender.enum';
+import { Pronouns } from '../../common/enums/pronouns.enum';
 
 export class UpdatePatientProfileDto {
   @IsString()
@@ -20,8 +20,23 @@ export class UpdatePatientProfileDto {
   @IsOptional()
   phone?: string;
 
-  @ValidateNested()
-  @Type(() => AddressDto)
+  @IsEnum(Gender)
   @IsOptional()
-  address?: AddressDto;
+  gender?: Gender;
+
+  @IsEnum(Pronouns)
+  @IsOptional()
+  pronouns?: Pronouns;
+
+  @IsString()
+  @IsOptional()
+  cep?: string;
+
+  @IsString()
+  @IsOptional()
+  city?: string;
+
+  @IsString()
+  @IsOptional()
+  state?: string;
 }

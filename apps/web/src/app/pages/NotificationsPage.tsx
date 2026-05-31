@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { CheckCheck, CalendarCheck, XCircle, BellRing, Bell, Inbox } from 'lucide-react';
-import { useLocation } from 'react-router';
+import { CheckCheck, CalendarCheck, XCircle, BellRing, Bell, Inbox, CalendarPlus } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
@@ -8,35 +7,33 @@ import { Button } from '../components/ui/Button';
 import { formatRelative, type NotificationType } from '../components/notifications-data';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const typeStyle: Record<NotificationType, { icon: React.ComponentType<any>; bg: string; fg: string }> = {
   CONFIRMED: { icon: CalendarCheck, bg: 'bg-[#A7F3D0]', fg: 'text-[#065F46]' },
   CANCELLED: { icon: XCircle, bg: 'bg-[#FEE2E2]', fg: 'text-[#B91C1C]' },
   REMINDER: { icon: BellRing, bg: 'bg-[#CAF0F8]', fg: 'text-[#0077B6]' },
+  NEW_BOOKING: { icon: CalendarPlus, bg: 'bg-[#EDE9FE]', fg: 'text-[#5B21B6]' },
 };
 
-interface NotificacoesPageProps {
-  role?: 'PATIENT' | 'CLINIC' | 'ATTENDANT';
-}
+export function NotificationsPage() {
+  const { user } = useAuth();
+  const role = user?.role ?? 'patient';
 
-export function NotificacoesPage({ role: roleProp }: NotificacoesPageProps = {}) {
-  const location = useLocation();
-  const role: 'PATIENT' | 'CLINIC' | 'ATTENDANT' = roleProp ?? (location.pathname.startsWith('/dashboard') ? 'CLINIC' : 'PATIENT');
-
-  const notifsApi = useApi<any[]>('/notificacoes');
+  const notifsApi = useApi<any[]>('/notifications');
   const items = extractList(notifsApi.data);
   const unread = useMemo(() => items.filter((i) => !i.read).length, [items]);
 
   async function markAllRead() {
     try {
-      await api.put('/notificacoes/read-all');
+      await api.put('/notifications/read-all');
       notifsApi.refetch();
     } catch (e) { console.error(e); }
   }
 
   async function toggleRead(id: string, currentRead: boolean) {
     try {
-      await api.put(`/notificacoes/${id}/read`, { read: !currentRead });
+      await api.put(`/notifications/${id}/read`, { read: !currentRead });
       notifsApi.refetch();
     } catch (e) { console.error(e); }
   }
@@ -109,11 +106,11 @@ export function NotificacoesPage({ role: roleProp }: NotificacoesPageProps = {})
     </>
   );
 
-  if (role === 'PATIENT') {
+  if (role === 'patient') {
     return (
       <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
         <PatientTopbar />
-        <main className="flex-1 max-w-[900px] w-full mx-auto px-8 py-10">{content}</main>
+        <main className="flex-1 max-w-[900px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">{content}</main>
         <AppFooter />
       </div>
     );

@@ -1,4 +1,4 @@
-export type NotificationType = 'CONFIRMED' | 'CANCELLED' | 'REMINDER';
+export type NotificationType = 'CONFIRMED' | 'CANCELLED' | 'REMINDER' | 'NEW_BOOKING';
 
 export interface AppNotification {
   id: string;

@@ -35,16 +35,17 @@ export class CreateProfessionalDto {
   email?: string;
 
   @IsEnum(Specialty)
-  specialty: Specialty;
+  @IsOptional()
+  specialty?: Specialty;
 
   @IsString()
-  @IsNotEmpty()
-  registration: string;
+  @IsOptional()
+  registration?: string;
 
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^\d{11}$/, { message: 'CPF must be 11 digits' })
-  cpf: string;
+  @Matches(/^\d{11}$/, { message: 'CPF deve ter 11 dígitos' })
+  @IsOptional()
+  cpf?: string;
 
   @IsInt()
   @Min(0)
@@ -54,7 +55,8 @@ export class CreateProfessionalDto {
 
   @ValidateNested()
   @Type(() => AddressDto)
-  address: AddressDto;
+  @IsOptional()
+  address?: AddressDto;
 
   @ValidateNested({ each: true })
   @Type(() => WeeklySlotDto)

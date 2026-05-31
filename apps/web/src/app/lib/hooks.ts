@@ -38,6 +38,22 @@ export function useApi<T = any>(url: string | null, deps: any[] = []): ApiState<
   return { data, loading, error, refetch: () => setNonce((n) => n + 1) };
 }
 
+export function useAsyncAction(onSuccess?: () => void) {
+  const [isMutating, setIsMutating] = useState(false);
+
+  async function trigger(action: () => Promise<void>) {
+    setIsMutating(true);
+    try {
+      await action();
+      onSuccess?.();
+    } finally {
+      setIsMutating(false);
+    }
+  }
+
+  return { trigger, isMutating };
+}
+
 export function extractList<T = any>(payload: any): T[] {
   if (Array.isArray(payload)) return payload as T[];
   if (Array.isArray(payload?.items)) return payload.items as T[];

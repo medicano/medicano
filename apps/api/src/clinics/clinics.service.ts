@@ -37,7 +37,7 @@ export class ClinicsService {
       return await clinic.save();
     } catch (error: unknown) {
       if (this.isDuplicateKeyError(error)) {
-        throw new ConflictException('CNPJ already registered');
+        throw new ConflictException('CNPJ já cadastrado');
       }
       throw error;
     }
@@ -49,11 +49,11 @@ export class ClinicsService {
 
   async findOne(id: string): Promise<ClinicDocument> {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException(`Clinic with id ${id} not found`);
+      throw new NotFoundException('Estabelecimento de saúde não encontrado');
     }
     const clinic = await this.clinicModel.findById(id).exec();
     if (!clinic) {
-      throw new NotFoundException(`Clinic with id ${id} not found`);
+      throw new NotFoundException('Estabelecimento de saúde não encontrado');
     }
     return clinic;
   }
@@ -82,7 +82,7 @@ export class ClinicsService {
     const clinic = await this.findOne(id);
 
     if (clinic.userId.toString() !== userId) {
-      throw new ForbiddenException('You do not own this clinic');
+      throw new ForbiddenException('Você não é o responsável por este estabelecimento');
     }
 
     Object.assign(clinic, updateClinicDto);
@@ -91,7 +91,7 @@ export class ClinicsService {
       return await clinic.save();
     } catch (error: unknown) {
       if (this.isDuplicateKeyError(error)) {
-        throw new ConflictException('CNPJ already registered');
+        throw new ConflictException('CNPJ já cadastrado');
       }
       throw error;
     }
@@ -99,7 +99,7 @@ export class ClinicsService {
 
   async findProfessionalsByClinicId(clinicId: string): Promise<ProfessionalDocument[]> {
     if (!Types.ObjectId.isValid(clinicId)) {
-      throw new NotFoundException(`Invalid clinic ID: ${clinicId}`);
+      throw new NotFoundException('ID do estabelecimento inválido');
     }
     const links = await this.clinicProfessionalModel
       .find({ clinicId: new Types.ObjectId(clinicId) })
@@ -137,7 +137,7 @@ export class ClinicsService {
   async remove(id: string, userId: string): Promise<void> {
     const clinic = await this.findOne(id);
     if (clinic.userId.toString() !== userId) {
-      throw new ForbiddenException('You do not own this clinic');
+      throw new ForbiddenException('Você não é o responsável por este estabelecimento');
     }
     await this.clinicModel.findByIdAndDelete(id).exec();
   }

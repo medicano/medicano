@@ -1,0 +1,18 @@
+export const SPECIALTY_LABELS: Record<string, string> = {
+  medicine: 'Clínica Geral / Medicina',
+  cardiology: 'Cardiologia',
+  dermatology: 'Dermatologia',
+  pediatrics: 'Pediatria',
+  orthopedics: 'Ortopedia',
+  neurology: 'Neurologia',
+  gynecology: 'Ginecologia',
+  ophthalmology: 'Oftalmologia',
+  urology: 'Urologia',
+  otolaryngology: 'Otorrinolaringologia',
+  psychology: 'Psicologia',
+  psychiatry: 'Psiquiatria',
+  dentistry: 'Odontologia',
+  nutrition: 'Nutrição',
+  physiotherapy: 'Fisioterapia',
+  speech_therapy: 'Fonoaudiologia',
+};

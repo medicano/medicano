@@ -1,6 +1,7 @@
 import React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { clsx, type ClassValue } from 'clsx';
+import { Loader2 } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
 import { cva, type VariantProps } from 'class-variance-authority';
 
@@ -42,6 +43,7 @@ interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  loading?: boolean;
 }
 
 export function Button({
@@ -49,13 +51,20 @@ export function Button({
   variant,
   size,
   asChild = false,
+  loading,
+  disabled,
+  children,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : 'button';
   return (
     <Comp
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || loading}
       {...props}
-    />
+    >
+      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {children}
+    </Comp>
   );
 }

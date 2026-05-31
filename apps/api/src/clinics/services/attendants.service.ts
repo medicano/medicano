@@ -32,7 +32,7 @@ export class AttendantsService {
   ): Promise<void> {
     const clinic: any = await this.clinicsService.findById(clinicId);
     if (!clinic) {
-      throw new NotFoundException('Clinic not found');
+      throw new NotFoundException('Estabelecimento de saúde não encontrado');
     }
 
     const ownerId =
@@ -41,7 +41,7 @@ export class AttendantsService {
         : null;
 
     if (!ownerId || ownerId !== currentUserId) {
-      throw new ForbiddenException('You do not own this clinic');
+      throw new ForbiddenException('Você não é o responsável por este estabelecimento');
     }
   }
 
@@ -70,7 +70,7 @@ export class AttendantsService {
       return sanitized as unknown as UserDocument;
     } catch (err: any) {
       if (err && err.code === 11000) {
-        throw new ConflictException('Username already taken in this clinic');
+        throw new ConflictException('Nome de usuário já em uso neste estabelecimento');
       }
       throw err;
     }
@@ -101,7 +101,7 @@ export class AttendantsService {
     await this.assertClinicOwnership(clinicId, currentUserId);
 
     if (!Types.ObjectId.isValid(attendantId)) {
-      throw new BadRequestException('Invalid attendant id');
+      throw new BadRequestException('ID do atendente inválido');
     }
 
     const update: Record<string, unknown> = {};
@@ -132,7 +132,7 @@ export class AttendantsService {
       .exec();
 
     if (!updated) {
-      throw new NotFoundException('Attendant not found in this clinic');
+      throw new NotFoundException('Atendente não encontrado neste estabelecimento');
     }
 
     return updated;
@@ -146,7 +146,7 @@ export class AttendantsService {
     await this.assertClinicOwnership(clinicId, currentUserId);
 
     if (!Types.ObjectId.isValid(attendantId)) {
-      throw new BadRequestException('Invalid attendant id');
+      throw new BadRequestException('ID do atendente inválido');
     }
 
     const result = await this.userModel
@@ -158,7 +158,7 @@ export class AttendantsService {
       .exec();
 
     if (!result || result.deletedCount === 0) {
-      throw new NotFoundException('Attendant not found in this clinic');
+      throw new NotFoundException('Atendente não encontrado neste estabelecimento');
     }
 
     return { success: true };

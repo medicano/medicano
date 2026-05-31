@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, User, Stethoscope, FileText } from 'lucide-react';
 import { Button } from './ui/Button';
 import { api } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
   open: boolean;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function NewAppointmentModal({ open, onClose }: Props) {
+  const { user } = useAuth();
   const [patientName, setPatientName] = useState('');
   const [professionalId, setProfessionalId] = useState('');
   const [startAt, setStartAt] = useState('');
@@ -20,13 +22,29 @@ export function NewAppointmentModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    api.get('/professionals')
-      .then(({ data }) => {
-        const list = Array.isArray(data) ? data : (data?.items ?? data?.professionals ?? []);
-        setProfessionals(list);
-        if (list.length > 0 && !professionalId) setProfessionalId(list[0].id);
-      })
-      .catch((e) => console.error(e));
+
+    async function loadProfessionals() {
+      try {
+        let clinicId = user?.clinicId ?? null;
+
+        if (!clinicId) {
+          const { data } = await api.get('/profile/me');
+          clinicId = data?._id ?? data?.id ?? null;
+        }
+
+        if (!clinicId) return;
+
+        const { data } = await api.get(`/clinics/${clinicId}/professionals`);
+        const list = Array.isArray(data) ? data : (data?.professionals ?? []);
+        const mapped = list.map((p: any) => ({ ...p, id: p.id ?? p._id }));
+        setProfessionals(mapped);
+        if (mapped.length > 0 && !professionalId) setProfessionalId(mapped[0].id);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    loadProfessionals();
   }, [open]);
 
   function reset() {

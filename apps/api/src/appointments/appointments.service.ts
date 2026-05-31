@@ -14,6 +14,7 @@ import {
 } from './schemas/appointment.schema';
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
 import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
+import { User, UserDocument } from '../auth/schemas/user.schema';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
@@ -29,6 +30,8 @@ export class AppointmentsService {
     private readonly professionalModel: Model<ProfessionalDocument>,
     @InjectModel(Clinic.name)
     private readonly clinicModel: Model<ClinicDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     private readonly notificationsService: NotificationsService,
   ) {}
 
@@ -81,15 +84,35 @@ export class AppointmentsService {
     });
   }
 
-  async getAppointmentById(id: string): Promise<AppointmentDocument> {
-    const appointment = await this.appointmentModel.findById(id).exec();
+  async getAppointmentById(id: string): Promise<any> {
+    const appointment = await this.appointmentModel.findById(id).lean().exec();
     if (!appointment) {
-      throw new NotFoundException(`Appointment ${id} not found`);
+      throw new NotFoundException(`Agendamento não encontrado`);
     }
-    return appointment;
+
+    const [professional, clinic, patient] = await Promise.all([
+      appointment.professionalId
+        ? this.professionalModel.findById(appointment.professionalId).select('name specialty').lean().exec()
+        : null,
+      appointment.clinicId
+        ? this.clinicModel.findById(appointment.clinicId).select('name').lean().exec()
+        : null,
+      appointment.patientId
+        ? this.userModel.findById(appointment.patientId).select('displayName email').lean().exec()
+        : null,
+    ]);
+
+    return {
+      ...appointment,
+      id: (appointment._id as any).toString(),
+      patientName: (patient as any)?.displayName ?? (patient as any)?.email ?? '',
+      professionalName: (professional as any)?.name ?? '',
+      specialty: (professional as any)?.specialty ?? '',
+      clinicName: (clinic as any)?.name ?? '',
+    };
   }
 
-  async findById(id: string): Promise<AppointmentDocument> {
+  async findById(id: string): Promise<any> {
     return this.getAppointmentById(id);
   }
 
@@ -106,7 +129,7 @@ export class AppointmentsService {
       .findByIdAndUpdate(id, { $set: dto }, { new: true, runValidators: true })
       .exec();
     if (!updated) {
-      throw new NotFoundException(`Appointment ${id} not found`);
+      throw new NotFoundException(`Agendamento não encontrado`);
     }
     return updated;
   }
@@ -116,7 +139,7 @@ export class AppointmentsService {
       .findByIdAndUpdate(id, { $set: { status } }, { new: true })
       .exec();
     if (!updated) {
-      throw new NotFoundException(`Appointment ${id} not found`);
+      throw new NotFoundException(`Agendamento não encontrado`);
     }
 
     if (status === AppointmentStatus.CONFIRMED) {
@@ -128,6 +151,28 @@ export class AppointmentsService {
     return updated;
   }
 
+  async cancelActiveByProfessionalAndClinic(
+    professionalId: string,
+    clinicId: string,
+  ): Promise<void> {
+    const activeStatuses = [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED];
+
+    const activeAppointments = await this.appointmentModel
+      .find({ professionalId, clinicId, status: { $in: activeStatuses } })
+      .exec();
+
+    if (activeAppointments.length === 0) return;
+
+    await this.appointmentModel.updateMany(
+      { professionalId, clinicId, status: { $in: activeStatuses } },
+      { $set: { status: AppointmentStatus.CANCELLED } },
+    );
+
+    for (const appointment of activeAppointments) {
+      this.notificationsService.notifyAppointmentCancelled(appointment, 'provider').catch(() => {});
+    }
+  }
+
   async cancelAppointment(
     id: string,
     userId: string,
@@ -135,11 +180,11 @@ export class AppointmentsService {
   ): Promise<AppointmentDocument> {
     const appointment = await this.appointmentModel.findById(id).exec();
     if (!appointment) {
-      throw new NotFoundException(`Appointment ${id} not found`);
+      throw new NotFoundException(`Agendamento não encontrado`);
     }
 
     if (cancelledBy === 'patient' && appointment.patientId.toString() !== userId) {
-      throw new ForbiddenException('You are not authorized to cancel this appointment');
+      throw new ForbiddenException('Você não tem permissão para cancelar este agendamento');
     }
 
     const cancelled = await this.appointmentModel
