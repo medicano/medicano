@@ -5,9 +5,11 @@ import { Button } from '../components/ui/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import { SpecialtyCombobox, SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
 import { useAuth } from '../contexts/AuthContext';
 import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
+import type { Professional } from '../lib/types';
 
 const PLAN_LIMITS: Record<string, number> = { free: 2, basic: 10, pro: 999 };
 
@@ -30,19 +32,19 @@ interface WeeklySlot {
 
 export function ProfessionalsPage() {
   const { user } = useAuth();
-  const profileApi = useApi<any>(user?.role !== 'attendant' ? '/profile/me' : null);
+  const profileApi = useApi<{ _id?: string; id?: string }>(user?.role !== 'attendant' ? '/profile/me' : null);
   const clinicId = user?.clinicId ?? profileApi.data?._id ?? profileApi.data?.id ?? null;
 
-  const prosApi = useApi<any[]>(clinicId ? `/clinics/${clinicId}/professionals` : null);
-  const subApi = useApi<any>(clinicId ? `/subscriptions/clinic/${clinicId}` : null);
+  const prosApi = useApi<Professional[]>(clinicId ? `/clinics/${clinicId}/professionals` : null);
+  const subApi = useApi<{ plan?: string }>(clinicId ? `/subscriptions/clinic/${clinicId}` : null);
 
   const isAttendant = user?.role === 'attendant';
-  const list = extractList(prosApi.data);
+  const list = extractList<Professional>(prosApi.data);
   const planName: string = (subApi.data?.plan ?? 'free').toLowerCase();
   const planLimit = PLAN_LIMITS[planName] ?? 10;
   const atLimit = !isAttendant && list.length >= planLimit;
 
-  const [toRemove, setToRemove] = useState<any | null>(null);
+  const [toRemove, setToRemove] = useState<Professional | null>(null);
   const [creating, setCreating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function ProfessionalsPage() {
   const [newSpecialty, setNewSpecialty] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
-  const [schedulePro, setSchedulePro] = useState<any | null>(null);
+  const [schedulePro, setSchedulePro] = useState<Professional | null>(null);
 
   function resetForm() {
     setNewName(''); setNewSpecialty(''); setNewPhone('');
@@ -75,8 +77,8 @@ export function ProfessionalsPage() {
       prosApi.refetch();
       setCreating(false);
       resetForm();
-    } catch (err: any) {
-      setCreateError(err?.response?.data?.message || err.message || 'Erro ao cadastrar profissional');
+    } catch (err) {
+      setCreateError(getErrorMessage(err, 'Erro ao cadastrar profissional'));
     } finally {
       setSubmitting(false);
     }
@@ -92,7 +94,7 @@ export function ProfessionalsPage() {
         await api.delete(`/professionals/${proId}`);
       }
       prosApi.refetch();
-    } catch {}
+    } catch { /* mantém a lista atual se a remoção falhar */ }
     setToRemove(null);
   }
 
@@ -154,7 +156,7 @@ export function ProfessionalsPage() {
                 <p className="text-xs text-[#64748B] md:hidden">{SPECIALTY_LABELS[p.specialty] ?? p.specialty}</p>
               </div>
               <div className="text-sm text-[#0F172A] hidden md:block">{SPECIALTY_LABELS[p.specialty] ?? p.specialty}</div>
-              <div className="text-sm text-[#64748B] hidden md:block">{p.address?.city || p.city || '—'}</div>
+              <div className="text-sm text-[#64748B] hidden md:block">{(typeof p.address === 'object' ? p.address.city : undefined) || p.city || '—'}</div>
               <div className="flex items-center justify-end gap-2">
                 {!isAttendant && (
                   <button
@@ -231,7 +233,7 @@ export function ProfessionalsPage() {
   );
 }
 
-function ScheduleModal({ pro, onClose }: { pro: any; onClose: () => void }) {
+function ScheduleModal({ pro, onClose }: { pro: Professional; onClose: () => void }) {
   const [slots, setSlots] = useState<WeeklySlot[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -258,8 +260,8 @@ function ScheduleModal({ pro, onClose }: { pro: any; onClose: () => void }) {
     try {
       await api.put(`/professionals/${pro.id ?? pro._id}`, { weeklySlots: slots });
       onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || 'Erro ao salvar horários');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Erro ao salvar horários'));
     } finally {
       setSaving(false);
     }
@@ -336,7 +338,6 @@ function ScheduleModal({ pro, onClose }: { pro: any; onClose: () => void }) {
                   <p className="text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">{d.label}</p>
                   <div className="space-y-1.5">
                     {d.slots.map((s, i) => {
-                      const globalIndex = slots.findIndex((sl, gi) => sl === s || (sl.dayOfWeek === s.dayOfWeek && sl.startTime === s.startTime && sl.endTime === s.endTime && slots.indexOf(sl) === slots.lastIndexOf(sl)));
                       return (
                         <div key={i} className="flex items-center justify-between bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-4 py-2.5">
                           <span className="text-sm font-semibold text-[#0F172A]">{s.startTime} – {s.endTime}</span>

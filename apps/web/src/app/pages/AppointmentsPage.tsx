@@ -13,6 +13,7 @@ import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 import { mapStatus, formatDateShort, formatSlot, initials } from '../lib/format';
 import { StatusBadge } from '../components/StatusBadge';
+import type { Appointment, Professional } from '../lib/types';
 
 // ─── status helpers ────────────────────────────────────────────────────────────
 
@@ -75,10 +76,10 @@ function ClinicAgendamentosView() {
   const [query, setQuery] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const aptsApi = useApi<any[]>('/appointments');
-  const prosApi = useApi<any[]>('/professionals');
-  const all = extractList(aptsApi.data);
-  const pros = extractList(prosApi.data);
+  const aptsApi = useApi<Appointment[]>('/appointments');
+  const prosApi = useApi<Professional[]>('/professionals');
+  const all = extractList<Appointment>(aptsApi.data);
+  const pros = extractList<Professional>(prosApi.data);
 
   const filtered = useMemo(() => {
     let list = [...all];
@@ -108,7 +109,7 @@ function ClinicAgendamentosView() {
     try {
       await api.patch(`/appointments/${id}/status`, { status });
       aptsApi.refetch();
-    } catch {}
+    } catch { /* mantém a lista atual em caso de falha */ }
     finally { setActionLoading(null); }
   }, [aptsApi]);
 
@@ -230,7 +231,7 @@ function ClinicAgendamentosView() {
 
 function ClinicAppointmentCard({
   apt, onConfirm, onCancel, loading,
-}: { apt: any; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
+}: { apt: Appointment; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   const navigate = useNavigate();
   const isPending = apt.status === 'PENDING';
   const dateLabel = formatDateShort(apt.startAt);
@@ -303,8 +304,8 @@ function ProfessionalAgendamentosView() {
   const [tab, setTab] = useState<ProTab>('hoje');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const aptsApi = useApi<any[]>('/appointments');
-  const all = extractList(aptsApi.data);
+  const aptsApi = useApi<Appointment[]>('/appointments');
+  const all = extractList<Appointment>(aptsApi.data);
 
   const filtered = useMemo(() => {
     let list = [...all];
@@ -329,7 +330,7 @@ function ProfessionalAgendamentosView() {
     try {
       await api.patch(`/appointments/${id}/status`, { status });
       aptsApi.refetch();
-    } catch {}
+    } catch { /* mantém a lista atual em caso de falha */ }
     finally { setActionLoading(null); }
   }, [aptsApi]);
 
@@ -406,7 +407,7 @@ function ProfessionalAgendamentosView() {
 
 function ProAppointmentCard({
   apt, onConfirm, onCancel, loading,
-}: { apt: any; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
+}: { apt: Appointment; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   const navigate = useNavigate();
   const isPending = apt.status === 'PENDING';
   const dateLabel = formatDateShort(apt.startAt);
@@ -461,7 +462,7 @@ function ProAppointmentCard({
 
 // ─── PATIENT VIEW ─────────────────────────────────────────────────────────────
 
-function PatientAppointmentCard({ apt, muted = false }: { apt: any; muted?: boolean }) {
+function PatientAppointmentCard({ apt, muted = false }: { apt: Appointment; muted?: boolean }) {
   return (
     <Link
       to={`/appointments/${apt.id}`}
@@ -504,13 +505,13 @@ function PatientAppointmentCard({ apt, muted = false }: { apt: any; muted?: bool
 function PatientAgendamentosView() {
   const [tab, setTab] = useState<'proximos' | 'historico'>('proximos');
 
-  const allApi = useApi<any[]>('/appointments');
-  const all = extractList(allApi.data);
+  const allApi = useApi<Appointment[]>('/appointments');
+  const all = extractList<Appointment>(allApi.data);
   const now = new Date().toISOString();
 
-  const cancelled = (a: any) => a.status?.toLowerCase() === 'cancelled';
-  const sortAsc  = (list: any[]) => [...list].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  const sortDesc = (list: any[]) => [...list].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+  const cancelled = (a: Appointment) => a.status?.toLowerCase() === 'cancelled';
+  const sortAsc  = (list: Appointment[]) => [...list].sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  const sortDesc = (list: Appointment[]) => [...list].sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
 
   const upcomingActive    = sortAsc(all.filter(a => a.startAt >= now && !cancelled(a) && a.status?.toLowerCase() !== 'completed'));
   const upcomingCancelled = sortAsc(all.filter(a => a.startAt >= now && cancelled(a)));

@@ -5,17 +5,19 @@ import { Button } from '../components/ui/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
+import type { Attendant, Clinic } from '../lib/types';
 
 export function AttendantsPage() {
-  const profileApi = useApi<any>('/profile/me');
+  const profileApi = useApi<Clinic>('/profile/me');
   const clinicId = profileApi.data?._id ?? profileApi.data?.id ?? null;
 
-  const atendApi = useApi<any[]>(clinicId ? `/clinics/${clinicId}/attendants` : null);
-  const list = extractList(atendApi.data);
+  const atendApi = useApi<Attendant[]>(clinicId ? `/clinics/${clinicId}/attendants` : null);
+  const list = extractList<Attendant>(atendApi.data);
 
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<any | null>(null);
-  const [removing, setRemoving] = useState<any | null>(null);
+  const [editing, setEditing] = useState<Attendant | null>(null);
+  const [removing, setRemoving] = useState<Attendant | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -27,8 +29,8 @@ export function AttendantsPage() {
       await api.post(`/clinics/${clinicId}/attendants`, data);
       atendApi.refetch();
       setCreating(false);
-    } catch (err: any) {
-      setFormError(err?.response?.data?.message || err.message || 'Erro ao cadastrar atendente');
+    } catch (err) {
+      setFormError(getErrorMessage(err, 'Erro ao cadastrar atendente'));
     } finally {
       setSubmitting(false);
     }
@@ -43,8 +45,8 @@ export function AttendantsPage() {
       await api.put(`/clinics/${clinicId}/attendants/${editing.id}`, data);
       atendApi.refetch();
       setEditing(null);
-    } catch (err: any) {
-      setFormError(err?.response?.data?.message || err.message || 'Erro ao atualizar atendente');
+    } catch (err) {
+      setFormError(getErrorMessage(err, 'Erro ao atualizar atendente'));
     } finally {
       setSubmitting(false);
     }
@@ -56,7 +58,7 @@ export function AttendantsPage() {
       if (!clinicId) return;
       await api.delete(`/clinics/${clinicId}/attendants/${removing.id}`);
       atendApi.refetch();
-    } catch {}
+    } catch { /* mantém a lista atual se a remoção falhar */ }
     setRemoving(null);
   }
 
@@ -142,7 +144,7 @@ export function AttendantsPage() {
           error={formError}
           submitting={submitting}
           onClose={() => setCreating(false)}
-          onSubmit={handleCreate as any}
+          onSubmit={handleCreate}
         />
       )}
 
@@ -155,7 +157,7 @@ export function AttendantsPage() {
           submitting={submitting}
           initialValues={{ displayName: editing.displayName, active: editing.active !== false }}
           onClose={() => setEditing(null)}
-          onSubmit={handleUpdate as any}
+          onSubmit={handleUpdate}
         />
       )}
 

@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { X, Calendar, Clock, User, Stethoscope, FileText } from 'lucide-react';
 import { Button } from './ui/Button';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import { useAuth } from '../contexts/AuthContext';
+import type { Professional } from '../lib/types';
 
 interface Props {
   open: boolean;
@@ -16,7 +18,7 @@ export function NewAppointmentModal({ open, onClose }: Props) {
   const [startAt, setStartAt] = useState('');
   const [duration, setDuration] = useState(60);
   const [notes, setNotes] = useState('');
-  const [professionals, setProfessionals] = useState<any[]>([]);
+  const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,11 +37,11 @@ export function NewAppointmentModal({ open, onClose }: Props) {
         if (!clinicId) return;
 
         const { data } = await api.get(`/clinics/${clinicId}/professionals`);
-        const list = Array.isArray(data) ? data : (data?.professionals ?? []);
-        const mapped = list.map((p: any) => ({ ...p, id: p.id ?? p._id }));
+        const list: Professional[] = Array.isArray(data) ? data : (data?.professionals ?? []);
+        const mapped = list.map((p) => ({ ...p, id: p.id ?? p._id }));
         setProfessionals(mapped);
         if (mapped.length > 0 && !professionalId) setProfessionalId(mapped[0].id);
-      } catch {}
+      } catch { /* mantém a lista vazia se a busca falhar */ }
     }
 
     loadProfessionals();
@@ -72,8 +74,8 @@ export function NewAppointmentModal({ open, onClose }: Props) {
       });
       reset();
       onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err.message || 'Erro ao criar agendamento');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Erro ao criar agendamento'));
     } finally {
       setSubmitting(false);
     }

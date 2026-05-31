@@ -39,7 +39,9 @@ function cleanContent(raw: string): string {
   return raw.replace(/```json[\s\S]*?```/g, '').trim();
 }
 
-function mapMessages(raw: any[]): Message[] {
+type RawMessage = { id?: string; role?: string; content?: string; message?: string; createdAt?: string };
+
+function mapMessages(raw: RawMessage[]): Message[] {
   return raw.map((m) => {
     const isAssistant = m.role === 'ASSISTANT' || m.role === 'assistant';
     const content = m.content || m.message || '';

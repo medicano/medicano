@@ -14,10 +14,7 @@ import {
   ShieldCheck,
   Star,
   PlayCircle,
-  Building2,
   Activity,
-  Clock,
-  Users,
   XCircle
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';

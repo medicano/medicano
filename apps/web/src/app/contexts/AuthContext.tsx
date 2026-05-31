@@ -10,7 +10,7 @@ export interface AuthUser {
   username?: string;
   role: UserRole;
   clinicId?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface AuthContextValue {
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [persist]);
 
   const logout = useCallback(async () => {
-    try { await api.post('/auth/logout'); } catch {}
+    try { await api.post('/auth/logout'); } catch { /* logout best-effort: limpa a sessão local mesmo se a API falhar */ }
     persist(null, null);
   }, [persist]);
 

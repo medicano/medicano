@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import {
-  CalendarDays, Users, CreditCard, Settings, LogOut, Menu, X, UserCog, Bell, Stethoscope, Clock,
+  CalendarDays, CreditCard, Settings, LogOut, Menu, X, UserCog, Bell, Stethoscope, Clock,
 } from 'lucide-react';
 import { MedicanoLogo } from './MedicanoLogo';
 import { ConfirmModal } from './ConfirmModal';
@@ -27,13 +27,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     let active = true;
     api.get('/notifications').then(({ data }) => {
       if (!active) return;
-      const list = Array.isArray(data) ? data : (data?.items ?? []);
-      setUnread(list.filter((n: any) => !n.read && !n.readAt).length);
+      const list: Array<{ read?: boolean; readAt?: string | null }> = Array.isArray(data)
+        ? data
+        : (data?.items ?? []);
+      setUnread(list.filter((n) => !n.read && !n.readAt).length);
     }).catch(() => {});
     return () => { active = false; };
   }, []);
 
-  const items: Array<{ to: string; label: string; icon: any; end?: boolean; roles: string[]; badge?: number }> = [
+  const items: Array<{ to: string; label: string; icon: React.ElementType; end?: boolean; roles: string[]; badge?: number }> = [
     { to: '/dashboard', label: 'Agenda', icon: CalendarDays, end: true, roles: ['clinic', 'professional', 'attendant'] },
     { to: '/appointments', label: 'Agendamentos', icon: CalendarDays, roles: ['clinic', 'professional', 'attendant'] },
     { to: '/professionals', label: 'Profissionais', icon: Stethoscope, roles: ['clinic', 'professional', 'attendant'] },

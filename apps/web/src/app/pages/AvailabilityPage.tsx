@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar, Clock, Plus, Trash2, Save, Check, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Plus, Trash2, Save, Check, ChevronDown } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import { useApi, extractList } from '../lib/hooks';
 
 // ─── types ────────────────────────────────────────────────────────────────────
@@ -11,6 +12,8 @@ interface Break { id: string; start: string; end: string }
 interface DayConfig { day: string; enabled: boolean; start: string; end: string; breaks: Break[] }
 interface AvailConfig { days: DayConfig[]; appointmentDuration: string; minAdvance: string; minCancelAdvance: string }
 interface Professional { id: string; name: string; specialty?: string }
+type RawProfessional = { _id?: string; id?: string; name?: string; displayName?: string; specialty?: string };
+type ProfileRef = { _id?: string; id?: string; name?: string; specialty?: string };
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -230,8 +233,8 @@ function AvailabilityEditor({
       await api.put(`/availability/${professionalId}`, config);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (e: any) {
-      setSaveError(e?.response?.data?.message || e?.message || 'Erro ao salvar');
+    } catch (e) {
+      setSaveError(getErrorMessage(e, 'Erro ao salvar'));
     } finally {
       setSaving(false);
     }
@@ -334,11 +337,11 @@ export function AvailabilityPage() {
   // Always fetch profile/me:
   // - professional role → returns Professional document (_id ≠ User._id)
   // - clinic role → returns Clinic document (_id used to fetch professionals list)
-  const profileApi = useApi<any>('/profile/me');
+  const profileApi = useApi<ProfileRef>('/profile/me');
   const profileId = profileApi.data?._id ?? profileApi.data?.id ?? null;
 
   const clinicId = isProfessional ? null : profileId;
-  const prosApi = useApi<any[]>(clinicId ? `/clinics/${clinicId}/professionals` : null);
+  const prosApi = useApi<RawProfessional[]>(clinicId ? `/clinics/${clinicId}/professionals` : null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -349,8 +352,8 @@ export function AvailabilityPage() {
     }
   }, [isProfessional, profileId]);
 
-  const professionals: Professional[] = extractList<any>(prosApi.data).map((p: any) => ({
-    id: p._id ?? p.id,
+  const professionals: Professional[] = extractList<RawProfessional>(prosApi.data).map((p) => ({
+    id: p._id ?? p.id ?? '',
     name: p.name ?? p.displayName ?? 'Profissional',
     specialty: p.specialty,
   }));
@@ -363,7 +366,7 @@ export function AvailabilityPage() {
   }, [isProfessional, professionals.length]);
 
   const selectedPro = isProfessional
-    ? { id: selectedId ?? '', name: profileApi.data?.name ?? user?.name ?? 'Profissional', specialty: profileApi.data?.specialty ?? user?.specialty }
+    ? { id: selectedId ?? '', name: profileApi.data?.name ?? user?.name ?? 'Profissional', specialty: profileApi.data?.specialty ?? (user?.specialty as string | undefined) }
     : professionals.find((p) => p.id === selectedId);
 
   // ── professional (single-column) ──────────────────────────────────────────

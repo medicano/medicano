@@ -3,18 +3,19 @@ import { Link } from 'react-router';
 import { Plus, Eye, Search } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { Button } from '../components/ui/Button';
-import { StatusBadge, type AppointmentStatus } from '../components/StatusBadge';
+import { StatusBadge } from '../components/StatusBadge';
 import { NewAppointmentModal } from '../components/NewAppointmentModal';
 import { useApi, extractList } from '../lib/hooks';
 import { mapStatus, formatDateShort, formatSlot } from '../lib/format';
+import type { Appointment } from '../lib/types';
 
 export function DashboardPage() {
   const [openNew, setOpenNew] = useState(false);
   const [filterDate, setFilterDate] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  const aptsApi = useApi<any[]>('/appointments');
-  const all = extractList(aptsApi.data);
+  const aptsApi = useApi<Appointment[]>('/appointments');
+  const all = extractList<Appointment>(aptsApi.data);
 
   const filtered = all.filter((a) => {
     if (filterDate) {

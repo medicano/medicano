@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { MedicanoLogo } from '../components/MedicanoLogo';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import { useAuth, type UserRole } from '../contexts/AuthContext';
 import { SpecialtyCombobox, SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
 
@@ -66,12 +67,12 @@ function passwordStrength(pwd: string): { level: 0 | 1 | 2 | 3; label: string; c
 }
 
 function applyMask(value: string, mask: string): string {
-  let digits = value.replace(/\D/g, '');
+  const digits = value.replace(/\D/g, '');
   let result = '';
   let di = 0;
   for (let i = 0; i < mask.length && di < digits.length; i++) {
     if (mask[i] === '0') { result += digits[di++]; }
-    else { result += mask[i]; if (mask[i + 1] === '0') {} }
+    else { result += mask[i]; }
   }
   return result;
 }
@@ -232,7 +233,7 @@ function PlanCard({
       <div className="flex items-start justify-between gap-2 mb-3">
         <div>
           <p className="font-extrabold text-[#03045E]">{plan.name}</p>
-          <p className="text-[#64748B] text-xs mt-0.5">{(plan as any).subtitle ?? ''}</p>
+          <p className="text-[#64748B] text-xs mt-0.5">{(plan as { subtitle?: string }).subtitle ?? ''}</p>
         </div>
         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 ${
           selected ? 'border-[#0077B6] bg-[#0077B6]' : 'border-[#CBD5E1]'
@@ -371,7 +372,7 @@ export function RegisterPage() {
       const roleMap: Record<AccountType, UserRole> = {
         PATIENT: 'patient', CLINIC: 'clinic', PROFESSIONAL: 'professional', ATTENDANT: 'attendant',
       };
-      const payload: any = { role: roleMap[account] };
+      const payload: Record<string, unknown> = { role: roleMap[account] };
 
       if (account === 'PATIENT') {
         Object.assign(payload, { name, email, password: pwd });
@@ -400,9 +401,8 @@ export function RegisterPage() {
       } else {
         navigate('/login', { replace: true });
       }
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Não foi possível concluir o cadastro.';
-      const message = Array.isArray(msg) ? msg.join(', ') : String(msg);
+    } catch (err) {
+      const message = getErrorMessage(err, 'Não foi possível concluir o cadastro.');
 
       if (message.toLowerCase().includes('cpf')) {
         setErrors((prev) => ({ ...prev, cpf: message }));

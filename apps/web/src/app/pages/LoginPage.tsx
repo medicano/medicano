@@ -6,6 +6,7 @@ import {
 import { Button } from '../components/ui/Button';
 import { MedicanoLogo } from '../components/MedicanoLogo';
 import { useAuth } from '../contexts/AuthContext';
+import { getErrorMessage } from '../lib/errors';
 
 type Tab = 'padrao' | 'atendente';
 
@@ -32,9 +33,8 @@ export function LoginPage() {
         : await login(email, password);
       const destination = user.role === 'patient' ? '/home' : '/dashboard';
       navigate(destination, { replace: true });
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Falha ao entrar. Verifique suas credenciais.';
-      setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
+    } catch (err) {
+      setError(getErrorMessage(err, 'Falha ao entrar. Verifique suas credenciais.'));
     } finally {
       setSubmitting(false);
     }

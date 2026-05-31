@@ -16,8 +16,10 @@ export function PatientTopbar() {
     let active = true;
     api.get('/notifications').then(({ data }) => {
       if (!active) return;
-      const list = Array.isArray(data) ? data : (data?.items ?? []);
-      setUnread(list.filter((n: any) => !n.read && !n.readAt).length);
+      const list: Array<{ read?: boolean; readAt?: string | null }> = Array.isArray(data)
+        ? data
+        : (data?.items ?? []);
+      setUnread(list.filter((n) => !n.read && !n.readAt).length);
     }).catch(() => {});
     return () => { active = false; };
   }, []);

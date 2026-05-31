@@ -20,6 +20,31 @@ interface UpcomingAppt {
   status: AppointmentStatus;
 }
 
+type RawHomeAppt = {
+  id?: string;
+  professional?: { name?: string; specialty?: string };
+  professionalName?: string;
+  specialty?: string;
+  clinic?: { name?: string; city?: string };
+  clinicName?: string;
+  startAt?: string;
+  start_at?: string;
+  date?: string;
+  status?: string;
+};
+
+type RawHomePro = {
+  id?: string;
+  name?: string;
+  specialty?: string;
+  specialties?: string[];
+  clinic?: { name?: string; city?: string };
+  clinicName?: string;
+  city?: string;
+};
+
+type SearchResponse = { professionals?: RawHomePro[] };
+
 const specialtiesList = [
   { name: 'Medicina', value: 'medicine', icon: Activity, color: 'from-[#48CAE4] to-[#0077B6]' },
   { name: 'Psicologia', value: 'psychology', icon: Brain, color: 'from-[#90E0EF] to-[#00B4D8]' },
@@ -39,11 +64,11 @@ export function HomePage() {
   const { user } = useAuth();
   const userName = (user?.name ?? '').split(' ')[0] || 'paciente';
 
-  const apptApi = useApi<any>('/appointments?upcoming=true');
-  const recsApi = useApi<any>('/search');
+  const apptApi = useApi<RawHomeAppt[]>('/appointments?upcoming=true');
+  const recsApi = useApi<SearchResponse>('/search');
 
-  const upcoming: UpcomingAppt[] = extractList(apptApi.data).slice(0, 2).map((a: any) => ({
-    id: a.id,
+  const upcoming: UpcomingAppt[] = extractList<RawHomeAppt>(apptApi.data).slice(0, 2).map((a) => ({
+    id: a.id ?? '',
     professionalName: a.professional?.name ?? a.professionalName ?? 'Profissional',
     specialty: a.professional?.specialty ?? a.specialty ?? '',
     clinicName: a.clinic?.name ?? a.clinicName ?? '',
@@ -52,8 +77,10 @@ export function HomePage() {
     status: mapStatus(a.status),
   }));
 
-  const professionals = Array.isArray(recsApi.data?.professionals) ? recsApi.data.professionals : extractList(recsApi.data);
-  const recommendations = professionals.slice(0, 3).map((p: any) => ({
+  const professionals: RawHomePro[] = Array.isArray(recsApi.data?.professionals)
+    ? recsApi.data.professionals
+    : extractList<RawHomePro>(recsApi.data);
+  const recommendations = professionals.slice(0, 3).map((p) => ({
     id: p.id,
     name: p.name,
     specialty: p.specialty ?? p.specialties?.[0] ?? '',

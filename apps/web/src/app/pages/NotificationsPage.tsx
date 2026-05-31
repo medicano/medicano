@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CheckCheck, CalendarCheck, XCircle, BellRing, Bell, Inbox, CalendarPlus } from 'lucide-react';
+import { CheckCheck, CalendarCheck, XCircle, BellRing, Inbox, CalendarPlus } from 'lucide-react';
 import { DashboardLayout } from '../components/DashboardLayout';
 import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
@@ -8,8 +8,9 @@ import { formatRelative, type NotificationType } from '../components/notificatio
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import type { NotificationItem } from '../lib/types';
 
-const typeStyle: Record<NotificationType, { icon: React.ComponentType<any>; bg: string; fg: string }> = {
+const typeStyle: Record<NotificationType, { icon: React.ElementType; bg: string; fg: string }> = {
   CONFIRMED: { icon: CalendarCheck, bg: 'bg-[#A7F3D0]', fg: 'text-[#065F46]' },
   CANCELLED: { icon: XCircle, bg: 'bg-[#FEE2E2]', fg: 'text-[#B91C1C]' },
   REMINDER: { icon: BellRing, bg: 'bg-[#CAF0F8]', fg: 'text-[#0077B6]' },
@@ -20,22 +21,22 @@ export function NotificationsPage() {
   const { user } = useAuth();
   const role = user?.role ?? 'patient';
 
-  const notifsApi = useApi<any[]>('/notifications');
-  const items = extractList(notifsApi.data);
+  const notifsApi = useApi<NotificationItem[]>('/notifications');
+  const items = extractList<NotificationItem>(notifsApi.data);
   const unread = useMemo(() => items.filter((i) => !i.read).length, [items]);
 
   async function markAllRead() {
     try {
       await api.put('/notifications/read-all');
       notifsApi.refetch();
-    } catch {}
+    } catch { /* mantém o estado atual se a marcação falhar */ }
   }
 
   async function toggleRead(id: string, currentRead: boolean) {
     try {
       await api.put(`/notifications/${id}/read`, { read: !currentRead });
       notifsApi.refetch();
-    } catch {}
+    } catch { /* mantém o estado atual se a marcação falhar */ }
   }
 
   function getStyle(type: string) {

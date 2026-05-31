@@ -29,6 +29,8 @@ interface ClinicData {
 }
 
 interface Slot { start: string; available: boolean; label: string; }
+type ProItem = { id: string; _id?: string; name?: string; specialty?: string };
+type RawSlot = { start?: string; startAt?: string; available?: boolean; taken?: boolean; label?: string };
 
 
 function isoDate(d: Date) { return d.toISOString().slice(0, 10); }
@@ -109,7 +111,7 @@ function StepDot({ n, active, done }: { n: number; active: boolean; done: boolea
 }
 
 // ── Professional selector card ────────────────────────────────────────────────
-function ProCard({ pro, selected, onSelect }: { pro: any; selected: boolean; onSelect: () => void }) {
+function ProCard({ pro, selected, onSelect }: { pro: ProItem; selected: boolean; onSelect: () => void }) {
   const initials = (pro.name ?? '??')
     .replace(/^(Dr\.|Dra\.)\s*/i, '')
     .split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
@@ -192,12 +194,12 @@ export function ClinicProfilePage() {
   const navigate = useNavigate();
 
   const [clinic, setClinic] = useState<ClinicData | null>(null);
-  const [professionals, setProfessionals] = useState<any[]>([]);
+  const [professionals, setProfessionals] = useState<ProItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
-  const [selectedPro, setSelectedPro] = useState<any | null>(null);
+  const [selectedPro, setSelectedPro] = useState<ProItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [slots, setSlots] = useState<Slot[] | null>(null);
@@ -212,10 +214,10 @@ export function ClinicProfilePage() {
     ])
       .then(([clinicRes, prosRes]) => {
         setClinic(clinicRes.data);
-        const list = Array.isArray(prosRes.data)
+        const list: ProItem[] = Array.isArray(prosRes.data)
           ? prosRes.data
           : (prosRes.data?.professionals ?? []);
-        setProfessionals(list.map((p: any) => ({ ...p, id: p.id ?? p._id })));
+        setProfessionals(list.map((p) => ({ ...p, id: p.id ?? p._id ?? '' })));
       })
       .catch((e) => setError(e?.response?.data?.message || 'Clínica não encontrada'))
       .finally(() => setLoading(false));
@@ -234,11 +236,11 @@ export function ClinicProfilePage() {
       params: { fromDate: dateStr, toDate: dateStr },
     })
       .then(({ data }) => {
-        const list = extractList<any>(data);
-        setSlots(list.map((s: any) => ({
-          start: s.start ?? s.startAt,
+        const list = extractList<RawSlot>(data);
+        setSlots(list.map((s) => ({
+          start: s.start ?? s.startAt ?? '',
           available: s.available !== false && !s.taken,
-          label: s.label ?? toLocalTime(s.start ?? s.startAt),
+          label: s.label ?? toLocalTime(s.start ?? s.startAt ?? ''),
         })));
       })
       .catch(() => setSlots([]))

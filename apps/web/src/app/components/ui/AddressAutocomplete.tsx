@@ -16,7 +16,22 @@ interface AddressAutocompleteProps {
   placeholder?: string;
 }
 
-function buildShortAddress(d: any): string {
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  address?: {
+    road?: string;
+    pedestrian?: string;
+    street?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    municipality?: string;
+    state?: string;
+  };
+}
+
+function buildShortAddress(d: NominatimResult): string {
   const a = d.address ?? {};
   const road = a.road ?? a.pedestrian ?? a.street ?? '';
   const city = a.city ?? a.town ?? a.village ?? a.municipality ?? '';
@@ -66,7 +81,7 @@ export function AddressAutocomplete({ value, onChange, onSelect, placeholder }: 
       try {
         const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(v)}&format=json&limit=5&countrycodes=br&addressdetails=1`;
         const res = await fetch(url);
-        const data: any[] = await res.json();
+        const data: NominatimResult[] = await res.json();
         const parsed: Suggestion[] = data
           .map((d) => ({
             street: buildShortAddress(d),

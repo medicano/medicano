@@ -6,7 +6,6 @@ import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
 import { Button } from '../components/ui/Button';
 import { api } from '../lib/api';
-import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 import { SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
 
 type ResultType = 'all' | 'clinics' | 'professionals';
@@ -34,15 +33,39 @@ interface ProfessionalResult {
 
 type Result = ClinicResult | ProfessionalResult;
 
+type RawSearchPro = {
+  id?: string;
+  _id?: string;
+  name?: string;
+  specialty?: string;
+  clinicId?: string;
+  clinicName?: string;
+  clinic?: { name?: string };
+  city?: string;
+  address?: { city?: string };
+  distance?: number;
+};
+
+type RawSearchClinic = {
+  id?: string;
+  _id?: string;
+  name?: string;
+  specialties?: string[];
+  city?: string;
+  address?: { city?: string };
+  phone?: string;
+  distance?: number;
+};
+
 // Maps English slugs (URL params from HomePage) → Portuguese labels (combobox values)
 const SPECIALTY_FROM_SLUG = Object.fromEntries(
   Object.entries(SPECIALTY_LABEL_TO_ENUM).map(([label, slug]) => [slug, label])
 );
 
-function normalizeProfessional(p: any): ProfessionalResult {
+function normalizeProfessional(p: RawSearchPro): ProfessionalResult {
   return {
     kind: 'professional',
-    id: p.id ?? p._id,
+    id: p.id ?? p._id ?? '',
     name: p.name ?? 'Profissional',
     specialty: p.specialty ?? '',
     clinicId: p.clinicId ?? '',
@@ -52,10 +75,10 @@ function normalizeProfessional(p: any): ProfessionalResult {
   };
 }
 
-function normalizeClinic(c: any): ClinicResult {
+function normalizeClinic(c: RawSearchClinic): ClinicResult {
   return {
     kind: 'clinic',
-    id: c.id ?? c._id,
+    id: c.id ?? c._id ?? '',
     name: c.name ?? 'Clínica',
     specialties: Array.isArray(c.specialties) ? c.specialties : [],
     city: c.city ?? c.address?.city ?? '',
@@ -77,7 +100,7 @@ export function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locating, setLocating] = useState(false);
+  const [, setLocating] = useState(false);
 
   const requestLocation = useCallback(() => {
     if (!navigator.geolocation) return;

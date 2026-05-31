@@ -11,7 +11,6 @@ import { api } from '../lib/api';
 // ─── types & constants ────────────────────────────────────────────────────────
 
 type Plan = 'FREE' | 'BASIC' | 'PRO';
-type SubStatus = 'ACTIVE' | 'active' | 'trial' | 'canceled' | 'expired' | 'inactive';
 
 const font: React.CSSProperties = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
 
@@ -221,7 +220,7 @@ function PlanCard({ plan, current, icon: Icon, price, features, popular, onUpgra
 // ─── main page ────────────────────────────────────────────────────────────────
 
 export function SubscriptionPage() {
-  const subApi = useApi<any>('/subscriptions');
+  const subApi = useApi<{ plan?: Plan; status?: string; expiresAt?: string | null }>('/subscriptions');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<Plan | null>(null);
   const [upgrading, setUpgrading] = useState(false);
@@ -238,7 +237,7 @@ export function SubscriptionPage() {
       await api.put('/subscriptions', { plan: upgradeTarget });
       subApi.refetch();
       setUpgradeTarget(null);
-    } catch (e) {
+    } catch {
       // still close on error in demo context
       setUpgradeTarget(null);
     } finally {

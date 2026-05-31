@@ -12,11 +12,31 @@ export default defineConfig([
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
+      reactHooks.configs['recommended-latest'],
       reactRefresh.configs.vite,
     ],
     languageOptions: {
       globals: globals.browser,
+    },
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowConstantExport: true }],
+    },
+  },
+  {
+    // Arquivos que, por padrão idiomático, co-locam não-componentes:
+    // primitivos de UI (variants do cva), providers com seus hooks e a
+    // configuração de rotas. A regra react-refresh é apenas DX de Fast Refresh
+    // (sem efeito em produção), então é desativada só nesses casos estruturais.
+    files: [
+      'src/app/components/ui/**/*.{ts,tsx}',
+      'src/app/components/StatusBadge.tsx',
+      'src/app/components/Toast.tsx',
+      'src/app/components/SpecialtyCombobox.tsx',
+      'src/app/contexts/**/*.{ts,tsx}',
+      'src/app/routes.tsx',
+    ],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ])

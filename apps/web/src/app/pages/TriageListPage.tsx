@@ -7,10 +7,19 @@ import { Button } from '../components/ui/Button';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 
+type ChatSessionItem = {
+  id?: string;
+  _id?: string;
+  preview?: string;
+  lastMessage?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export function TriageListPage() {
   const navigate = useNavigate();
-  const sessionsApi = useApi<any[]>('/chat/sessions');
-  const sessions = extractList(sessionsApi.data);
+  const sessionsApi = useApi<ChatSessionItem[]>('/chat/sessions');
+  const sessions = extractList<ChatSessionItem>(sessionsApi.data);
   const [creating, setCreating] = useState(false);
 
   async function handleNew() {

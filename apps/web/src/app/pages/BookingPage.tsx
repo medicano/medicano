@@ -6,9 +6,11 @@ import { AppFooter } from '../components/AppFooter';
 import { Button } from '../components/ui/Button';
 import { Calendar } from '../components/ui/calendar';
 import { api } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import { useApi, extractList } from '../lib/hooks';
 import { formatDateLong, initials as toInitials } from '../lib/format';
 import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
+import type { Clinic } from '../lib/types';
 
 interface ProfessionalInfo {
   id: string;
@@ -23,6 +25,24 @@ interface Slot {
   available: boolean;
   label: string;
 }
+
+type RawSlot = {
+  start?: string;
+  startAt?: string;
+  time?: string;
+  available?: boolean;
+  taken?: boolean;
+  label?: string;
+};
+
+type ProfessionalApiData = {
+  name?: string;
+  specialty?: string;
+  specialties?: string[];
+  clinicName?: string;
+  clinic?: { id?: string; name?: string };
+  clinicId?: string;
+};
 
 function toLocalTime(iso: string) {
   if (!iso.includes('T')) return iso;
@@ -44,9 +64,9 @@ export function BookingPage() {
   const clinicIdParam = searchParams.get('clinicId') ?? '';
 
   // Load professional info (when specific professional is selected)
-  const professionalApi = useApi<any>((!isAny && professionalId) ? `/professionals/${professionalId}` : null);
+  const professionalApi = useApi<ProfessionalApiData>((!isAny && professionalId) ? `/professionals/${professionalId}` : null);
   const professional: ProfessionalInfo = useMemo(() => {
-    const p: any = professionalApi.data ?? {};
+    const p: ProfessionalApiData = professionalApi.data ?? {};
     return {
       id: professionalId,
       name: p.name ?? 'Profissional',
@@ -57,7 +77,7 @@ export function BookingPage() {
   }, [professionalApi.data, professionalId]);
 
   // Load clinic info (when "sem preferência" flow)
-  const clinicApi = useApi<any>(isAny && clinicIdParam ? `/clinics/${clinicIdParam}` : null);
+  const clinicApi = useApi<Clinic>(isAny && clinicIdParam ? `/clinics/${clinicIdParam}` : null);
   const clinicName = isAny ? (clinicApi.data?.name ?? '') : '';
 
   // Pre-fill from URL params (e.g. when coming from ClinicProfilePage)
@@ -98,10 +118,10 @@ export function BookingPage() {
         .then(({ data }) => {
           if (data?.date && data?.slots?.length) {
             const d = new Date(data.date + 'T00:00:00'); d.setHours(0, 0, 0, 0);
-            const normalized: Slot[] = data.slots.map((s: any) => ({
-              start: s.start ?? s.startAt ?? s.time,
+            const normalized: Slot[] = (data.slots as RawSlot[]).map((s) => ({
+              start: s.start ?? s.startAt ?? s.time ?? '',
               available: s.available !== false && !s.taken,
-              label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time),
+              label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time ?? ''),
             }));
             skipFetchRef.current = true;
             setDate(d);
@@ -125,11 +145,11 @@ export function BookingPage() {
     const dateStr = isoDate(date);
     api.get(`/availability/${professionalId}/slots`, { params: { fromDate: dateStr, toDate: dateStr } })
       .then(({ data }) => {
-        const list = extractList<any>(data);
-        const normalized: Slot[] = list.map((s: any) => ({
-          start: s.start ?? s.startAt ?? s.time,
+        const list = extractList<RawSlot>(data);
+        const normalized: Slot[] = list.map((s) => ({
+          start: s.start ?? s.startAt ?? s.time ?? '',
           available: s.available !== false && !s.taken,
-          label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time),
+          label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time ?? ''),
         }));
         setSlots(normalized);
         setSlot(prev => normalized.some(s => s.start === prev) ? prev : null);
@@ -146,7 +166,7 @@ export function BookingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const payload: any = {
+      const payload: { startAt: string; notes?: string; professionalId?: string; clinicId?: string } = {
         startAt: slot,
         notes: notes || undefined,
       };
@@ -167,9 +187,8 @@ export function BookingPage() {
           appointmentId: data?.id ?? data?.appointment?.id,
         },
       });
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Não foi possível concluir o agendamento.';
-      setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
+    } catch (err) {
+      setError(getErrorMessage(err, 'Não foi possível concluir o agendamento.'));
     } finally {
       setSubmitting(false);
     }

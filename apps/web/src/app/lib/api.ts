@@ -3,7 +3,7 @@ import axios from 'axios';
 export const TOKEN_KEY = 'medicano_token';
 export const USER_KEY = 'medicano_user';
 
-const baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000';
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 export const api = axios.create({
   baseURL,
@@ -18,10 +18,10 @@ export function setToken(token: string | null) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
-  } catch {}
+  } catch { /* localStorage indisponível (ex.: modo privado) */ }
 }
 
-export function getStoredUser<T = any>(): T | null {
+export function getStoredUser<T = unknown>(): T | null {
   try {
     const raw = localStorage.getItem(USER_KEY);
     return raw ? (JSON.parse(raw) as T) : null;
@@ -32,7 +32,7 @@ export function setStoredUser(user: unknown | null) {
   try {
     if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
     else localStorage.removeItem(USER_KEY);
-  } catch {}
+  } catch { /* localStorage indisponível (ex.: modo privado) */ }
 }
 
 api.interceptors.request.use((config) => {
@@ -109,7 +109,7 @@ export function streamChatMessage(
 
       onDone?.();
     } catch (err) {
-      if ((err as any)?.name !== 'AbortError') onError?.(err);
+      if ((err as Error)?.name !== 'AbortError') onError?.(err);
     }
   })();
 

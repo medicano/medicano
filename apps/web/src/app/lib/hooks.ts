@@ -8,7 +8,7 @@ export interface ApiState<T> {
   refetch: () => void;
 }
 
-export function useApi<T = any>(url: string | null, deps: any[] = []): ApiState<T> {
+export function useApi<T = unknown>(url: string | null, deps: unknown[] = []): ApiState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState<boolean>(!!url);
   const [error, setError] = useState<string | null>(null);
@@ -54,10 +54,11 @@ export function useAsyncAction(onSuccess?: () => void) {
   return { trigger, isMutating };
 }
 
-export function extractList<T = any>(payload: any): T[] {
+export function extractList<T = unknown>(payload: unknown): T[] {
   if (Array.isArray(payload)) return payload as T[];
-  if (Array.isArray(payload?.items)) return payload.items as T[];
-  if (Array.isArray(payload?.data)) return payload.data as T[];
-  if (Array.isArray(payload?.results)) return payload.results as T[];
+  const obj = payload as { items?: unknown; data?: unknown; results?: unknown } | null | undefined;
+  if (Array.isArray(obj?.items)) return obj.items as T[];
+  if (Array.isArray(obj?.data)) return obj.data as T[];
+  if (Array.isArray(obj?.results)) return obj.results as T[];
   return [];
 }

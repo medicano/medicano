@@ -10,13 +10,14 @@ import { api } from '../lib/api';
 import { mapStatus, formatDateLong, formatSlot } from '../lib/format';
 import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 import { useAuth } from '../contexts/AuthContext';
+import type { Appointment } from '../lib/types';
 
 export function AppointmentDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isStaff = user?.role === 'clinic' || user?.role === 'professional' || user?.role === 'attendant';
-  const [apt, setApt] = useState<any>(null);
+  const [apt, setApt] = useState<Appointment | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState<null | { next: AppointmentStatus; danger?: boolean; title: string; desc: string }>(null);
@@ -44,7 +45,7 @@ export function AppointmentDetailPage() {
     try {
       const { data } = await api.put(`/appointments/${apt.id}`, { status: next });
       setApt(data);
-    } catch {}
+    } catch { /* mantém o estado atual se a atualização falhar */ }
     finally { setSaving(false); }
   }
 
@@ -56,7 +57,7 @@ export function AppointmentDetailPage() {
       const { data } = await api.put(`/appointments/${apt.id}`, { startAt: editStartAt, durationMinutes: editDuration, notes: editNotes });
       setApt(data);
       setEditOpen(false);
-    } catch {}
+    } catch { /* mantém o estado atual se a atualização falhar */ }
     finally { setSaving(false); }
   }
 
