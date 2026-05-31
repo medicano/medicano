@@ -15,7 +15,7 @@ import {
   User,
   Users,
 } from 'lucide-react';
-import { Suspense, useState, useCallback } from 'react';
+import { Suspense, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import useSWR from 'swr';
@@ -207,6 +207,17 @@ function ClinicDataSection() {
   const [addressText, setAddressText] = useState(data.addressText ?? '');
   const [city, setCity] = useState(data.city ?? '');
   const [hours, setHours] = useState(data.hours ?? '');
+
+  useEffect(() => {
+    setName(data.name ?? '');
+    setEmail(data.email ?? '');
+    setPhone(data.phone ? phoneMask(data.phone) : '');
+    setCnpj(data.cnpj ? formatCnpj(data.cnpj) : '');
+    setWebsite(data.website ?? '');
+    setAddressText(data.addressText ?? '');
+    setCity(data.city ?? '');
+    setHours(data.hours ?? '');
+  }, [data]);
 
   function handleSave() {
     const effectiveName = name.trim() || data.name;
