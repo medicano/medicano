@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, Building2, ShieldCheck, Hash, AlertCircle,
 } from 'lucide-react';
@@ -20,9 +20,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const navigate = useNavigate();
-  const location = useLocation();
   const { login, loginAttendant } = useAuth();
-  const from = (location.state as any)?.from as string | undefined;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,8 +30,8 @@ export function LoginPage() {
       const user = tab === 'atendente'
         ? await loginAttendant(clinicId, username, password)
         : await login(email, password);
-      const fallback = user.role === 'patient' ? '/' : '/dashboard';
-      navigate(from && from !== '/login' ? from : fallback, { replace: true });
+      const destination = user.role === 'patient' ? '/home' : '/dashboard';
+      navigate(destination, { replace: true });
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Falha ao entrar. Verifique suas credenciais.';
       setError(Array.isArray(msg) ? msg.join(', ') : String(msg));
