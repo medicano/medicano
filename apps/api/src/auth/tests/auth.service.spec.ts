@@ -12,6 +12,7 @@ describe('AuthService', () => {
     createUser: jest.fn(),
     findByEmail: jest.fn(),
     findByClinicIdAndUsername: jest.fn(),
+    deleteById: jest.fn().mockResolvedValue(undefined),
   };
 
   const jwtService = {
@@ -35,6 +36,7 @@ describe('AuthService', () => {
   const clinicModel = {
     create: jest.fn(),
     findOne: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
+    deleteOne: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(undefined) }),
   };
 
   const professionalModel = {

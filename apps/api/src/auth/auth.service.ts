@@ -53,13 +53,36 @@ export class AuthService {
     const user = await this.usersService.createUser(dto);
     const userId = user._id.toString();
 
-    if (dto.role === Role.PATIENT) {
-      await this.createPatientDocument(userId, dto);
-    } else if (dto.role === Role.CLINIC) {
-      const clinic = await this.clinicModel.create({ userId, name: dto.name, cnpj: dto.cnpj?.replace(/\D/g, '') });
-      await this.subscriptionsService.create({ clinicId: clinic._id.toString(), plan: SubscriptionPlan.FREE });
-    } else if (dto.role === Role.PROFESSIONAL) {
-      await this.professionalModel.create({ userId, name: dto.name, specialty: dto.specialty, registration: dto.regNum });
+    // No native transaction (MongoDB requires a replica set): if any role
+    // document fails to create, compensate by removing what was created so we
+    // never leave an orphaned user that can log in but has no profile.
+    // (Mongoose casts the userId string to ObjectId per the schema.)
+    let createdClinicId: Types.ObjectId | null = null;
+    try {
+      if (dto.role === Role.PATIENT) {
+        await this.createPatientDocument(userId, dto);
+      } else if (dto.role === Role.CLINIC) {
+        const clinic = await this.clinicModel.create({
+          userId,
+          name: dto.name,
+          cnpj: dto.cnpj?.replace(/\D/g, ''),
+        });
+        createdClinicId = clinic._id;
+        await this.subscriptionsService.create({ clinicId: clinic._id.toString(), plan: SubscriptionPlan.FREE });
+      } else if (dto.role === Role.PROFESSIONAL) {
+        await this.professionalModel.create({
+          userId,
+          name: dto.name,
+          specialty: dto.specialty,
+          registration: dto.regNum,
+        });
+      }
+    } catch (error) {
+      if (createdClinicId) {
+        await this.clinicModel.deleteOne({ _id: createdClinicId }).exec().catch(() => undefined);
+      }
+      await this.usersService.deleteById(userId).catch(() => undefined);
+      throw error;
     }
 
     const token = this.signToken(userId, user.role as Role);

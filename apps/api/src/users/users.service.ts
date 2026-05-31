@@ -104,4 +104,8 @@ export class UsersService {
     }
     return user;
   }
+
+  async deleteById(id: string): Promise<void> {
+    await this.usersRepository.deleteById(id);
+  }
 }
