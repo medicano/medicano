@@ -23,6 +23,7 @@ interface AuthContextValue {
   register: (data: { name: string; email: string; password: string; role?: UserRole }) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<AuthUser | null>;
+  updateUser: (partial: Partial<AuthUser>) => void;
 }
 
 const defaultContext: AuthContextValue = {
@@ -35,6 +36,7 @@ const defaultContext: AuthContextValue = {
   register: async () => { throw new Error('No AuthProvider'); },
   logout: async () => {},
   refresh: async () => null,
+  updateUser: () => {},
 };
 
 const AuthContext = createContext<AuthContextValue>(defaultContext);
@@ -71,6 +73,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [token, user, refresh]);
 
+  const updateUser = useCallback((partial: Partial<AuthUser>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      setStoredUser(next);
+      return next;
+    });
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password });
     const t = data?.accessToken ?? data?.token ?? data?.access_token;
@@ -104,8 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user, token, isAuthenticated: !!token, loading,
-    login, loginAttendant, register, logout, refresh,
-  }), [user, token, loading, login, loginAttendant, register, logout, refresh]);
+    login, loginAttendant, register, logout, refresh, updateUser,
+  }), [user, token, loading, login, loginAttendant, register, logout, refresh, updateUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -193,6 +193,7 @@ function formatCnpj(v: string): string {
 }
 
 function ClinicDataSection() {
+  const { updateUser } = useAuth();
   const { data: rawData, mutate } = useSWR<ClinicProfile>('/profile/me/clinic', {
     suspense: true,
   });
@@ -250,6 +251,7 @@ function ClinicDataSection() {
         })
         .then(() => {
           toast.success('Dados da clínica atualizados!');
+          updateUser({ name: trimmedName });
           mutate();
         }),
     );

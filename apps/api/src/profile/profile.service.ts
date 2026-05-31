@@ -97,6 +97,14 @@ export class ProfileService {
       )
       .exec();
 
+    // Keep User.name in sync so name-based displays (sidebar, search) stay
+    // consistent with the clinic profile, which is the editable source of truth.
+    if (updateDto.name) {
+      await this.userModel
+        .updateOne({ _id: new Types.ObjectId(userId) }, { $set: { name: updateDto.name } })
+        .exec();
+    }
+
     return clinic;
   }
 
