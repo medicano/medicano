@@ -371,12 +371,12 @@ export function RegisterPage() {
       const roleMap: Record<AccountType, UserRole> = {
         PATIENT: 'patient', CLINIC: 'clinic', PROFESSIONAL: 'professional', ATTENDANT: 'attendant',
       };
-      const payload: any = { role: roleMap[account], plan: plan || undefined };
+      const payload: any = { role: roleMap[account] };
 
       if (account === 'PATIENT') {
         Object.assign(payload, { name, email, password: pwd });
       } else if (account === 'CLINIC') {
-        Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj });
+        Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, '') });
       } else if (account === 'PROFESSIONAL') {
         Object.assign(payload, { name, email, password: pwd, cpf, specialty: SPECIALTY_LABEL_TO_ENUM[specialty] || specialty, regNum, city });
       } else if (account === 'ATTENDANT') {
