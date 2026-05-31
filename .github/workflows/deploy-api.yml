@@ -64,7 +64,8 @@ jobs:
           script: |
             set -e
             cd ~/medicano-project
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             npm ci
             npm run types:build
             npm run build --workspace=apps/api
