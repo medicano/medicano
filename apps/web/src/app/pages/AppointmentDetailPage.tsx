@@ -34,7 +34,7 @@ export function AppointmentDetailPage() {
         setEditDuration(data.durationMinutes ?? 60);
         setEditNotes(data.notes ?? '');
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -44,7 +44,7 @@ export function AppointmentDetailPage() {
     try {
       const { data } = await api.put(`/appointments/${apt.id}`, { status: next });
       setApt(data);
-    } catch (e) { console.error(e); }
+    } catch {}
     finally { setSaving(false); }
   }
 
@@ -56,7 +56,7 @@ export function AppointmentDetailPage() {
       const { data } = await api.put(`/appointments/${apt.id}`, { startAt: editStartAt, durationMinutes: editDuration, notes: editNotes });
       setApt(data);
       setEditOpen(false);
-    } catch (e) { console.error(e); }
+    } catch {}
     finally { setSaving(false); }
   }
 

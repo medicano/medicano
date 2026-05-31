@@ -39,9 +39,7 @@ export function NewAppointmentModal({ open, onClose }: Props) {
         const mapped = list.map((p: any) => ({ ...p, id: p.id ?? p._id }));
         setProfessionals(mapped);
         if (mapped.length > 0 && !professionalId) setProfessionalId(mapped[0].id);
-      } catch (e) {
-        console.error(e);
-      }
+      } catch {}
     }
 
     loadProfessionals();

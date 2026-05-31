@@ -56,7 +56,7 @@ export function AttendantsPage() {
       if (!clinicId) return;
       await api.delete(`/clinics/${clinicId}/attendants/${removing.id}`);
       atendApi.refetch();
-    } catch (e) { console.error(e); }
+    } catch {}
     setRemoving(null);
   }
 

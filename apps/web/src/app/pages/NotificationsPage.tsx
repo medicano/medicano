@@ -28,14 +28,14 @@ export function NotificationsPage() {
     try {
       await api.put('/notifications/read-all');
       notifsApi.refetch();
-    } catch (e) { console.error(e); }
+    } catch {}
   }
 
   async function toggleRead(id: string, currentRead: boolean) {
     try {
       await api.put(`/notifications/${id}/read`, { read: !currentRead });
       notifsApi.refetch();
-    } catch (e) { console.error(e); }
+    } catch {}
   }
 
   function getStyle(type: string) {

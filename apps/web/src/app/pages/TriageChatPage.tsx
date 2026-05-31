@@ -87,8 +87,7 @@ export function TriageChatPage() {
         }
         setMessages(msgs);
       })
-      .catch((e) => {
-        console.error(e);
+      .catch(() => {
         setMessages([{
           id: 'welcome',
           role: 'ASSISTANT',
@@ -136,7 +135,7 @@ export function TriageChatPage() {
         const detected = parseRecommendation(rawContent);
         if (detected) setRecommendation(detected);
       },
-      (err) => { console.error(err); setTyping(false); },
+      () => { setTyping(false); },
     );
 
     cancelRef.current = cancel;

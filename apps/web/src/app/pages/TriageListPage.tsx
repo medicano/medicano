@@ -19,8 +19,7 @@ export function TriageListPage() {
       const { data } = await api.post('/chat/sessions', { type: 'triage' });
       const sessionId = data.id ?? data._id;
       navigate(`/triage/${sessionId}`);
-    } catch (e) {
-      console.error(e);
+    } catch {
       setCreating(false);
     }
   }

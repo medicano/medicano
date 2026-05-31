@@ -92,7 +92,7 @@ export function ProfessionalsPage() {
         await api.delete(`/professionals/${proId}`);
       }
       prosApi.refetch();
-    } catch (e) { console.error(e); }
+    } catch {}
     setToRemove(null);
   }
 
