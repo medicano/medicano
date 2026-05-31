@@ -5,6 +5,7 @@ import { AppointmentsService } from '../appointments.service';
 import { Appointment } from '../schemas/appointment.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
 import { Clinic } from '../../clinics/schemas/clinic.schema';
+import { User } from '../../auth/schemas/user.schema';
 import { NotificationsService } from '../../notifications/notifications.service';
 
 const mockNotificationsService = {
@@ -56,11 +57,15 @@ describe('AppointmentsService', () => {
         },
         {
           provide: getModelToken(Professional.name),
-          useValue: { find: jest.fn() },
+          useValue: { find: jest.fn(), findById: jest.fn().mockReturnValue(buildExecChain(null)) },
         },
         {
           provide: getModelToken(Clinic.name),
-          useValue: { find: jest.fn() },
+          useValue: { find: jest.fn(), findById: jest.fn().mockReturnValue(buildExecChain(null)) },
+        },
+        {
+          provide: getModelToken(User.name),
+          useValue: { findById: jest.fn().mockReturnValue(buildExecChain(null)) },
         },
         {
           provide: NotificationsService,

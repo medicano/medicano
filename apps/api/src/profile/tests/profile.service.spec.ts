@@ -1,11 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ProfileService } from '../profile.service';
 import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
 import { Patient } from '../../patients/schemas/patient.schema';
+import { User } from '../../auth/schemas/user.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
 import { Address } from '../../common/schemas/address.schema';
 
@@ -83,6 +83,10 @@ describe('ProfileService', () => {
         {
           provide: getModelToken(Patient.name),
           useValue: mockPatientModel,
+        },
+        {
+          provide: getModelToken(User.name),
+          useValue: { findOne: jest.fn(), findOneAndUpdate: jest.fn() },
         },
       ],
     }).compile();

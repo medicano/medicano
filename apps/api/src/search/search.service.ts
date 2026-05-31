@@ -65,24 +65,22 @@ export class SearchService {
   ) {}
 
   async search(query: SearchQueryDto): Promise<SearchResult> {
-    const allSubscriptions = await this.subscriptionModel
-      .find({})
-      .select('clinicId status')
+    const activeSubscriptions = await this.subscriptionModel
+      .find({ status: { $in: ['active', 'trial'] } })
+      .select('clinicId')
       .lean()
       .exec();
 
-    const inactiveClinicIds = new Set(
-      allSubscriptions
-        .filter((s) => s.status === 'inactive')
-        .map((s) => (s.clinicId as Types.ObjectId).toString()),
+    const activeClinicIds = new Set(
+      activeSubscriptions.map((s) => (s.clinicId as Types.ObjectId).toString()),
     );
 
     const searchClinics = !query.type || query.type === 'all' || query.type === 'clinic';
     const searchProfessionals = !query.type || query.type === 'all' || query.type === 'professional';
 
     const [clinics, professionals] = await Promise.all([
-      searchClinics ? this.searchClinics(query, inactiveClinicIds) : Promise.resolve([]),
-      searchProfessionals ? this.searchProfessionals(query, inactiveClinicIds) : Promise.resolve([]),
+      searchClinics ? this.searchClinics(query, activeClinicIds) : Promise.resolve([]),
+      searchProfessionals ? this.searchProfessionals(query, activeClinicIds) : Promise.resolve([]),
     ]);
 
     return { clinics, professionals };
@@ -90,10 +88,10 @@ export class SearchService {
 
   private async searchClinics(
     query: SearchQueryDto,
-    inactiveClinicIds: Set<string>,
+    activeClinicIds: Set<string>,
   ): Promise<ClinicResult[]> {
-    const excludedIds = [...inactiveClinicIds].map((id) => new Types.ObjectId(id));
-    const filter: Record<string, unknown> = { _id: { $nin: excludedIds }, isActive: { $ne: false } };
+    const includedIds = [...activeClinicIds].map((id) => new Types.ObjectId(id));
+    const filter: Record<string, unknown> = { _id: { $in: includedIds }, isActive: { $ne: false } };
     if (query.name) filter['name'] = { $regex: query.name, $options: 'i' };
     if (query.city) filter['address.city'] = { $regex: query.city, $options: 'i' };
     if (query.specialty) filter['specialties'] = query.specialty;
@@ -127,11 +125,11 @@ export class SearchService {
 
   private async searchProfessionals(
     query: SearchQueryDto,
-    inactiveClinicIds: Set<string>,
+    activeClinicIds: Set<string>,
   ): Promise<ProfessionalResult[]> {
-    const excludedIds = [...inactiveClinicIds].map((id) => new Types.ObjectId(id));
+    const includedIds = [...activeClinicIds].map((id) => new Types.ObjectId(id));
     const links = await this.clinicProfessionalModel
-      .find({ clinicId: { $nin: excludedIds } })
+      .find({ clinicId: { $in: includedIds } })
       .select('clinicId professionalId')
       .lean()
       .exec();

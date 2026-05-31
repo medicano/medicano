@@ -10,7 +10,7 @@ describe('AuthService', () => {
 
   const usersService = {
     createUser: jest.fn(),
-    findByEmailAndRole: jest.fn(),
+    findByEmail: jest.fn(),
     findByClinicIdAndUsername: jest.fn(),
   };
 
@@ -23,9 +23,22 @@ describe('AuthService', () => {
     removeToken: jest.fn(),
   };
 
+  const subscriptionsService = {
+    create: jest.fn(),
+  };
+
   const patientModel = {
     create: jest.fn(),
     findOne: jest.fn(),
+  };
+
+  const clinicModel = {
+    create: jest.fn(),
+    findOne: jest.fn().mockReturnValue({ select: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue(null) }) }),
+  };
+
+  const professionalModel = {
+    create: jest.fn(),
   };
 
   const TOKEN_TTL = 7 * 24 * 3600;
@@ -35,7 +48,10 @@ describe('AuthService', () => {
       usersService as unknown as UsersService,
       jwtService as unknown as JwtService,
       redisService as unknown as RedisService,
+      subscriptionsService as any,
       patientModel as any,
+      clinicModel as any,
+      professionalModel as any,
     );
   });
 
@@ -141,6 +157,8 @@ describe('AuthService', () => {
           role: Role.CLINIC,
         };
         usersService.createUser.mockResolvedValue(createdUser);
+        clinicModel.create.mockResolvedValue({ _id: { toString: () => 'clinic-doc-id' } });
+        subscriptionsService.create.mockResolvedValue(undefined);
         jwtService.sign.mockReturnValue('clinic.token');
         redisService.saveToken.mockResolvedValue(undefined);
 
@@ -164,16 +182,13 @@ describe('AuthService', () => {
         role: Role.PATIENT,
         comparePassword: jest.fn().mockResolvedValue(true),
       };
-      usersService.findByEmailAndRole.mockResolvedValue(mockUser);
+      usersService.findByEmail.mockResolvedValue(mockUser);
       jwtService.sign.mockReturnValue('access-token');
       redisService.saveToken.mockResolvedValue(undefined);
 
       const result = await service.loginStandard(loginDto);
 
-      expect(usersService.findByEmailAndRole).toHaveBeenCalledWith(
-        loginDto.email,
-        Role.PATIENT,
-      );
+      expect(usersService.findByEmail).toHaveBeenCalledWith(loginDto.email);
       expect(mockUser.comparePassword).toHaveBeenCalledWith(loginDto.password);
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: 'user-id-1',
@@ -188,7 +203,7 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException when user not found', async () => {
-      usersService.findByEmailAndRole.mockResolvedValue(null);
+      usersService.findByEmail.mockResolvedValue(null);
 
       await expect(service.loginStandard(loginDto)).rejects.toThrow(
         UnauthorizedException,
@@ -203,7 +218,7 @@ describe('AuthService', () => {
         role: Role.PATIENT,
         comparePassword: jest.fn().mockResolvedValue(false),
       };
-      usersService.findByEmailAndRole.mockResolvedValue(mockUser);
+      usersService.findByEmail.mockResolvedValue(mockUser);
 
       await expect(service.loginStandard(loginDto)).rejects.toThrow(
         UnauthorizedException,
@@ -215,7 +230,7 @@ describe('AuthService', () => {
 
   describe('loginAttendant', () => {
     const attendantDto = {
-      clinicId: 'clinic-id-1',
+      clinicId: '507f1f77bcf86cd799439011',
       username: 'frontdesk',
       password: 'StrongPassword123!',
     };
