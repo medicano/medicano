@@ -87,17 +87,15 @@ export class ProfileService {
       }
     }
 
+    // upsert: clinic-role users whose Clinic document was never created
+    // (e.g. signup created the user but clinic creation failed) get one here.
     const clinic = await this.clinicModel
       .findOneAndUpdate(
-        { userId: new Types.ObjectId(userId), isActive: { $ne: false } },
+        { userId: new Types.ObjectId(userId) },
         { $set: { ...updateDto, ...geoUpdate } },
-        { new: true, runValidators: true },
+        { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
       )
       .exec();
-
-    if (!clinic) {
-      throw new NotFoundException('Perfil do estabelecimento não encontrado');
-    }
 
     return clinic;
   }

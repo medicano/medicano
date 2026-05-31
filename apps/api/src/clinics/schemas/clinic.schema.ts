@@ -36,8 +36,8 @@ export class Clinic {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ type: String, required: true, unique: true, match: /^\d{14}$/ })
-  cnpj: string;
+  @Prop({ type: String, unique: true, sparse: true, match: /^\d{14}$/ })
+  cnpj?: string;
 
   @Prop({ type: String })
   website?: string;
