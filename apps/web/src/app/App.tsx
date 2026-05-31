@@ -1,6 +1,7 @@
 import React from 'react';
 import { RouterProvider } from 'react-router';
 import { SWRConfig } from 'swr';
+import { Toaster } from 'sonner';
 import { router } from './routes';
 import { ToastProvider } from './components/Toast';
 import { AuthProvider } from './contexts/AuthContext';
@@ -14,6 +15,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <RouterProvider router={router} />
+          <Toaster richColors position="top-right" closeButton />
         </ToastProvider>
       </AuthProvider>
     </SWRConfig>
