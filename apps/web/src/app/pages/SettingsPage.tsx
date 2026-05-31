@@ -199,14 +199,14 @@ function ClinicDataSection() {
   const data = rawData!;
   const { trigger, isMutating } = useAsyncAction(mutate);
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [cnpj, setCnpj] = useState('');
-  const [website, setWebsite] = useState('');
-  const [addressText, setAddressText] = useState('');
-  const [city, setCity] = useState('');
-  const [hours, setHours] = useState('');
+  const [name, setName] = useState(data.name ?? '');
+  const [email, setEmail] = useState(data.email ?? '');
+  const [phone, setPhone] = useState(data.phone ? phoneMask(data.phone) : '');
+  const [cnpj, setCnpj] = useState(data.cnpj ? formatCnpj(data.cnpj) : '');
+  const [website, setWebsite] = useState(data.website ?? '');
+  const [addressText, setAddressText] = useState(data.addressText ?? '');
+  const [city, setCity] = useState(data.city ?? '');
+  const [hours, setHours] = useState(data.hours ?? '');
 
   function handleSave() {
     const effectiveName = name.trim() || data.name;
@@ -257,7 +257,7 @@ function ClinicDataSection() {
           icon={Building}
           value={name}
           onChange={setName}
-          placeholder={data.name || 'Razão social ou nome fantasia'}
+          placeholder="Razão social ou nome fantasia"
         />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <TextField
@@ -265,7 +265,7 @@ function ClinicDataSection() {
             icon={Mail}
             value={email}
             onChange={setEmail}
-            placeholder={data.email || 'contato@clinica.com'}
+            placeholder="contato@clinica.com"
             type="email"
           />
           <TextField
@@ -273,7 +273,7 @@ function ClinicDataSection() {
             icon={Phone}
             value={phone}
             onChange={(v) => setPhone(phoneMask(v))}
-            placeholder={data.phone ? phoneMask(data.phone) : '(11) 3456-7890'}
+            placeholder="(11) 3456-7890"
           />
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -282,28 +282,28 @@ function ClinicDataSection() {
             icon={FileText}
             value={cnpj}
             onChange={(v) => setCnpj(formatCnpj(v))}
-            placeholder={data.cnpj ? formatCnpj(data.cnpj) : '00.000.000/0000-00'}
+            placeholder="00.000.000/0000-00"
           />
           <TextField
             label="Site"
             icon={Globe}
             value={website}
             onChange={setWebsite}
-            placeholder={data.website || 'clinica.com.br'}
+            placeholder="clinica.com.br"
           />
         </div>
         <AddressAutocomplete
           value={addressText}
           onChange={setAddressText}
           onSelect={(s) => setCity(s.city)}
-          placeholder={data.addressText || 'Av. Exemplo, 123 – Cidade, UF'}
+          placeholder="Av. Exemplo, 123 – Cidade, UF"
         />
         <TextField
           label="Horário de funcionamento"
           icon={Clock}
           value={hours}
           onChange={setHours}
-          placeholder={data.hours || 'Seg–Sex: 08h–18h | Sáb: 08h–13h'}
+          placeholder="Seg–Sex: 08h–18h | Sáb: 08h–13h"
         />
       </div>
       <SaveFooter onClick={handleSave} loading={isMutating} />
