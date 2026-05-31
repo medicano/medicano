@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { api } from './api';
 
 export interface ApiState<T> {
@@ -46,6 +47,17 @@ export function useAsyncAction(onSuccess?: () => void) {
     try {
       await action();
       onSuccess?.();
+    } catch (err: unknown) {
+      const responseMessage = (err as { response?: { data?: { message?: unknown } } })?.response
+        ?.data?.message;
+      const message = responseMessage ?? (err as { message?: unknown })?.message;
+      toast.error(
+        Array.isArray(message)
+          ? message.join(', ')
+          : message
+            ? String(message)
+            : 'Não foi possível salvar as alterações. Tente novamente.',
+      );
     } finally {
       setIsMutating(false);
     }
