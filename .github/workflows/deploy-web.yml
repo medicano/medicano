@@ -1,0 +1,90 @@
+name: Deploy Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/types/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Build and lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared types
+        run: npm run types:build
+
+      - name: Lint web
+        run: npm run lint --workspace=apps/web
+
+      - name: Build web
+        run: npm run build --workspace=apps/web
+        env:
+          NODE_ENV: production
+          SKIP_AWS_SECRETS: '1'
+          VITE_API_URL: https://api.medicano.app
+
+  deploy:
+    name: Deploy to S3 + CloudFront
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared types
+        run: npm run types:build
+
+      - name: Build web
+        run: npm run build --workspace=apps/web
+        env:
+          NODE_ENV: production
+          SKIP_AWS_SECRETS: '1'
+          VITE_API_URL: https://api.medicano.app
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: sa-east-1
+
+      - name: Sync assets to S3 (long cache)
+        run: |
+          aws s3 sync apps/web/dist/ s3://${{ secrets.S3_BUCKET }} \
+            --delete --exclude "index.html" \
+            --cache-control "public, max-age=31536000, immutable"
+
+      - name: Upload index.html (no cache)
+        run: |
+          aws s3 cp apps/web/dist/index.html s3://${{ secrets.S3_BUCKET }}/index.html \
+            --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"
