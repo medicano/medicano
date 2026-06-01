@@ -17,6 +17,12 @@ import { buildTriageSystemPrompt } from './constants/triage-prompt';
 import { Specialty } from '../common/enums/specialty.enum';
 import { ANTHROPIC_MODEL } from './constants/chat.tokens';
 import { Patient, PatientDocument } from '../patients/schemas/patient.schema';
+import { PatientProfileService } from '../patient-profile/patient-profile.service';
+import {
+  buildPatientContext,
+  PATIENT_CONTEXT_SYSTEM_INSTRUCTION,
+} from '../patient-profile/utils/build-patient-context';
+import type { IPatientProfile } from '@medicano/types';
 
 const MAX_RESPONSE_TOKENS = 1024;
 
@@ -26,6 +32,7 @@ export class ChatService {
     @InjectModel(ChatSession.name) private readonly sessionModel: Model<ChatSessionDocument>,
     @InjectModel(ChatMessage.name) private readonly messageModel: Model<ChatMessageDocument>,
     @InjectModel(Patient.name) private readonly patientModel: Model<PatientDocument>,
+    private readonly patientProfileService: PatientProfileService,
     @Inject(ANTHROPIC_MODEL) private readonly model: LanguageModel,
   ) {}
 
@@ -96,7 +103,7 @@ export class ChatService {
             (365.25 * 24 * 60 * 60 * 1000),
         )
       : undefined;
-    const systemPrompt = buildTriageSystemPrompt(
+    let systemPrompt = buildTriageSystemPrompt(
       patient
         ? {
             name: patient.name,
@@ -107,6 +114,15 @@ export class ChatService {
           }
         : undefined,
     );
+
+    // Perfil clínico rico (opt-in via useInTriage): adiciona contexto detalhado.
+    const richProfile = await this.patientProfileService.findByUserId(patientId);
+    const richContext = buildPatientContext(
+      richProfile as unknown as Partial<IPatientProfile> | null,
+    );
+    if (richContext) {
+      systemPrompt += `\n\n${PATIENT_CONTEXT_SYSTEM_INSTRUCTION}\n\n${richContext}`;
+    }
 
     const result = streamText({
       model: this.model,

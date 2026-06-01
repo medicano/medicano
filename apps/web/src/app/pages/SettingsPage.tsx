@@ -14,6 +14,7 @@ import {
   Stethoscope,
   User,
   Users,
+  X,
 } from 'lucide-react';
 import { Suspense, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router';
@@ -828,11 +829,137 @@ function PatientProfileSection() {
   );
 }
 
+// Opções dos enums do perfil clínico (valores batem com @medicano/types).
+const SMOKING_OPTIONS = [
+  { value: 'never', label: 'Nunca fumou' },
+  { value: 'former', label: 'Ex-fumante' },
+  { value: 'current', label: 'Fumante atual' },
+];
+const ALCOHOL_OPTIONS = [
+  { value: 'never', label: 'Não consome' },
+  { value: 'social', label: 'Social' },
+  { value: 'regular', label: 'Regular' },
+];
+const ACTIVITY_OPTIONS = [
+  { value: 'sedentary', label: 'Sedentário' },
+  { value: 'light', label: 'Leve' },
+  { value: 'moderate', label: 'Moderada' },
+  { value: 'intense', label: 'Intensa' },
+];
+const IMMUNE_OPTIONS = [
+  { value: 'competent', label: 'Imunocompetente' },
+  { value: 'suppressed', label: 'Imunossuprimido' },
+];
+const LANGUAGE_OPTIONS = [
+  { value: 'technical', label: 'Técnica' },
+  { value: 'accessible', label: 'Acessível (linguagem simples)' },
+];
+
+const splitList = (s: string): string[] =>
+  s.split(',').map((v) => v.trim()).filter(Boolean);
+const joinList = (a?: string[]): string => (a ?? []).join(', ');
+const numOrUndef = (s: string): number | undefined => {
+  const n = Number(s);
+  return s.trim() !== '' && Number.isFinite(n) ? n : undefined;
+};
+
+interface RichProfile {
+  useInTriage?: boolean;
+  preferredName?: string;
+  heightCm?: number;
+  weightKg?: number;
+  isPregnant?: boolean;
+  gestationalWeeks?: number;
+  chronicConditions?: string[];
+  medications?: { name: string; dose?: string }[];
+  allergies?: { substance: string; reaction?: string }[];
+  previousSurgeries?: string[];
+  familyHistory?: string[];
+  smokingStatus?: string;
+  alcoholUse?: string;
+  activityLevel?: string;
+  immuneStatus?: string;
+  recentTravelCountries?: string[];
+  animalExposure?: string[];
+  languageLevel?: string;
+  observations?: string;
+}
+
+// Campo de lista separada por vírgula.
+function ListField({
+  label, icon, value, onChange, placeholder,
+}: {
+  label: string; icon: React.ElementType; value: string;
+  onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <div className="md:col-span-2">
+      <TextField label={label} icon={icon} value={value} onChange={onChange} placeholder={placeholder} />
+      <p className="mt-1 text-xs text-foreground-muted">Separe por vírgula.</p>
+    </div>
+  );
+}
+
+// Editor de linhas para listas de objetos (medicações, alergias).
+function RowsEditor<T extends Record<string, string>>({
+  label, rows, onChange, fields, empty,
+}: {
+  label: string;
+  rows: T[];
+  onChange: (rows: T[]) => void;
+  fields: { key: keyof T; placeholder: string }[];
+  empty: T;
+}) {
+  return (
+    <div>
+      <span className="mb-1.5 block text-sm font-medium text-foreground-muted">{label}</span>
+      <div className="space-y-2">
+        {rows.map((row, i) => (
+          <div key={i} className="flex items-center gap-2">
+            {fields.map((f) => (
+              <input
+                key={String(f.key)}
+                value={row[f.key]}
+                onChange={(e) => {
+                  const next = [...rows];
+                  next[i] = { ...row, [f.key]: e.target.value } as T;
+                  onChange(next);
+                }}
+                placeholder={f.placeholder}
+                className="h-10 flex-1 rounded-lg border border-border bg-white px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => onChange(rows.filter((_, j) => j !== i))}
+              className="shrink-0 rounded-lg p-2 text-foreground-muted hover:text-red-500"
+              aria-label="Remover"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => onChange([...rows, { ...empty }])}
+          className="text-sm font-semibold text-[#0077B6] hover:text-[#023E8A]"
+        >
+          + Adicionar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PatientContextSection() {
   const { data: rawPatientData, mutate } = useSWR<PatientProfile>('/profile/me/patient', {
     suspense: true,
   });
+  const { data: rawRich, mutate: mutateRich } = useSWR<RichProfile | null>('/patient-profile', {
+    suspense: true,
+  });
   const data = rawPatientData!;
+  const rich = rawRich ?? {};
   const { trigger, isMutating } = useAsyncAction(mutate);
 
   const [dateOfBirth, setDateOfBirth] = useState(
@@ -841,18 +968,72 @@ function PatientContextSection() {
   const [sex, setSex] = useState(data.sex ?? '');
   const [gender, setGender] = useState(data.gender ?? '');
 
+  // Perfil clínico rico (patient-profile)
+  const [useInTriage, setUseInTriage] = useState(rich.useInTriage ?? false);
+  const [preferredName, setPreferredName] = useState(rich.preferredName ?? '');
+  const [heightCm, setHeightCm] = useState(rich.heightCm != null ? String(rich.heightCm) : '');
+  const [weightKg, setWeightKg] = useState(rich.weightKg != null ? String(rich.weightKg) : '');
+  const [isPregnant, setIsPregnant] = useState(rich.isPregnant ?? false);
+  const [gestationalWeeks, setGestationalWeeks] = useState(
+    rich.gestationalWeeks != null ? String(rich.gestationalWeeks) : '',
+  );
+  const [chronicConditions, setChronicConditions] = useState(joinList(rich.chronicConditions));
+  const [previousSurgeries, setPreviousSurgeries] = useState(joinList(rich.previousSurgeries));
+  const [familyHistory, setFamilyHistory] = useState(joinList(rich.familyHistory));
+  const [recentTravel, setRecentTravel] = useState(joinList(rich.recentTravelCountries));
+  const [animalExposure, setAnimalExposure] = useState(joinList(rich.animalExposure));
+  const [smokingStatus, setSmokingStatus] = useState(rich.smokingStatus ?? '');
+  const [alcoholUse, setAlcoholUse] = useState(rich.alcoholUse ?? '');
+  const [activityLevel, setActivityLevel] = useState(rich.activityLevel ?? '');
+  const [immuneStatus, setImmuneStatus] = useState(rich.immuneStatus ?? '');
+  const [languageLevel, setLanguageLevel] = useState(rich.languageLevel ?? '');
+  const [observations, setObservations] = useState(rich.observations ?? '');
+  const [medications, setMedications] = useState<{ name: string; dose: string }[]>(
+    (rich.medications ?? []).map((m) => ({ name: m.name, dose: m.dose ?? '' })),
+  );
+  const [allergies, setAllergies] = useState<{ substance: string; reaction: string }[]>(
+    (rich.allergies ?? []).map((a) => ({ substance: a.substance, reaction: a.reaction ?? '' })),
+  );
+
   function handleSave() {
+    const richPayload = {
+      useInTriage,
+      preferredName: preferredName || undefined,
+      heightCm: numOrUndef(heightCm),
+      weightKg: numOrUndef(weightKg),
+      isPregnant,
+      gestationalWeeks: isPregnant ? numOrUndef(gestationalWeeks) : undefined,
+      chronicConditions: splitList(chronicConditions),
+      previousSurgeries: splitList(previousSurgeries),
+      familyHistory: splitList(familyHistory),
+      recentTravelCountries: splitList(recentTravel),
+      animalExposure: splitList(animalExposure),
+      smokingStatus: smokingStatus || undefined,
+      alcoholUse: alcoholUse || undefined,
+      activityLevel: activityLevel || undefined,
+      immuneStatus: immuneStatus || undefined,
+      languageLevel: languageLevel || undefined,
+      observations: observations || undefined,
+      medications: medications
+        .filter((m) => m.name.trim())
+        .map((m) => ({ name: m.name.trim(), dose: m.dose.trim() || undefined })),
+      allergies: allergies
+        .filter((a) => a.substance.trim())
+        .map((a) => ({ substance: a.substance.trim(), reaction: a.reaction.trim() || undefined })),
+    };
     trigger(() =>
-      api
-        .put('/profile/me/patient', {
+      Promise.all([
+        api.put('/profile/me/patient', {
           dateOfBirth: dateOfBirth || undefined,
           sex: sex || undefined,
           gender: gender || undefined,
-        })
-        .then(() => {
-          toast.success('Informações de contexto atualizadas!');
-          mutate();
         }),
+        api.patch('/patient-profile', richPayload),
+      ]).then(() => {
+        toast.success('Informações de contexto atualizadas!');
+        mutate();
+        mutateRich();
+      }),
     );
   }
 
@@ -882,6 +1063,84 @@ function PatientContextSection() {
         <SelectField label="Sexo" icon={User} value={sex} onChange={setSex} options={SEX_OPTIONS} />
         <SelectField label="Gênero" icon={Users} value={gender} onChange={setGender} options={GENDER_OPTIONS} />
       </div>
+
+      {/* ── Perfil clínico (opcional; usado na triagem se autorizado) ── */}
+      <div className="mt-6 space-y-4 border-t border-border pt-6">
+        <Toggle
+          title="Usar meu perfil clínico na triagem"
+          description="Quando ativo, a IA usa as informações abaixo como contexto clínico. Tudo opcional."
+          icon={Stethoscope}
+          checked={useInTriage}
+          onChange={setUseInTriage}
+        />
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <TextField label="Como prefere ser chamado(a)" icon={User} value={preferredName} onChange={setPreferredName} placeholder="Nome social / apelido" />
+          <TextField label="Altura (cm)" icon={User} value={heightCm} onChange={setHeightCm} placeholder="170" />
+          <TextField label="Peso (kg)" icon={User} value={weightKg} onChange={setWeightKg} placeholder="70" />
+          <SelectField label="Tabagismo" icon={Bell} value={smokingStatus} onChange={setSmokingStatus} options={SMOKING_OPTIONS} />
+          <SelectField label="Consumo de álcool" icon={Bell} value={alcoholUse} onChange={setAlcoholUse} options={ALCOHOL_OPTIONS} />
+          <SelectField label="Atividade física" icon={Clock} value={activityLevel} onChange={setActivityLevel} options={ACTIVITY_OPTIONS} />
+          <SelectField label="Imunidade" icon={Stethoscope} value={immuneStatus} onChange={setImmuneStatus} options={IMMUNE_OPTIONS} />
+          <SelectField label="Preferência de linguagem" icon={BookOpen} value={languageLevel} onChange={setLanguageLevel} options={LANGUAGE_OPTIONS} />
+        </div>
+
+        <Toggle
+          title="Gestante"
+          description="Marque se estiver grávida."
+          icon={User}
+          checked={isPregnant}
+          onChange={setIsPregnant}
+        />
+        {isPregnant && (
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            <TextField label="Semanas de gestação" icon={Calendar} value={gestationalWeeks} onChange={setGestationalWeeks} placeholder="Ex.: 12" />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <ListField label="Condições crônicas" icon={Stethoscope} value={chronicConditions} onChange={setChronicConditions} placeholder="Hipertensão, diabetes" />
+          <ListField label="Cirurgias anteriores" icon={FileText} value={previousSurgeries} onChange={setPreviousSurgeries} placeholder="Apendicectomia (2019)" />
+          <ListField label="Histórico familiar" icon={Users} value={familyHistory} onChange={setFamilyHistory} placeholder="Câncer de mama (mãe)" />
+          <ListField label="Países visitados recentemente" icon={Globe} value={recentTravel} onChange={setRecentTravel} placeholder="Argentina, Chile" />
+          <ListField label="Exposição a animais" icon={MapPin} value={animalExposure} onChange={setAnimalExposure} placeholder="Gato, cachorro" />
+        </div>
+
+        <RowsEditor
+          label="Medicações em uso"
+          rows={medications}
+          onChange={setMedications}
+          fields={[
+            { key: 'name', placeholder: 'Medicamento' },
+            { key: 'dose', placeholder: 'Dose (ex.: 50mg)' },
+          ]}
+          empty={{ name: '', dose: '' }}
+        />
+
+        <RowsEditor
+          label="Alergias"
+          rows={allergies}
+          onChange={setAllergies}
+          fields={[
+            { key: 'substance', placeholder: 'Substância' },
+            { key: 'reaction', placeholder: 'Reação (ex.: urticária)' },
+          ]}
+          empty={{ substance: '', reaction: '' }}
+        />
+
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-foreground-muted">Observações</span>
+          <textarea
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="Qualquer informação adicional relevante para a triagem."
+            className="w-full rounded-lg border border-border bg-white px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </label>
+      </div>
+
       <div className="mt-6 flex justify-end">
         <Button onClick={handleSave} loading={isMutating}>
           Salvar alterações

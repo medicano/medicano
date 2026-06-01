@@ -14,11 +14,6 @@ import { Role } from '../common/enums/role.enum';
 import { PatientProfileService } from './patient-profile.service';
 import { UpdatePatientProfileDto } from './dto/update-patient-profile.dto';
 
-interface AuthenticatedUser {
-  userId: string;
-  role: Role;
-}
-
 @Controller('patient-profile')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.PATIENT)
@@ -26,33 +21,33 @@ export class PatientProfileController {
   constructor(private readonly patientProfileService: PatientProfileService) {}
 
   @Get()
-  async getProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.patientProfileService.findByUserId(user.userId);
+  async getProfile(@CurrentUser() userId: string) {
+    return this.patientProfileService.findByUserId(userId);
   }
 
   @Patch()
   async upsertProfile(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() userId: string,
     @Body() dto: UpdatePatientProfileDto,
   ) {
-    return this.patientProfileService.upsertForUser(user.userId, dto);
+    return this.patientProfileService.upsertForUser(userId, dto);
   }
 
   @Get('export')
-  async exportProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.patientProfileService.exportForUser(user.userId);
+  async exportProfile(@CurrentUser() userId: string) {
+    return this.patientProfileService.exportForUser(userId);
   }
 
   @Delete()
-  async deleteProfile(@CurrentUser() user: AuthenticatedUser) {
-    return this.patientProfileService.hardDeleteForUser(user.userId);
+  async deleteProfile(@CurrentUser() userId: string) {
+    return this.patientProfileService.hardDeleteForUser(userId);
   }
 
   @Patch('use-in-triage')
   async setUseInTriage(
-    @CurrentUser() user: AuthenticatedUser,
+    @CurrentUser() userId: string,
     @Body('useInTriage') value: boolean,
   ) {
-    return this.patientProfileService.setUseInTriage(user.userId, value);
+    return this.patientProfileService.setUseInTriage(userId, value);
   }
 }

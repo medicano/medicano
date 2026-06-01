@@ -10,6 +10,7 @@ import { ChatService } from '../chat.service';
 import { ChatSession } from '../schemas/chat-session.schema';
 import { ChatMessage } from '../schemas/chat-message.schema';
 import { ANTHROPIC_MODEL } from '../constants/chat.tokens';
+import { PatientProfileService } from '../../patient-profile/patient-profile.service';
 import { ChatSessionType } from '../enums/chat-session-type.enum';
 import { Patient } from '../../patients/schemas/patient.schema';
 
@@ -76,6 +77,10 @@ describe('ChatService', () => {
         { provide: getModelToken(ChatSession.name), useValue: sessionModel },
         { provide: getModelToken(ChatMessage.name), useValue: messageModel },
         { provide: getModelToken(Patient.name), useValue: patientModel },
+        {
+          provide: PatientProfileService,
+          useValue: { findByUserId: jest.fn().mockResolvedValue(null) },
+        },
         { provide: ANTHROPIC_MODEL, useValue: {} },
       ],
     }).compile();

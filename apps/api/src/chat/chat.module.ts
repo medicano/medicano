@@ -9,11 +9,13 @@ import { ChatSession, ChatSessionSchema } from './schemas/chat-session.schema';
 import { ChatMessage, ChatMessageSchema } from './schemas/chat-message.schema';
 import { ANTHROPIC_MODEL } from './constants/chat.tokens';
 import { PatientsModule } from '../patients/patients.module';
+import { PatientProfileModule } from '../patient-profile/patient-profile.module';
 
 @Module({
   imports: [
     ConfigModule,
     PatientsModule,
+    PatientProfileModule,
     MongooseModule.forFeature([
       { name: ChatSession.name, schema: ChatSessionSchema },
       { name: ChatMessage.name, schema: ChatMessageSchema },
