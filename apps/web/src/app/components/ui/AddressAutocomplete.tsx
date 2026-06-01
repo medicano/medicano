@@ -50,16 +50,16 @@ export function AddressAutocomplete({ value, onChange, onSelect, placeholder }: 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // inicializa com o valor atual (ou placeholder se o valor ainda não foi digitado)
+  // Inicializa a partir do valor salvo. Sem valor (clínica sem localização)
+  // deixa os campos vazios — o placeholder é só dica visual, nunca vira valor.
   useEffect(() => {
-    const source = value || placeholder || '';
-    if (!source) return;
-    const match = source.match(/^(.+?),\s*(\d+\w*)(,.*)?$/);
+    if (!value) return;
+    const match = value.match(/^(.+?),\s*(\d+\w*)(,.*)?$/);
     if (match) {
       setStreet(match[1].trim());
       setNumber(match[2].trim());
     } else {
-      setStreet(source.trim());
+      setStreet(value.trim());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [placeholder]);
