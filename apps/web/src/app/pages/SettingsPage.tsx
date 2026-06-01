@@ -732,8 +732,6 @@ function PatientProfileSection() {
   const [dateOfBirth, setDateOfBirth] = useState(
     data.dateOfBirth ? data.dateOfBirth.slice(0, 10) : '',
   );
-  const [sex, setSex] = useState(data.sex ?? '');
-  const [gender, setGender] = useState(data.gender ?? '');
   const [cep, setCep] = useState(data.cep ? formatCep(data.cep) : '');
   const [city, setCity] = useState(data.city ?? '');
   const [state, setState] = useState(data.state ?? '');
@@ -771,8 +769,6 @@ function PatientProfileSection() {
           name,
           phone: phone.replace(/\D/g, '') || undefined,
           dateOfBirth: dateOfBirth || undefined,
-          sex: sex || undefined,
-          gender: gender || undefined,
           cep: cep.replace(/\D/g, '') || undefined,
           city: city || undefined,
           state: state || undefined,
@@ -831,20 +827,6 @@ function PatientProfileSection() {
             />
           </div>
         </label>
-        <SelectField
-          label="Sexo"
-          icon={User}
-          value={sex}
-          onChange={setSex}
-          options={SEX_OPTIONS}
-        />
-        <SelectField
-          label="Gênero"
-          icon={Users}
-          value={gender}
-          onChange={setGender}
-          options={GENDER_OPTIONS}
-        />
         <TextField
           label={cepLoading ? 'CEP (buscando…)' : 'CEP'}
           icon={MapPin}
@@ -866,6 +848,48 @@ function PatientProfileSection() {
           onChange={setState}
           placeholder="SP"
         />
+      </div>
+      <div className="mt-6 flex justify-end">
+        <Button onClick={handleSave} loading={isMutating}>
+          Salvar alterações
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+function PatientContextSection() {
+  const { data: rawPatientData, mutate } = useSWR<PatientProfile>('/profile/me/patient', {
+    suspense: true,
+  });
+  const data = rawPatientData!;
+  const { trigger, isMutating } = useAsyncAction(mutate);
+
+  const [sex, setSex] = useState(data.sex ?? '');
+  const [gender, setGender] = useState(data.gender ?? '');
+
+  function handleSave() {
+    trigger(() =>
+      api
+        .put('/profile/me/patient', {
+          sex: sex || undefined,
+          gender: gender || undefined,
+        })
+        .then(() => {
+          toast.success('Informações de contexto atualizadas!');
+          mutate();
+        }),
+    );
+  }
+
+  return (
+    <Section
+      title="Informações de contexto"
+      description="Opcionais. Usadas apenas para dar mais contexto à ferramenta de IA durante a triagem, ajudando a sugerir a especialidade mais adequada. Você pode deixá-las em branco."
+    >
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <SelectField label="Sexo" icon={User} value={sex} onChange={setSex} options={SEX_OPTIONS} />
+        <SelectField label="Gênero" icon={Users} value={gender} onChange={setGender} options={GENDER_OPTIONS} />
       </div>
       <div className="mt-6 flex justify-end">
         <Button onClick={handleSave} loading={isMutating}>
@@ -940,6 +964,9 @@ export function SettingsPage() {
         <div className="space-y-8">
           <Suspense fallback={<LoadingSection title="Meus dados" />}>
             <PatientProfileSection />
+          </Suspense>
+          <Suspense fallback={<LoadingSection title="Informações de contexto" />}>
+            <PatientContextSection />
           </Suspense>
         </div>
       </Page>
