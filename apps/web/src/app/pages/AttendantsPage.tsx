@@ -13,7 +13,9 @@ export function AttendantsPage() {
   const clinicId = profileApi.data?._id ?? profileApi.data?.id ?? null;
 
   const atendApi = useApi<Attendant[]>(clinicId ? `/clinics/${clinicId}/attendants` : null);
-  const list = extractList<Attendant>(atendApi.data);
+  // A API retorna o atendente com _id (Mongoose), sem `id`. Normaliza para que
+  // editar/remover/listar usem sempre um id válido (senão a URL vira .../undefined).
+  const list = extractList<Attendant>(atendApi.data).map((a) => ({ ...a, id: a.id ?? a._id ?? '' }));
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Attendant | null>(null);
