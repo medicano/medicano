@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
@@ -99,14 +99,13 @@ export class ProfileService {
       )
       .exec();
 
-    // Keep User.displayName in sync so name-based displays (sidebar) stay
-    // consistent with the clinic profile, which is the editable source of truth.
-    // (toAuthUser reads displayName, not name.)
-    if (updateDto.name) {
-      await this.userModel
-        .updateOne({ _id: new Types.ObjectId(userId) }, { $set: { displayName: updateDto.name } })
-        .exec();
-    }
+    // Keep User in sync: displayName feeds name-based displays (sidebar) and
+    // email is the login identity. The profile is the editable source of truth,
+    // so changes here must propagate back to the User document.
+    await this.syncUserContact(userId, {
+      displayName: updateDto.name,
+      email: updateDto.email,
+    });
 
     // A clinic created here (self-heal upsert) must also get a subscription,
     // otherwise it and its professionals stay hidden from patient search.
@@ -154,7 +153,39 @@ export class ProfileService {
       throw new NotFoundException('Perfil do profissional não encontrado');
     }
 
+    // The professional profile is the editable source of truth; keep the User
+    // document (login email + name-based displays) in sync with it.
+    await this.syncUserContact(userId, {
+      displayName: updateDto.name,
+      email: updateDto.email,
+    });
+
     return professional;
+  }
+
+  // Propagates profile-editable contact fields back to the User document, which
+  // owns the login identity. The email index is unique, so a collision with
+  // another user surfaces as a ConflictException instead of a raw Mongo error.
+  private async syncUserContact(
+    userId: string,
+    contact: { displayName?: string; email?: string },
+  ): Promise<void> {
+    const update: { displayName?: string; email?: string } = {};
+    if (contact.displayName) update.displayName = contact.displayName;
+    if (contact.email) update.email = contact.email;
+
+    if (Object.keys(update).length === 0) return;
+
+    try {
+      await this.userModel
+        .updateOne({ _id: new Types.ObjectId(userId) }, { $set: update })
+        .exec();
+    } catch (error) {
+      if ((error as { code?: number }).code === 11000) {
+        throw new ConflictException('E-mail já está em uso por outra conta');
+      }
+      throw error;
+    }
   }
 
   async deleteAccount(userId: string, role: Role): Promise<void> {

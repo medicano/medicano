@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
@@ -87,7 +88,13 @@ describe('ProfileService', () => {
         },
         {
           provide: getModelToken(User.name),
-          useValue: { findOne: jest.fn(), findOneAndUpdate: jest.fn() },
+          useValue: {
+            findOne: jest.fn(),
+            findOneAndUpdate: jest.fn(),
+            updateOne: jest.fn().mockReturnValue({
+              exec: jest.fn().mockResolvedValue({ acknowledged: true }),
+            }),
+          },
         },
         {
           provide: SubscriptionsService,
@@ -147,6 +154,35 @@ describe('ProfileService', () => {
       expect(result?.address).toEqual(newAddress);
       expect(typeof result?.address).not.toBe('string');
     });
+
+    it('should sync the new email to the User login document', async () => {
+      const updateOne = (service as any).userModel.updateOne as jest.Mock;
+
+      await service.updateClinicProfile(mockUserId, { email: 'nova@clinica.com' });
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { _id: new Types.ObjectId(mockUserId) },
+        { $set: { email: 'nova@clinica.com' } },
+      );
+    });
+
+    it('should not touch the User document when no name or email changes', async () => {
+      const updateOne = (service as any).userModel.updateOne as jest.Mock;
+
+      await service.updateClinicProfile(mockUserId, { phone: '11999999999' });
+
+      expect(updateOne).not.toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException when the new email is already in use', async () => {
+      (service as any).userModel.updateOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockRejectedValue({ code: 11000 }),
+      });
+
+      await expect(
+        service.updateClinicProfile(mockUserId, { email: 'duplicado@clinica.com' }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe('updateProfessionalProfile', () => {
@@ -163,6 +199,29 @@ describe('ProfileService', () => {
       });
 
       expect(result?.specialty).toBe(Specialty.CARDIOLOGY);
+    });
+
+    it('should sync the new email to the User login document', async () => {
+      const updateOne = (service as any).userModel.updateOne as jest.Mock;
+
+      await service.updateProfessionalProfile(mockUserId, {
+        email: 'novo@medico.com',
+      });
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { _id: new Types.ObjectId(mockUserId) },
+        { $set: { email: 'novo@medico.com' } },
+      );
+    });
+
+    it('should throw ConflictException when the new email is already in use', async () => {
+      (service as any).userModel.updateOne = jest.fn().mockReturnValue({
+        exec: jest.fn().mockRejectedValue({ code: 11000 }),
+      });
+
+      await expect(
+        service.updateProfessionalProfile(mockUserId, { email: 'duplicado@medico.com' }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
