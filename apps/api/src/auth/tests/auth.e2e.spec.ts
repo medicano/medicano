@@ -75,14 +75,16 @@ describe('Auth (e2e)', () => {
       expect(response.body).toHaveProperty('accessToken');
     });
 
-    it('should return 400 when dateOfBirth is missing for patient', async () => {
+    it('should allow signup without dateOfBirth for patient (optional)', async () => {
       const payload = patientPayload();
       delete (payload as any).dateOfBirth;
 
-      await request(app.getHttpServer())
+      const response = await request(app.getHttpServer())
         .post('/auth/signup')
         .send(payload)
-        .expect(400);
+        .expect(201);
+
+      expect(response.body).toHaveProperty('accessToken');
     });
 
     it('should return 400 when phone is missing for patient', async () => {

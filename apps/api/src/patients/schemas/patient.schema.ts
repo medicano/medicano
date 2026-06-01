@@ -12,8 +12,9 @@ export class Patient {
   @Prop({ type: String, required: true })
   name: string;
 
-  @Prop({ type: Date, required: true })
-  dateOfBirth: Date;
+  // Opcional: informação de contexto para a triagem, pode ser nula.
+  @Prop({ type: Date })
+  dateOfBirth?: Date;
 
   @Prop({ type: String })
   phone?: string;

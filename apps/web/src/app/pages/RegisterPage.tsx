@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import {
   ArrowLeft, ArrowRight, User, Building2, Stethoscope, Headset,
   Mail, Lock, Eye, EyeOff, Hash, ShieldCheck, Info, AlertCircle,
-  MapPin, FileText, BadgeCheck, Check, Sparkles, Phone, Calendar
+  MapPin, FileText, BadgeCheck, Check, Sparkles, Phone
 } from 'lucide-react';
 import { MedicanoLogo } from '../components/MedicanoLogo';
 import { api } from '../lib/api';
@@ -272,7 +272,6 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [pwd, setPwd] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [birthDate, setBirthDate] = useState('');
   const [phone, setPhone] = useState('');
 
   // Clinic fields
@@ -313,8 +312,6 @@ export function RegisterPage() {
       if (!name.trim()) e.name = 'Nome é obrigatório';
       if (!email.trim()) e.email = 'E-mail é obrigatório';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'E-mail inválido';
-      if (!birthDate) e.birthDate = 'Data de nascimento é obrigatória';
-      else if (new Date(birthDate) > new Date()) e.birthDate = 'Data de nascimento inválida';
       if (!phone.trim()) e.phone = 'Telefone é obrigatório';
       else if (phone.replace(/\D/g, '').length < 10) e.phone = 'Telefone deve ter pelo menos 10 dígitos (com DDD)';
       if (!pwd) e.pwd = 'Senha é obrigatória';
@@ -386,7 +383,7 @@ export function RegisterPage() {
       const payload: Record<string, unknown> = { role: roleMap[account] };
 
       if (account === 'PATIENT') {
-        Object.assign(payload, { name, email, password: pwd, dateOfBirth: birthDate, phone: phone.replace(/\D/g, '') });
+        Object.assign(payload, { name, email, password: pwd, phone: phone.replace(/\D/g, '') });
       } else if (account === 'CLINIC') {
         Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, '') });
       } else if (account === 'PROFESSIONAL') {
@@ -564,14 +561,11 @@ export function RegisterPage() {
                     <>
                       <Field icon={User} label="Nome completo" value={name} onChange={setName} placeholder="Seu nome completo" error={errors.name} />
                       <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com.br" error={errors.email} />
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <Field icon={Calendar} label="Data de nascimento" type="date" value={birthDate} onChange={setBirthDate} error={errors.birthDate} />
-                        <Field
-                          icon={Phone} label="Telefone" type="tel" value={phone}
-                          onChange={(v) => setPhone(phoneMask(v))}
-                          placeholder="(11) 91234-5678" error={errors.phone}
-                        />
-                      </div>
+                      <Field
+                        icon={Phone} label="Telefone" type="tel" value={phone}
+                        onChange={(v) => setPhone(phoneMask(v))}
+                        placeholder="(11) 91234-5678" error={errors.phone}
+                      />
                       <PasswordField label="Senha" value={pwd} onChange={setPwd} error={errors.pwd} showStrength />
                       <PasswordField label="Confirmar senha" value={confirm} onChange={setConfirm} error={errors.confirm} />
                     </>

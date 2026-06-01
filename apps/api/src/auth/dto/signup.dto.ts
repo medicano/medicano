@@ -40,7 +40,7 @@ export class SignupDto {
   readonly name?: string;
 
   @IsDateString()
-  @ValidateIf((o) => o.role === Role.PATIENT)
+  @IsOptional()
   readonly dateOfBirth?: string;
 
   @IsString()

@@ -1,6 +1,5 @@
 import {
   AlertTriangle,
-  ArrowLeft,
   Bell,
   BookOpen,
   Building,
@@ -726,12 +725,8 @@ function PatientProfileSection() {
   const data = rawPatientData!;
   const { trigger, isMutating } = useAsyncAction(mutate);
 
-  const navigate = useNavigate();
   const [name, setName] = useState(data.name ?? '');
   const [phone, setPhone] = useState(data.phone ?? '');
-  const [dateOfBirth, setDateOfBirth] = useState(
-    data.dateOfBirth ? data.dateOfBirth.slice(0, 10) : '',
-  );
   const [cep, setCep] = useState(data.cep ? formatCep(data.cep) : '');
   const [city, setCity] = useState(data.city ?? '');
   const [state, setState] = useState(data.state ?? '');
@@ -768,7 +763,6 @@ function PatientProfileSection() {
         .put('/profile/me/patient', {
           name,
           phone: phone.replace(/\D/g, '') || undefined,
-          dateOfBirth: dateOfBirth || undefined,
           cep: cep.replace(/\D/g, '') || undefined,
           city: city || undefined,
           state: state || undefined,
@@ -782,13 +776,6 @@ function PatientProfileSection() {
 
   return (
     <Section title="Meus dados">
-      <button
-        type="button"
-        onClick={() => navigate('/home')}
-        className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#023E8A] transition-colors"
-      >
-        <ArrowLeft size={16} /> Voltar
-      </button>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <TextField
           label="Nome completo"
@@ -810,23 +797,6 @@ function PatientProfileSection() {
           onChange={(v) => setPhone(phoneMask(v))}
           placeholder="(11) 99999-9999"
         />
-        <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-foreground-muted">
-            Data de nascimento
-          </span>
-          <div className="relative">
-            <Calendar
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted"
-            />
-            <input
-              type="date"
-              value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
-              className="h-11 w-full rounded-lg border border-border bg-white pl-10 pr-4 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-        </label>
         <TextField
           label={cepLoading ? 'CEP (buscando…)' : 'CEP'}
           icon={MapPin}
@@ -865,6 +835,9 @@ function PatientContextSection() {
   const data = rawPatientData!;
   const { trigger, isMutating } = useAsyncAction(mutate);
 
+  const [dateOfBirth, setDateOfBirth] = useState(
+    data.dateOfBirth ? data.dateOfBirth.slice(0, 10) : '',
+  );
   const [sex, setSex] = useState(data.sex ?? '');
   const [gender, setGender] = useState(data.gender ?? '');
 
@@ -872,6 +845,7 @@ function PatientContextSection() {
     trigger(() =>
       api
         .put('/profile/me/patient', {
+          dateOfBirth: dateOfBirth || undefined,
           sex: sex || undefined,
           gender: gender || undefined,
         })
@@ -888,6 +862,23 @@ function PatientContextSection() {
       description="Opcionais. Usadas apenas para dar mais contexto à ferramenta de IA durante a triagem, ajudando a sugerir a especialidade mais adequada. Você pode deixá-las em branco."
     >
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-foreground-muted">
+            Data de nascimento
+          </span>
+          <div className="relative">
+            <Calendar
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground-muted"
+            />
+            <input
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              className="h-11 w-full rounded-lg border border-border bg-white pl-10 pr-4 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+        </label>
         <SelectField label="Sexo" icon={User} value={sex} onChange={setSex} options={SEX_OPTIONS} />
         <SelectField label="Gênero" icon={Users} value={gender} onChange={setGender} options={GENDER_OPTIONS} />
       </div>
@@ -960,7 +951,7 @@ export function SettingsPage() {
 
   if (role === 'patient') {
     return (
-      <Page title="Meu perfil">
+      <Page title="Meu perfil" backTo="/home">
         <div className="space-y-8">
           <Suspense fallback={<LoadingSection title="Meus dados" />}>
             <PatientProfileSection />

@@ -160,22 +160,25 @@ export class AuthService {
   }
 
   private async createPatientDocument(userId: string, dto: SignupDto): Promise<void> {
-    if (!dto.dateOfBirth || !dto.phone) {
-      throw new BadRequestException('Data de nascimento e telefone são obrigatórios para pacientes');
+    if (!dto.phone) {
+      throw new BadRequestException('Telefone é obrigatório para pacientes');
     }
 
-    const dob = new Date(dto.dateOfBirth);
-    const ageMs = Date.now() - dob.getTime();
-    const ageYears = ageMs / (1000 * 60 * 60 * 24 * 365.25);
-
-    if (ageYears < 0 || ageYears > MAX_AGE_YEARS) {
-      throw new BadRequestException('Data de nascimento inválida');
+    // Data de nascimento é opcional (informação de contexto). Quando vier,
+    // valida que é uma data plausível.
+    let dob: Date | undefined;
+    if (dto.dateOfBirth) {
+      dob = new Date(dto.dateOfBirth);
+      const ageYears = (Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      if (ageYears < 0 || ageYears > MAX_AGE_YEARS) {
+        throw new BadRequestException('Data de nascimento inválida');
+      }
     }
 
     await this.patientModel.create({
       userId: new Types.ObjectId(userId),
       name: dto.name,
-      dateOfBirth: dob,
+      ...(dob ? { dateOfBirth: dob } : {}),
       phone: this.normalizePhone(dto.phone),
       gender: dto.gender,
       pronouns: dto.pronouns,
