@@ -6,6 +6,7 @@ import {
 } from 'class-validator';
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
+import { Sex } from '../../common/enums/sex.enum';
 
 export class UpdatePatientProfileDto {
   @IsString()
@@ -19,6 +20,10 @@ export class UpdatePatientProfileDto {
   @IsString()
   @IsOptional()
   phone?: string;
+
+  @IsEnum(Sex)
+  @IsOptional()
+  sex?: Sex;
 
   @IsEnum(Gender)
   @IsOptional()

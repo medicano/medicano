@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  ArrowLeft,
   Bell,
   BookOpen,
   Building,
@@ -64,27 +65,30 @@ interface PatientProfile {
   name: string;
   phone?: string;
   dateOfBirth?: string;
+  sex?: string;
   gender?: string;
-  pronouns?: string;
   cep?: string;
   city?: string;
   state?: string;
 }
 
+// Sexo biológico e gênero — relevantes para diagnóstico; ambos opcionais.
+const SEX_OPTIONS = [
+  { value: 'MALE', label: 'Masculino' },
+  { value: 'FEMALE', label: 'Feminino' },
+  { value: 'INTERSEX', label: 'Intersexo' },
+];
 
-const GENDER_LABELS: Record<string, string> = {
-  MALE: 'Masculino',
-  FEMALE: 'Feminino',
-  NON_BINARY: 'Não-binário',
-  OTHER: 'Outro',
-  PREFER_NOT_TO_SAY: 'Prefiro não informar',
-};
+const GENDER_OPTIONS = [
+  { value: 'MALE', label: 'Masculino' },
+  { value: 'FEMALE', label: 'Feminino' },
+  { value: 'OTHER', label: 'Outros' },
+];
 
-const PRONOUNS_LABELS: Record<string, string> = {
-  SHE: 'ela/dela',
-  HE: 'ele/dele',
-  THEY: 'eles/deles',
-};
+function formatCep(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+}
 
 function Toggle({
   title,
@@ -722,16 +726,39 @@ function PatientProfileSection() {
   const data = rawPatientData!;
   const { trigger, isMutating } = useAsyncAction(mutate);
 
+  const navigate = useNavigate();
   const [name, setName] = useState(data.name ?? '');
   const [phone, setPhone] = useState(data.phone ?? '');
   const [dateOfBirth, setDateOfBirth] = useState(
     data.dateOfBirth ? data.dateOfBirth.slice(0, 10) : '',
   );
+  const [sex, setSex] = useState(data.sex ?? '');
   const [gender, setGender] = useState(data.gender ?? '');
-  const [pronouns, setPronouns] = useState(data.pronouns ?? '');
-  const [cep, setCep] = useState(data.cep ?? '');
+  const [cep, setCep] = useState(data.cep ? formatCep(data.cep) : '');
   const [city, setCity] = useState(data.city ?? '');
   const [state, setState] = useState(data.state ?? '');
+  const [cepLoading, setCepLoading] = useState(false);
+
+  // Ao completar 8 dígitos, busca cidade/estado pelo CEP (ViaCEP).
+  async function handleCepChange(v: string) {
+    const masked = formatCep(v);
+    setCep(masked);
+    const digits = masked.replace(/\D/g, '');
+    if (digits.length !== 8) return;
+    setCepLoading(true);
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const via = await res.json();
+      if (!via.erro) {
+        if (via.localidade) setCity(via.localidade);
+        if (via.uf) setState(via.uf);
+      }
+    } catch {
+      /* lookup de CEP é best-effort; ignora falha de rede */
+    } finally {
+      setCepLoading(false);
+    }
+  }
 
   function handleSave() {
     if (!name.trim()) {
@@ -744,9 +771,9 @@ function PatientProfileSection() {
           name,
           phone: phone.replace(/\D/g, '') || undefined,
           dateOfBirth: dateOfBirth || undefined,
+          sex: sex || undefined,
           gender: gender || undefined,
-          pronouns: pronouns || undefined,
-          cep: cep || undefined,
+          cep: cep.replace(/\D/g, '') || undefined,
           city: city || undefined,
           state: state || undefined,
         })
@@ -759,6 +786,13 @@ function PatientProfileSection() {
 
   return (
     <Section title="Meus dados">
+      <button
+        type="button"
+        onClick={() => navigate('/home')}
+        className="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#0077B6] hover:text-[#023E8A] transition-colors"
+      >
+        <ArrowLeft size={16} /> Voltar
+      </button>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <TextField
           label="Nome completo"
@@ -798,30 +832,24 @@ function PatientProfileSection() {
           </div>
         </label>
         <SelectField
-          label="Gênero"
+          label="Sexo"
           icon={User}
-          value={gender}
-          onChange={setGender}
-          options={Object.entries(GENDER_LABELS).map(([value, label]) => ({
-            value,
-            label,
-          }))}
+          value={sex}
+          onChange={setSex}
+          options={SEX_OPTIONS}
         />
         <SelectField
-          label="Pronomes"
-          icon={FileText}
-          value={pronouns}
-          onChange={setPronouns}
-          options={Object.entries(PRONOUNS_LABELS).map(([value, label]) => ({
-            value,
-            label,
-          }))}
+          label="Gênero"
+          icon={Users}
+          value={gender}
+          onChange={setGender}
+          options={GENDER_OPTIONS}
         />
         <TextField
-          label="CEP"
+          label={cepLoading ? 'CEP (buscando…)' : 'CEP'}
           icon={MapPin}
           value={cep}
-          onChange={setCep}
+          onChange={handleCepChange}
           placeholder="00000-000"
         />
         <TextField

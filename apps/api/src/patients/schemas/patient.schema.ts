@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
+import { Sex } from '../../common/enums/sex.enum';
 
 @Schema({ timestamps: true })
 export class Patient {
@@ -16,6 +17,10 @@ export class Patient {
 
   @Prop({ type: String })
   phone?: string;
+
+  // Sexo biológico (importante para diagnóstico); opcional.
+  @Prop({ type: String, enum: Sex })
+  sex?: Sex;
 
   @Prop({ type: String, enum: Gender })
   gender?: Gender;
