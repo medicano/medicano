@@ -4,9 +4,9 @@ export class CreateAttendantDto {
   @IsString()
   @MinLength(3)
   @MaxLength(30)
-  @Matches(/^[a-zA-Z0-9_-]+$/, {
+  @Matches(/^[a-zA-Z0-9._-]+$/, {
     message:
-      'username must contain only letters, numbers, underscores, and hyphens',
+      'username must contain only letters, numbers, dots, underscores, and hyphens',
   })
   username!: string;
 
