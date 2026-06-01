@@ -10,20 +10,23 @@ import { useAuth } from '../contexts/AuthContext';
 import { SPECIALTY_LABELS } from '../utils/specialtyLabels';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
-import { formatDateShort, formatSlot, initials } from '../lib/format';
+import { formatDateShort, formatSlot, initials, mapStatus } from '../lib/format';
 import type { Appointment, Professional } from '../lib/types';
 
 // ─── status helpers ────────────────────────────────────────────────────────────
+// A API devolve o status em minúsculo (scheduled/confirmed/completed/cancelled).
+// mapStatus normaliza para as chaves canônicas usadas aqui. SCHEDULED é exibido
+// como "Pendente" (aguardando confirmação).
 
 const STATUS_CFG: Record<string, { label: string; bg: string; text: string }> = {
-  PENDING:   { label: 'Pendente',   bg: 'bg-amber-100',   text: 'text-amber-800'  },
+  SCHEDULED: { label: 'Pendente',   bg: 'bg-amber-100',   text: 'text-amber-800'  },
   CONFIRMED: { label: 'Confirmado', bg: 'bg-emerald-100', text: 'text-emerald-800' },
   CANCELLED: { label: 'Cancelado',  bg: 'bg-red-100',     text: 'text-red-700'    },
   COMPLETED: { label: 'Concluído',  bg: 'bg-slate-100',   text: 'text-slate-600'  },
 };
 
 function StatusChip({ status }: { status: string }) {
-  const cfg = STATUS_CFG[status] ?? STATUS_CFG.PENDING;
+  const cfg = STATUS_CFG[mapStatus(status)] ?? STATUS_CFG.SCHEDULED;
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text}`}>
       {cfg.label}
@@ -81,9 +84,9 @@ function ClinicView() {
     let list = [...all];
     if (tab === 'hoje')      list = list.filter((a) => isToday(a.startAt));
     else if (tab === 'proximos') list = list.filter((a) => isFuture(a.startAt) && !isToday(a.startAt));
-    else if (tab === 'historico') list = list.filter((a) => isPast(a.startAt) || a.status === 'CANCELLED' || a.status === 'COMPLETED');
+    else if (tab === 'historico') list = list.filter((a) => isPast(a.startAt) || mapStatus(a.status) === 'CANCELLED' || mapStatus(a.status) === 'COMPLETED');
     if (proFilter)      list = list.filter((a) => a.professionalId === proFilter);
-    if (statusFilter)   list = list.filter((a) => a.status === statusFilter);
+    if (statusFilter)   list = list.filter((a) => mapStatus(a.status) === statusFilter);
     if (query.trim())   list = list.filter((a) => {
       const q = query.toLowerCase();
       return (a.patientName ?? '').toLowerCase().includes(q)
@@ -96,14 +99,14 @@ function ClinicView() {
   const stats = useMemo(() => ({
     total:      all.length,
     hoje:       all.filter((a) => isToday(a.startAt)).length,
-    pendentes:  all.filter((a) => a.status === 'PENDING').length,
-    confirmados:all.filter((a) => a.status === 'CONFIRMED').length,
+    pendentes:  all.filter((a) => mapStatus(a.status) === 'SCHEDULED').length,
+    confirmados:all.filter((a) => mapStatus(a.status) === 'CONFIRMED').length,
   }), [all]);
 
   const handleAction = useCallback(async (id: string, status: 'CONFIRMED' | 'CANCELLED') => {
     setActionLoading(id + status);
     try {
-      await api.patch(`/appointments/${id}/status`, { status });
+      await api.patch(`/appointments/${id}/status`, { status: status.toLowerCase() });
       aptsApi.refetch();
     } catch { /* mantém a lista atual em caso de falha */ }
     finally { setActionLoading(null); }
@@ -194,7 +197,7 @@ function ClinicView() {
                 className="h-9 pl-3 pr-8 rounded-xl border border-[#E2E8F0] bg-white text-xs text-[#0F172A] appearance-none focus:outline-none focus:border-[#00B4D8] transition-colors"
               >
                 <option value="">Todos os status</option>
-                <option value="PENDING">Pendente</option>
+                <option value="SCHEDULED">Pendente</option>
                 <option value="CONFIRMED">Confirmado</option>
                 <option value="CANCELLED">Cancelado</option>
                 <option value="COMPLETED">Concluído</option>
@@ -252,7 +255,7 @@ function ClinicAppointmentCard({
   apt, onConfirm, onCancel, loading,
 }: { apt: Appointment; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   const navigate = useNavigate();
-  const isPending = apt.status === 'PENDING';
+  const isPending = mapStatus(apt.status) === 'SCHEDULED';
   const dateLabel = formatDateShort(apt.startAt);
   const timeLabel = formatSlot(apt.startAt);
   const duration = apt.duration ?? apt.durationMinutes ?? 30;
@@ -330,7 +333,7 @@ function ProfessionalView() {
     let list = [...all];
     if (tab === 'hoje')      list = list.filter((a) => isToday(a.startAt));
     else if (tab === 'proximos') list = list.filter((a) => isFuture(a.startAt) && !isToday(a.startAt));
-    else if (tab === 'historico') list = list.filter((a) => isPast(a.startAt) || a.status === 'CANCELLED' || a.status === 'COMPLETED');
+    else if (tab === 'historico') list = list.filter((a) => isPast(a.startAt) || mapStatus(a.status) === 'CANCELLED' || mapStatus(a.status) === 'COMPLETED');
     return list.sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   }, [all, tab]);
 
@@ -340,14 +343,14 @@ function ProfessionalView() {
     return {
       hoje:     all.filter((a) => isToday(a.startAt)).length,
       semana:   all.filter((a) => { const d = new Date(a.startAt); return d >= now && d <= weekEnd; }).length,
-      pendentes:all.filter((a) => a.status === 'PENDING').length,
+      pendentes:all.filter((a) => mapStatus(a.status) === 'SCHEDULED').length,
     };
   }, [all]);
 
   const handleAction = useCallback(async (id: string, status: 'CONFIRMED' | 'CANCELLED') => {
     setActionLoading(id + status);
     try {
-      await api.patch(`/appointments/${id}/status`, { status });
+      await api.patch(`/appointments/${id}/status`, { status: status.toLowerCase() });
       aptsApi.refetch();
     } catch { /* mantém a lista atual em caso de falha */ }
     finally { setActionLoading(null); }
@@ -428,7 +431,7 @@ function ProAppointmentCard({
   apt, onConfirm, onCancel, loading,
 }: { apt: Appointment; onConfirm: () => void; onCancel: () => void; loading: boolean }) {
   const navigate = useNavigate();
-  const isPending = apt.status === 'PENDING';
+  const isPending = mapStatus(apt.status) === 'SCHEDULED';
   const dateLabel = formatDateShort(apt.startAt);
   const timeLabel = formatSlot(apt.startAt);
   const duration = apt.duration ?? apt.durationMinutes ?? 30;

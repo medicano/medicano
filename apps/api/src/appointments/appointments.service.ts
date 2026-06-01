@@ -62,21 +62,26 @@ export class AppointmentsService {
 
     const professionalIds = [...new Set(appointments.map((a) => a.professionalId?.toString()).filter(Boolean))];
     const clinicIds = [...new Set(appointments.map((a) => a.clinicId?.toString()).filter(Boolean))];
+    const patientIds = [...new Set(appointments.map((a) => a.patientId?.toString()).filter(Boolean))];
 
-    const [professionals, clinics] = await Promise.all([
+    const [professionals, clinics, patients] = await Promise.all([
       this.professionalModel.find({ _id: { $in: professionalIds } }).select('name specialty').lean().exec(),
       this.clinicModel.find({ _id: { $in: clinicIds } }).select('name').lean().exec(),
+      this.userModel.find({ _id: { $in: patientIds } }).select('displayName email').lean().exec(),
     ]);
 
     const proMap = new Map(professionals.map((p) => [(p._id as any).toString(), p]));
     const clinicMap = new Map(clinics.map((c) => [(c._id as any).toString(), c]));
+    const patientMap = new Map(patients.map((p) => [(p._id as any).toString(), p]));
 
     return appointments.map((a) => {
       const pro = proMap.get(a.professionalId?.toString() ?? '');
       const clinic = clinicMap.get(a.clinicId?.toString() ?? '');
+      const patient = patientMap.get(a.patientId?.toString() ?? '');
       return {
         ...a,
         id: (a._id as any).toString(),
+        patientName: (patient as any)?.displayName ?? (patient as any)?.email ?? '',
         professionalName: pro?.name ?? '',
         specialty: pro?.specialty ?? '',
         clinicName: clinic?.name ?? '',
