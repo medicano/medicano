@@ -3,6 +3,38 @@ import { Specialty } from '../../common/enums/specialty.enum';
 export interface PatientContext {
   name: string;
   pronouns?: 'SHE' | 'HE' | 'THEY';
+  sex?: string;
+  gender?: string;
+  age?: number;
+}
+
+const sexLabels: Record<string, string> = {
+  MALE: 'masculino',
+  FEMALE: 'feminino',
+  INTERSEX: 'intersexo',
+};
+
+const genderLabels: Record<string, string> = {
+  MALE: 'masculino',
+  FEMALE: 'feminino',
+  OTHER: 'outro',
+  NON_BINARY: 'não-binário',
+  PREFER_NOT_TO_SAY: 'não informado',
+};
+
+function buildClinicalContext(patient: PatientContext): string {
+  const parts: string[] = [];
+  if (typeof patient.age === 'number' && patient.age >= 0 && patient.age < 130) {
+    parts.push(`idade ${patient.age} anos`);
+  }
+  if (patient.sex && sexLabels[patient.sex]) {
+    parts.push(`sexo biológico ${sexLabels[patient.sex]}`);
+  }
+  if (patient.gender && genderLabels[patient.gender]) {
+    parts.push(`gênero ${genderLabels[patient.gender]}`);
+  }
+  if (parts.length === 0) return '';
+  return `Dados do paciente para orientar a triagem (considere prevalência por idade e sexo ao sugerir a especialidade; nunca presuma a queixa a partir deles): ${parts.join(', ')}.`;
 }
 
 const specialtyLabels: Record<Specialty, string> = {
@@ -64,11 +96,13 @@ export function buildTriageSystemPrompt(patient?: PatientContext): string {
   const pronounInstruction = patient?.pronouns
     ? buildPronounInstruction(patient.pronouns)
     : '';
+  const clinicalContext = patient ? buildClinicalContext(patient) : '';
 
   return `Você é um assistente de orientação da plataforma Medicano.
 
 ${nameInstruction}
 ${pronounInstruction}
+${clinicalContext}
 
 Seu papel é entender a queixa do paciente e indicar a especialidade mais adequada entre as opções disponíveis:
 

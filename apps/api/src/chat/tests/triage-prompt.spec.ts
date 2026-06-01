@@ -28,6 +28,23 @@ describe('buildTriageSystemPrompt', () => {
     expect(prompt).not.toContain('IMPORTANTE: O paciente usa pronomes');
   });
 
+  it('should inject age, biological sex and gender into the clinical context', () => {
+    const prompt = buildTriageSystemPrompt({
+      name: 'Marina',
+      age: 34,
+      sex: 'FEMALE',
+      gender: 'OTHER',
+    });
+    expect(prompt).toContain('idade 34 anos');
+    expect(prompt).toContain('sexo biológico feminino');
+    expect(prompt).toContain('gênero outro');
+  });
+
+  it('should omit the clinical context when no clinical data is provided', () => {
+    const prompt = buildTriageSystemPrompt({ name: 'Test' });
+    expect(prompt).not.toContain('Dados do paciente para orientar a triagem');
+  });
+
   it('TRIAGE_SYSTEM_PROMPT constant should equal buildTriageSystemPrompt() with no args', () => {
     expect(TRIAGE_SYSTEM_PROMPT).toBe(buildTriageSystemPrompt());
   });

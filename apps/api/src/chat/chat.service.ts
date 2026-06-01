@@ -90,11 +90,20 @@ export class ChatService {
     ];
 
     const patient = await this.patientModel.findOne({ userId: patientId }).exec();
+    const age = patient?.dateOfBirth
+      ? Math.floor(
+          (Date.now() - new Date(patient.dateOfBirth).getTime()) /
+            (365.25 * 24 * 60 * 60 * 1000),
+        )
+      : undefined;
     const systemPrompt = buildTriageSystemPrompt(
       patient
         ? {
             name: patient.name,
             pronouns: patient.pronouns as 'SHE' | 'HE' | 'THEY' | undefined,
+            sex: patient.sex,
+            gender: patient.gender,
+            age,
           }
         : undefined,
     );
