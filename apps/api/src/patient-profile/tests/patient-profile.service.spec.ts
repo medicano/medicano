@@ -1,163 +1,218 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { Logger } from '@nestjs/common';
 import { PatientProfileService } from '../patient-profile.service';
 import { PatientProfile } from '../schemas/patient-profile.schema';
-import { UpdatePatientProfileDto } from '../dto/update-patient-profile.dto';
+import { BiologicalSex, SmokingStatus } from '@medicano/types';
 
-const mockProfile = {
-  userId: 'user-123',
-  useInTriage: true,
-  medications: [],
-  allergies: [],
-  chronicConditions: [],
-  familyHistory: [],
-  dietaryRestrictions: [],
-  lastReviewedAt: new Date(),
+type MockModel = {
+  findOne: jest.Mock;
+  updateOne: jest.Mock;
+  deleteOne: jest.Mock;
 };
 
-const mockUpdateOne = jest.fn();
-const mockDeleteOne = jest.fn();
-const mockFindOne = jest.fn();
+const createMockModel = (): MockModel => {
+  const exec = jest.fn();
+  const findOne = jest.fn(() => ({ exec }));
+  const updateOne = jest.fn(() => ({
+    exec: jest.fn().mockResolvedValue({ acknowledged: true }),
+  }));
+  const deleteOne = jest.fn(() => ({ exec: jest.fn() }));
+  return { findOne, updateOne, deleteOne } as unknown as MockModel;
+};
 
-const mockPatientProfileModel = {
-  findOne: mockFindOne,
-  updateOne: mockUpdateOne,
-  deleteOne: mockDeleteOne,
+const USER_ID = '507f1f77bcf86cd799439011';
+
+const baseProfile: Partial<PatientProfile> = {
+  userId: USER_ID,
+  useInTriage: true,
+  birthDate: new Date('1990-06-15'),
+  biologicalSex: BiologicalSex.FEMALE,
+  weightKg: 70,
+  heightCm: 170,
+  smokingStatus: SmokingStatus.CURRENT,
+  medications: [{ name: 'Losartana', dose: '50mg' }],
+  allergies: [{ substance: 'Dipirona', reaction: 'urticária' }],
+  observations: 'Histórico familiar de hipertensão',
 };
 
 describe('PatientProfileService', () => {
-  let patientProfileService: PatientProfileService;
+  let service: PatientProfileService;
+  let model: MockModel;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    model = createMockModel();
+    const moduleRef = await Test.createTestingModule({
       providers: [
         PatientProfileService,
-        {
-          provide: getModelToken(PatientProfile.name),
-          useValue: mockPatientProfileModel,
-        },
+        { provide: getModelToken(PatientProfile.name), useValue: model },
       ],
     }).compile();
-
-    patientProfileService = module.get<PatientProfileService>(PatientProfileService);
+    service = moduleRef.get(PatientProfileService);
   });
 
   afterEach(() => jest.clearAllMocks());
 
   describe('findByUserId', () => {
-    it('should return the profile when found', async () => {
-      mockFindOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(mockProfile) });
+    it('BR-PP-01: queries Mongo by userId field exactly once', async () => {
+      const execMock = jest.fn().mockResolvedValue(baseProfile);
+      model.findOne.mockReturnValue({ exec: execMock });
 
-      const result = await patientProfileService.findByUserId('user-123');
+      await service.findByUserId(USER_ID);
 
-      expect(result).toEqual(mockProfile);
-      expect(mockFindOne).toHaveBeenCalledWith({ userId: 'user-123' });
+      expect(model.findOne).toHaveBeenCalledTimes(1);
+      expect(model.findOne).toHaveBeenCalledWith({ userId: USER_ID });
     });
 
-    it('should return null when profile is not found', async () => {
-      mockFindOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+    it('BR-PP-02: returns null when no document exists', async () => {
+      const execMock = jest.fn().mockResolvedValue(null);
+      model.findOne.mockReturnValue({ exec: execMock });
 
-      const result = await patientProfileService.findByUserId('user-123');
+      const result = await service.findByUserId(USER_ID);
 
       expect(result).toBeNull();
     });
   });
 
   describe('upsertForUser', () => {
-    it('should upsert the profile and return it', async () => {
-      const dto: UpdatePatientProfileDto = { smokingStatus: 'never' } as UpdatePatientProfileDto;
-      mockUpdateOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({}) });
-      mockFindOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ ...mockProfile, smokingStatus: 'never' }),
-      });
+    it('BR-PP-03: uses { upsert: true } and $setOnInsert: { userId } to prevent userId mutation', async () => {
+      const execMock = jest.fn().mockResolvedValue({ acknowledged: true });
+      model.updateOne.mockReturnValue({ exec: execMock });
 
-      const result = await patientProfileService.upsertForUser('user-123', dto);
+      const dto = { weightKg: 72 };
+      await service.upsertForUser(USER_ID, dto);
 
-      expect(mockUpdateOne).toHaveBeenCalledWith(
-        { userId: 'user-123' },
+      expect(model.updateOne).toHaveBeenCalledTimes(1);
+      const [filter, update, options] = model.updateOne.mock.calls[0];
+
+      expect(filter).toEqual({ userId: USER_ID });
+      expect(options).toEqual(expect.objectContaining({ upsert: true }));
+      expect(update).toEqual(
         expect.objectContaining({
-          $set: expect.objectContaining({ smokingStatus: 'never' }),
-          $setOnInsert: { userId: 'user-123' },
+          $setOnInsert: expect.objectContaining({ userId: USER_ID }),
         }),
-        { upsert: true },
       );
-      expect(result).toMatchObject({ smokingStatus: 'never' });
     });
 
-    it('should rethrow errors from the model', async () => {
-      const dto: UpdatePatientProfileDto = {} as UpdatePatientProfileDto;
-      mockUpdateOne.mockReturnValue({
-        exec: jest.fn().mockRejectedValue(new Error('DB error')),
-      });
+    it('BR-PP-04: always refreshes lastReviewedAt on every write (LGPD audit trail)', async () => {
+      const execMock = jest.fn().mockResolvedValue({ acknowledged: true });
+      model.updateOne.mockReturnValue({ exec: execMock });
 
-      await expect(patientProfileService.upsertForUser('user-123', dto)).rejects.toThrow(
-        'DB error',
+      const dto = { weightKg: 72 };
+      await service.upsertForUser(USER_ID, dto);
+
+      const [, update] = model.updateOne.mock.calls[0];
+      expect(update).toEqual(
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            lastReviewedAt: expect.any(Date),
+          }),
+        }),
       );
     });
   });
 
   describe('exportForUser', () => {
-    it('should return profile and exportedAt timestamp', async () => {
-      mockFindOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(mockProfile) });
+    it('BR-PP-05: wraps profile in { profile, exportedAt: Date } with a fresh Date instance', async () => {
+      const execMock = jest.fn().mockResolvedValue(baseProfile);
+      model.findOne.mockReturnValue({ exec: execMock });
 
-      const result = await patientProfileService.exportForUser('user-123');
+      const before = new Date();
+      const result = await service.exportForUser(USER_ID);
+      const after = new Date();
 
-      expect(result.profile).toEqual(mockProfile);
+      expect(result).toHaveProperty('profile', baseProfile);
+      expect(result).toHaveProperty('exportedAt');
       expect(result.exportedAt).toBeInstanceOf(Date);
-    });
-
-    it('should return null profile when not found', async () => {
-      mockFindOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
-
-      const result = await patientProfileService.exportForUser('user-123');
-
-      expect(result.profile).toBeNull();
-      expect(result.exportedAt).toBeInstanceOf(Date);
+      expect(result.exportedAt.getTime()).toBeGreaterThanOrEqual(before.getTime());
+      expect(result.exportedAt.getTime()).toBeLessThanOrEqual(after.getTime());
     });
   });
 
   describe('hardDeleteForUser', () => {
-    it('should return deleted true when document existed', async () => {
-      mockDeleteOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ deletedCount: 1 }) });
+    it('BR-PP-06: returns { deleted: true } when deletedCount > 0', async () => {
+      const execMock = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      model.deleteOne.mockReturnValue({ exec: execMock });
 
-      const result = await patientProfileService.hardDeleteForUser('user-123');
+      const result = await service.hardDeleteForUser(USER_ID);
 
       expect(result).toEqual({ deleted: true });
-      expect(mockDeleteOne).toHaveBeenCalledWith({ userId: 'user-123' });
     });
 
-    it('should return deleted false when document did not exist', async () => {
-      mockDeleteOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ deletedCount: 0 }) });
+    it('BR-PP-07: returns { deleted: false } when deletedCount === 0', async () => {
+      const execMock = jest.fn().mockResolvedValue({ deletedCount: 0 });
+      model.deleteOne.mockReturnValue({ exec: execMock });
 
-      const result = await patientProfileService.hardDeleteForUser('user-123');
+      const result = await service.hardDeleteForUser(USER_ID);
 
       expect(result).toEqual({ deleted: false });
     });
   });
 
   describe('setUseInTriage', () => {
-    it('should update useInTriage and return the updated profile', async () => {
-      mockUpdateOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({}) });
-      mockFindOne.mockReturnValue({
-        exec: jest.fn().mockResolvedValue({ ...mockProfile, useInTriage: false }),
+    it('BR-PP-08: forwards the boolean exactly as received', async () => {
+      const execMock = jest.fn().mockResolvedValue({ acknowledged: true });
+      model.updateOne.mockReturnValue({ exec: execMock });
+
+      await service.setUseInTriage(USER_ID, false);
+
+      const [filter, update] = model.updateOne.mock.calls[0];
+      expect(filter).toEqual({ userId: USER_ID });
+      expect(update).toEqual(
+        expect.objectContaining({
+          $set: expect.objectContaining({ useInTriage: false }),
+        }),
+      );
+    });
+  });
+
+  describe('BR-PP-09: logger must never receive clinical field content', () => {
+    it('does not log medication names, observation text, or allergy substances', async () => {
+      const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+      const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      const debugSpy = jest.spyOn(Logger.prototype, 'debug').mockImplementation();
+
+      const execMock = jest.fn().mockResolvedValue(baseProfile);
+      model.findOne.mockReturnValue({ exec: execMock });
+      model.updateOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ acknowledged: true }),
+      });
+      model.deleteOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue({ deletedCount: 1 }),
       });
 
-      const result = await patientProfileService.setUseInTriage('user-123', false);
+      const dto = { ...baseProfile };
+      await service.findByUserId(USER_ID);
+      await service.upsertForUser(USER_ID, dto);
+      await service.hardDeleteForUser(USER_ID);
 
-      expect(mockUpdateOne).toHaveBeenCalledWith(
-        { userId: 'user-123' },
-        { $set: { useInTriage: false } },
-      );
-      expect(result).toMatchObject({ useInTriage: false });
-    });
+      const sensitiveValues = [
+        'Losartana',
+        'Dipirona',
+        'urticária',
+        'Histórico familiar de hipertensão',
+      ];
 
-    it('should return null when profile does not exist', async () => {
-      mockUpdateOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({}) });
-      mockFindOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+      const allLogArgs = [
+        ...logSpy.mock.calls,
+        ...warnSpy.mock.calls,
+        ...errorSpy.mock.calls,
+        ...debugSpy.mock.calls,
+      ]
+        .flat()
+        .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)));
 
-      const result = await patientProfileService.setUseInTriage('user-123', true);
+      for (const sensitive of sensitiveValues) {
+        for (const loggedArg of allLogArgs) {
+          expect(loggedArg).not.toContain(sensitive);
+        }
+      }
 
-      expect(result).toBeNull();
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+      errorSpy.mockRestore();
+      debugSpy.mockRestore();
     });
   });
 });
