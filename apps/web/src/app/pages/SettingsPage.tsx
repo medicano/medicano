@@ -15,6 +15,7 @@ import {
   User,
   Users,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { Suspense, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router';
@@ -889,7 +890,7 @@ interface RichProfile {
 function ListField({
   label, icon, value, onChange, placeholder,
 }: {
-  label: string; icon: React.ElementType; value: string;
+  label: string; icon: LucideIcon; value: string;
   onChange: (v: string) => void; placeholder?: string;
 }) {
   return (
