@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Keep the incremental cache inside dist so nest's deleteOutDir wipes it on
+    // every build. Otherwise a stale tsbuildinfo survives git reset --hard and
+    // tsc skips emitting .js (no dist/main.js → crash loop in production).
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo"
+  },
   "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
 }
