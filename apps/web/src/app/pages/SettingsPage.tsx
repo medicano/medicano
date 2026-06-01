@@ -55,6 +55,7 @@ interface ProfessionalProfile {
   phone?: string;
   bio?: string;
   specialty?: string;
+  cpf?: string;
   autoConfirm?: boolean;
 }
 
@@ -190,6 +191,14 @@ function formatCnpj(v: string): string {
     .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
     .replace(/\.(\d{3})(\d)/, '.$1/$2')
     .replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+function formatCpf(v: string): string {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  return d
+    .replace(/^(\d{3})(\d)/, '$1.$2')
+    .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1-$2');
 }
 
 function ClinicDataSection() {
@@ -641,6 +650,13 @@ function ProfessionalDataSection() {
             value,
             label,
           }))}
+        />
+        <TextField
+          label="CPF"
+          icon={FileText}
+          defaultValue={data.cpf ? formatCpf(data.cpf) : ''}
+          placeholder="Não informado"
+          readOnly
         />
         <TextField
           label="Bio"

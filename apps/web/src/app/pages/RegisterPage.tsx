@@ -340,7 +340,7 @@ export function RegisterPage() {
       if (!cpf.trim()) e.cpf = 'CPF é obrigatório';
       else if (cpf.replace(/\D/g, '').length < 11) e.cpf = 'CPF inválido';
       if (!specialty) e.specialty = 'Selecione uma especialidade';
-      if (!regNum.trim()) e.regNum = 'Número de registro é obrigatório';
+      if (!regNum.trim()) e.regNum = 'Registro profissional é obrigatório';
       if (!city.trim()) e.city = 'Cidade é obrigatória';
       if (!email.trim()) e.email = 'E-mail é obrigatório';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'E-mail inválido';
@@ -609,7 +609,7 @@ export function RegisterPage() {
                           placeholder="Selecione…"
                           error={errors.specialty}
                         />
-                        <Field icon={BadgeCheck} label="Número de registro" value={regNum} onChange={setRegNum} placeholder="CRM 12345/SP" error={errors.regNum} />
+                        <Field icon={BadgeCheck} label="Registro profissional" value={regNum} onChange={setRegNum} placeholder="Ex.: CRM, CRN, CRP, COREN, CRO…" error={errors.regNum} />
                       </div>
                       <Field icon={MapPin} label="Cidade de atendimento" value={city} onChange={setCity} placeholder="São Paulo, SP" error={errors.city} />
                       <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com.br" error={errors.email} />

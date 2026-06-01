@@ -52,11 +52,12 @@ export function ProfessionalsPage() {
   const [newName, setNewName] = useState('');
   const [newSpecialty, setNewSpecialty] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [newReg, setNewReg] = useState('');
 
   const [schedulePro, setSchedulePro] = useState<Professional | null>(null);
 
   function resetForm() {
-    setNewName(''); setNewSpecialty(''); setNewPhone('');
+    setNewName(''); setNewSpecialty(''); setNewPhone(''); setNewReg('');
     setCreateError(null);
   }
 
@@ -69,6 +70,7 @@ export function ProfessionalsPage() {
         name: newName,
         specialty: SPECIALTY_LABEL_TO_ENUM[newSpecialty] || undefined,
         phone: newPhone || undefined,
+        registration: newReg.trim() || undefined,
       });
       const proId = pro?._id ?? pro?.id;
       if (clinicId && proId) {
@@ -191,6 +193,7 @@ export function ProfessionalsPage() {
               {createError && <p className="text-sm text-[#B91C1C] bg-[#FEE2E2] border border-[#FCA5A5] rounded-lg px-3 py-2">{createError}</p>}
               {[
                 { label: 'Nome completo', value: newName, setter: setNewName, placeholder: 'Dr. João Silva', required: true },
+                { label: 'Registro profissional', value: newReg, setter: setNewReg, placeholder: 'Ex.: CRM, CRN, CRP, COREN, CRO…', required: true },
                 { label: 'Telefone', value: newPhone, setter: setNewPhone, placeholder: '(11) 9xxxx-xxxx', required: false },
               ].map(({ label, value, setter, placeholder, required }) => (
                 <label key={label} className="block">

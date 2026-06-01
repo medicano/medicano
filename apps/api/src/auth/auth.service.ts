@@ -66,6 +66,8 @@ export class AuthService {
           userId,
           name: dto.name,
           cnpj: dto.cnpj?.replace(/\D/g, ''),
+          // Seed the contact email with the signup email; editable later.
+          email: dto.email,
         });
         createdClinicId = clinic._id;
         await this.subscriptionsService.create({ clinicId: clinic._id.toString(), plan: SubscriptionPlan.FREE });
@@ -75,6 +77,9 @@ export class AuthService {
           name: dto.name,
           specialty: dto.specialty,
           registration: dto.regNum,
+          cpf: dto.cpf,
+          // Seed the contact email with the signup email; editable later.
+          email: dto.email,
         });
       }
     } catch (error) {
