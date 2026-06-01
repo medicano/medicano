@@ -265,7 +265,7 @@ function ClinicDataSection() {
         })
         .then(() => {
           toast.success('Dados da clínica atualizados!');
-          updateUser({ name: trimmedName });
+          updateUser({ name: trimmedName, email: email || undefined });
           mutate();
         }),
     );
@@ -588,6 +588,7 @@ function DangerZoneSection() {
 // ─── Professional sections ────────────────────────────────────────────────────
 
 function ProfessionalDataSection() {
+  const { updateUser } = useAuth();
   const { data: rawProfData, mutate } = useSWR<ProfessionalProfile>('/profile/me/professional', {
     suspense: true,
   });
@@ -616,6 +617,7 @@ function ProfessionalDataSection() {
         })
         .then(() => {
           toast.success('Dados atualizados!');
+          updateUser({ name: name.trim(), email: email || undefined });
           mutate();
         }),
     );
