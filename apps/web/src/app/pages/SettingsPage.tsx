@@ -120,12 +120,12 @@ function Toggle({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-          checked ? 'bg-primary' : 'bg-muted'
+        className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+          checked ? 'border-primary bg-primary' : 'border-slate-400 bg-slate-300'
         }`}
       >
         <span
-          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow ring-1 ring-black/5 transition-transform ${
             checked ? 'translate-x-5' : ''
           }`}
         />
@@ -1043,6 +1043,16 @@ function PatientContextSection() {
       title="Informações de contexto"
       description="Opcionais. Usadas apenas para dar mais contexto à ferramenta de IA durante a triagem, ajudando a sugerir a especialidade mais adequada. Você pode deixá-las em branco."
     >
+      <div className="mb-6">
+        <Toggle
+          title="Usar meu perfil clínico na triagem"
+          description="Quando ativo, a IA usa as informações abaixo como contexto clínico. Tudo opcional."
+          icon={Stethoscope}
+          checked={useInTriage}
+          onChange={setUseInTriage}
+        />
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block">
           <span className="mb-1.5 block text-sm font-medium text-foreground-muted">
@@ -1067,14 +1077,6 @@ function PatientContextSection() {
 
       {/* ── Perfil clínico (opcional; usado na triagem se autorizado) ── */}
       <div className="mt-6 space-y-4 border-t border-border pt-6">
-        <Toggle
-          title="Usar meu perfil clínico na triagem"
-          description="Quando ativo, a IA usa as informações abaixo como contexto clínico. Tudo opcional."
-          icon={Stethoscope}
-          checked={useInTriage}
-          onChange={setUseInTriage}
-        />
-
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <TextField label="Como prefere ser chamado(a)" icon={User} value={preferredName} onChange={setPreferredName} placeholder="Nome social / apelido" />
           <TextField label="Altura (cm)" icon={User} value={heightCm} onChange={setHeightCm} placeholder="170" />

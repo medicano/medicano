@@ -80,9 +80,9 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${checked ? 'bg-[#0077B6]' : 'bg-[#CBD5E1]'}`}
+      className={`relative w-11 h-6 rounded-full border transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0077B6]/40 ${checked ? 'border-[#0077B6] bg-[#0077B6]' : 'border-slate-400 bg-slate-300'}`}
     >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+      <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow ring-1 ring-black/5 transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
   );
 }
