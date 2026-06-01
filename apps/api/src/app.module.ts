@@ -15,6 +15,7 @@ import { ChatModule } from './chat/chat.module';
 import { SearchModule } from './search/search.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './redis/redis.module';
+import { PatientProfileModule } from './patient-profile/patient-profile.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { RedisModule } from './redis/redis.module';
     SearchModule,
     NotificationsModule,
     RedisModule,
+    PatientProfileModule,
   ],
 })
 export class AppModule {}
