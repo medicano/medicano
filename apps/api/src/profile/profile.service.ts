@@ -9,6 +9,7 @@ import { Role } from '../common/enums/role.enum';
 import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
 import { UpdateProfessionalProfileDto } from './dto/update-professional-profile.dto';
 import { UpdatePatientProfileDto } from '../patients/dto/update-patient-profile.dto';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ProfileService {
@@ -21,6 +22,7 @@ export class ProfileService {
     private readonly patientModel: Model<PatientDocument>,
     @InjectModel('User')
     private readonly userModel: Model<UserDocument>,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async getMyProfile(
@@ -105,6 +107,12 @@ export class ProfileService {
         .updateOne({ _id: new Types.ObjectId(userId) }, { $set: { displayName: updateDto.name } })
         .exec();
     }
+
+    // A clinic created here (self-heal upsert) must also get a subscription,
+    // otherwise it and its professionals stay hidden from patient search.
+    await this.subscriptionsService.ensureForClinic(
+      (clinic._id as Types.ObjectId).toString(),
+    );
 
     return clinic;
   }

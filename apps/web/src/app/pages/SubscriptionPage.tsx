@@ -220,12 +220,13 @@ function PlanCard({ plan, current, icon: Icon, price, features, popular, onUpgra
 // ─── main page ────────────────────────────────────────────────────────────────
 
 export function SubscriptionPage() {
-  const subApi = useApi<{ plan?: Plan; status?: string; expiresAt?: string | null }>('/subscriptions');
+  const subApi = useApi<{ plan?: string; status?: string; expiresAt?: string | null }>('/subscriptions');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<Plan | null>(null);
   const [upgrading, setUpgrading] = useState(false);
 
-  const current: Plan = subApi.data?.plan ?? 'FREE';
+  // Backend stores the plan lowercase (free/basic/pro); the UI compares uppercase.
+  const current: Plan = (subApi.data?.plan?.toUpperCase() as Plan) ?? 'FREE';
   const subStatus: string = subApi.data?.status ?? 'inactive';
   const expiresAt: string | null = subApi.data?.expiresAt ?? null;
   const s = statusMap[subStatus] ?? statusMap.inactive;

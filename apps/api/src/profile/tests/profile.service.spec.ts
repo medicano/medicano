@@ -6,6 +6,7 @@ import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
 import { Patient } from '../../patients/schemas/patient.schema';
 import { User } from '../../auth/schemas/user.schema';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import { Specialty } from '../../common/enums/specialty.enum';
 import { Address } from '../../common/schemas/address.schema';
 
@@ -87,6 +88,10 @@ describe('ProfileService', () => {
         {
           provide: getModelToken(User.name),
           useValue: { findOne: jest.fn(), findOneAndUpdate: jest.fn() },
+        },
+        {
+          provide: SubscriptionsService,
+          useValue: { ensureForClinic: jest.fn().mockResolvedValue(undefined) },
         },
       ],
     }).compile();

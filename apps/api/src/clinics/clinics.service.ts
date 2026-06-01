@@ -12,6 +12,7 @@ import { UpdateClinicDto } from './dto/update-clinic.dto';
 import { validateWeeklySlots } from '../common/utils/validate-weekly-slots';
 import { ClinicProfessional, ClinicProfessionalDocument } from '../professionals/schemas/clinic-professional.schema';
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
+import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 
 @Injectable()
 export class ClinicsService {
@@ -22,6 +23,7 @@ export class ClinicsService {
     private readonly clinicProfessionalModel: Model<ClinicProfessionalDocument>,
     @InjectModel(Professional.name)
     private readonly professionalModel: Model<ProfessionalDocument>,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
 
   async create(userId: string, createClinicDto: CreateClinicDto): Promise<ClinicDocument> {
@@ -29,12 +31,28 @@ export class ClinicsService {
       validateWeeklySlots(createClinicDto.weeklySlots);
     }
 
+    // One clinic per user: never create a second document for the same owner.
+    // A split owner breaks patient search (subscription on one clinic,
+    // professionals linked to the other). Return the existing one instead.
+    const existing = await this.clinicModel
+      .findOne({ userId: new Types.ObjectId(userId) })
+      .exec();
+    if (existing) {
+      return existing;
+    }
+
     try {
       const clinic = new this.clinicModel({
         ...createClinicDto,
         userId: new Types.ObjectId(userId),
       });
-      return await clinic.save();
+      const saved = await clinic.save();
+      // Every clinic must own a subscription or it (and its professionals) stay
+      // invisible in patient search.
+      await this.subscriptionsService.ensureForClinic(
+        (saved._id as Types.ObjectId).toString(),
+      );
+      return saved;
     } catch (error: unknown) {
       if (this.isDuplicateKeyError(error)) {
         throw new ConflictException('CNPJ já cadastrado');

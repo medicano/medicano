@@ -6,6 +6,7 @@ import { UserSchema } from '../auth/schemas/user.schema';
 import { Clinic, ClinicSchema } from '../clinics/schemas/clinic.schema';
 import { Professional, ProfessionalSchema } from '../professionals/schemas/professional.schema';
 import { Patient, PatientSchema } from '../patients/schemas/patient.schema';
+import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Patient, PatientSchema } from '../patients/schemas/patient.schema';
       { name: Professional.name, schema: ProfessionalSchema },
       { name: Patient.name, schema: PatientSchema },
     ]),
+    SubscriptionsModule,
   ],
   controllers: [ProfileController],
   providers: [ProfileService],

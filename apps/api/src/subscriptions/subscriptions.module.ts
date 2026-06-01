@@ -4,6 +4,7 @@ import {
   Subscription,
   SubscriptionSchema,
 } from './schemas/subscription.schema';
+import { Clinic, ClinicSchema } from '../clinics/schemas/clinic.schema';
 import { SubscriptionsController } from './subscriptions.controller';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -11,6 +12,7 @@ import { SubscriptionsService } from './subscriptions.service';
   imports: [
     MongooseModule.forFeature([
       { name: Subscription.name, schema: SubscriptionSchema },
+      { name: Clinic.name, schema: ClinicSchema },
     ]),
   ],
   controllers: [SubscriptionsController],

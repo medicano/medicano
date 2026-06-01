@@ -6,6 +6,7 @@ import { ClinicsService } from '../clinics.service';
 import { Clinic } from '../schemas/clinic.schema';
 import { ClinicProfessional } from '../../professionals/schemas/clinic-professional.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import { Specialty } from '../../common/enums/specialty.enum';
 import { Address } from '../../common/schemas/address.schema';
 
@@ -67,6 +68,10 @@ describe('ClinicsService', () => {
           provide: getModelToken(Professional.name),
           useValue: { find: jest.fn(), exists: jest.fn() },
         },
+        {
+          provide: SubscriptionsService,
+          useValue: { ensureForClinic: jest.fn().mockResolvedValue(undefined) },
+        },
       ],
     }).compile();
 
@@ -86,11 +91,23 @@ describe('ClinicsService', () => {
         specialties: [Specialty.MEDICINE],
       };
 
+      // no existing clinic for this user → create proceeds
+      mockModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+
       const result = await service.create(mockUserId, createDto);
 
       expect(result).toBeDefined();
       expect(result.address).toEqual(mockAddress);
       expect(typeof result.address).not.toBe('string');
+    });
+
+    it('should return the existing clinic instead of creating a second for the same user', async () => {
+      mockModel.findOne.mockReturnValue({ exec: jest.fn().mockResolvedValue(mockClinic) });
+
+      const result = await service.create(mockUserId, { name: 'Outra' } as never);
+
+      expect(result).toBe(mockClinic);
+      expect(mockModel).not.toHaveBeenCalled();
     });
   });
 

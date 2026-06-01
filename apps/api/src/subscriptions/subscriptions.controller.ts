@@ -6,10 +6,12 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ParseMongoIdPipe } from '../common/pipes/parse-mongo-id.pipe';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
@@ -20,6 +22,24 @@ import { SubscriptionsService } from './subscriptions.service';
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
+
+  // Subscription of the clinic owned by the authenticated user.
+  @Get()
+  async findMine(@CurrentUser() userId: string): Promise<SubscriptionDocument> {
+    return this.subscriptionsService.getOrCreateForUser(userId);
+  }
+
+  // Change the plan of the authenticated user's clinic (upgrade/downgrade).
+  @Put()
+  async updateMine(
+    @CurrentUser() userId: string,
+    @Body() updateSubscriptionDto: UpdateSubscriptionDto,
+  ): Promise<SubscriptionDocument> {
+    return this.subscriptionsService.updatePlanForUser(
+      userId,
+      updateSubscriptionDto,
+    );
+  }
 
   @UseGuards(RolesGuard)
   @Post()

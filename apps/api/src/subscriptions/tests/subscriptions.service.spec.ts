@@ -3,6 +3,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { ForbiddenException } from '@nestjs/common';
 import { SubscriptionsService } from '../subscriptions.service';
 import { Subscription } from '../schemas/subscription.schema';
+import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { SubscriptionPlan } from '@medicano/types';
 import { PLAN_PROFESSIONAL_LIMITS } from '../constants/subscription.constants';
 
@@ -15,6 +16,10 @@ const mockSubscriptionModel = {
   findById: jest.fn(),
   save: jest.fn(),
   constructor: jest.fn(),
+};
+
+const mockClinicModel = {
+  findOne: jest.fn(),
 };
 
 const buildExecChain = (resolved: unknown) => ({
@@ -35,6 +40,10 @@ describe('SubscriptionsService', () => {
         {
           provide: getModelToken(Subscription.name),
           useValue: mockSubscriptionModel,
+        },
+        {
+          provide: getModelToken(Clinic.name),
+          useValue: mockClinicModel,
         },
       ],
     }).compile();
@@ -111,7 +120,7 @@ describe('SubscriptionsService', () => {
       ).resolves.not.toThrow();
     });
 
-    it('looks up subscription by clinicId (not userId) with status active', async () => {
+    it('looks up subscription by clinicId (not userId) with status active or trial', async () => {
       const execMock = jest.fn().mockResolvedValue(null);
       mockSubscriptionModel.findOne.mockReturnValue({ exec: execMock });
 
@@ -122,8 +131,19 @@ describe('SubscriptionsService', () => {
       }
 
       expect(mockSubscriptionModel.findOne).toHaveBeenCalledWith(
-        expect.objectContaining({ clinicId, status: 'active' }),
+        expect.objectContaining({ clinicId, status: { $in: ['active', 'trial'] } }),
       );
+    });
+
+    it('grants the plan limit during a trial of a paid plan', async () => {
+      mockSubscriptionModel.findOne.mockReturnValue(
+        buildExecChain({ clinicId, plan: SubscriptionPlan.BASIC, status: 'trial' }),
+      );
+
+      // a BASIC trial must allow up to the BASIC limit, not the FREE one
+      await expect(
+        service.enforceClinicProfessionalLimit(clinicId, PLAN_PROFESSIONAL_LIMITS[SubscriptionPlan.FREE]),
+      ).resolves.not.toThrow();
     });
   });
 
