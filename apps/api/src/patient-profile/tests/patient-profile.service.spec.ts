@@ -3,7 +3,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Logger } from '@nestjs/common';
 import { PatientProfileService } from '../patient-profile.service';
 import { PatientProfile } from '../schemas/patient-profile.schema';
-import { BiologicalSex, SmokingStatus } from '@medicano/types';
+import { BiologicalSex, SmokingStatus, IPatientProfile } from '@medicano/types';
 
 type MockModel = {
   findOne: jest.Mock;
@@ -23,7 +23,7 @@ const createMockModel = (): MockModel => {
 
 const USER_ID = '507f1f77bcf86cd799439011';
 
-const baseProfile: Partial<PatientProfile> = {
+const baseProfile: Partial<IPatientProfile> = {
   userId: USER_ID,
   useInTriage: true,
   birthDate: new Date('1990-06-15'),

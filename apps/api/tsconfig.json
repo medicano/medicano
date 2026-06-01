@@ -1,10 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "paths": {
-      "@medicano/types": ["../../packages/types/src/index.ts"],
-      "@medicano/types/*": ["../../packages/types/src/*"]
-    },
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,

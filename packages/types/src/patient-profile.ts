@@ -94,6 +94,9 @@ export interface IPatientProfile {
   // Contact preference
   languageLevel?: LanguageLevel;
 
+  // Free-text notes provided by the patient (treated only as clinical data).
+  observations?: string;
+
   // Triage opt-in (required — must be set deliberately)
   useInTriage: boolean;
 

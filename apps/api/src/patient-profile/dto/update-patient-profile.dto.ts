@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsDate,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -13,12 +14,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 import {
-  Gender,
-  Sex,
-  BloodType,
-  PhysicalActivityLevel,
+  BiologicalSex,
   SmokingStatus,
-  AlcoholConsumption,
+  AlcoholUse,
+  ActivityLevel,
+  ImmuneStatus,
+  LanguageLevel,
   IUpdatePatientProfileDto,
 } from '@medicano/types';
 
@@ -47,25 +48,23 @@ export class UpdatePatientProfileDto implements IUpdatePatientProfileDto {
 
   // Demographics
   @IsOptional()
+  @IsString()
+  fullName?: string;
+
+  @IsOptional()
   @IsDate()
   @Type(() => Date)
   birthDate?: Date;
 
   @IsOptional()
-  @IsEnum(Gender)
-  gender?: Gender;
+  @IsEnum(BiologicalSex)
+  biologicalSex?: BiologicalSex;
 
   @IsOptional()
-  @IsEnum(Sex)
-  sex?: Sex;
+  @IsString()
+  preferredName?: string;
 
-  // Biometrics
-  @IsOptional()
-  @IsNumber()
-  @Min(0.5)
-  @Max(500)
-  weightKg?: number;
-
+  // Anthropometrics
   @IsOptional()
   @IsNumber()
   @Min(20)
@@ -73,35 +72,41 @@ export class UpdatePatientProfileDto implements IUpdatePatientProfileDto {
   heightCm?: number;
 
   @IsOptional()
-  @IsEnum(BloodType)
-  bloodType?: BloodType;
-
-  // Lifestyle
-  @IsOptional()
-  @IsEnum(PhysicalActivityLevel)
-  physicalActivityLevel?: PhysicalActivityLevel;
-
-  @IsOptional()
-  @IsEnum(SmokingStatus)
-  smokingStatus?: SmokingStatus;
-
-  @IsOptional()
   @IsNumber()
-  @Min(0)
-  @Max(200)
-  smokingPackYears?: number;
+  @Min(0.5)
+  @Max(500)
+  weightKg?: number;
+
+  // Reproductive
+  @IsOptional()
+  @IsBoolean()
+  isPregnant?: boolean;
 
   @IsOptional()
-  @IsEnum(AlcoholConsumption)
-  alcoholConsumption?: AlcoholConsumption;
+  @IsInt()
+  @Min(0)
+  @Max(45)
+  gestationalWeeks?: number;
+
+  // Location
+  @IsOptional()
+  @IsString()
+  city?: string;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
-  @Max(24)
-  sleepHoursPerNight?: number;
+  @IsString()
+  state?: string;
 
-  // Medical
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  // Clinical history
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  chronicConditions?: string[];
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -117,20 +122,53 @@ export class UpdatePatientProfileDto implements IUpdatePatientProfileDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  chronicConditions?: string[];
+  previousSurgeries?: string[];
 
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   familyHistory?: string[];
 
+  // Lifestyle
+  @IsOptional()
+  @IsEnum(SmokingStatus)
+  smokingStatus?: SmokingStatus;
+
+  @IsOptional()
+  @IsEnum(AlcoholUse)
+  alcoholUse?: AlcoholUse;
+
+  @IsOptional()
+  @IsEnum(ActivityLevel)
+  activityLevel?: ActivityLevel;
+
+  // Immune & exposure
+  @IsOptional()
+  @IsEnum(ImmuneStatus)
+  immuneStatus?: ImmuneStatus;
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  dietaryRestrictions?: string[];
+  recentTravelCountries?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  animalExposure?: string[];
+
+  // Contact preference
+  @IsOptional()
+  @IsEnum(LanguageLevel)
+  languageLevel?: LanguageLevel;
 
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
+  @MaxLength(2000)
   observations?: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  lastReviewedAt?: Date;
 }

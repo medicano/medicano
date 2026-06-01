@@ -1,12 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import {
-  Gender,
-  Sex,
-  BloodType,
-  PhysicalActivityLevel,
+  BiologicalSex,
   SmokingStatus,
-  AlcoholConsumption,
+  AlcoholUse,
+  ActivityLevel,
+  ImmuneStatus,
+  LanguageLevel,
 } from '@medicano/types';
 
 @Schema({ _id: false })
@@ -32,55 +32,54 @@ const AllergySubSchema = SchemaFactory.createForClass(AllergySubdoc);
 
 @Schema({ timestamps: true })
 export class PatientProfile {
-  @Prop({
-    type: Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true,
-    index: true,
-  })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true, index: true })
   userId!: Types.ObjectId;
 
-  @Prop({ type: Boolean, default: true })
+  // Triagem só usa o perfil se o paciente optar explicitamente.
+  @Prop({ type: Boolean, default: false })
   useInTriage!: boolean;
 
   // Demographics
+  @Prop({ type: String })
+  fullName?: string;
+
   @Prop({ type: Date })
   birthDate?: Date;
 
-  @Prop({ type: String, enum: Gender })
-  gender?: Gender;
+  @Prop({ type: String, enum: BiologicalSex })
+  biologicalSex?: BiologicalSex;
 
-  @Prop({ type: String, enum: Sex })
-  sex?: Sex;
+  @Prop({ type: String })
+  preferredName?: string;
 
-  // Biometrics
-  @Prop({ type: Number })
-  weightKg?: number;
-
+  // Anthropometrics
   @Prop({ type: Number })
   heightCm?: number;
 
-  @Prop({ type: String, enum: BloodType })
-  bloodType?: BloodType;
+  @Prop({ type: Number })
+  weightKg?: number;
 
-  // Lifestyle
-  @Prop({ type: String, enum: PhysicalActivityLevel })
-  physicalActivityLevel?: PhysicalActivityLevel;
-
-  @Prop({ type: String, enum: SmokingStatus })
-  smokingStatus?: SmokingStatus;
+  // Reproductive
+  @Prop({ type: Boolean })
+  isPregnant?: boolean;
 
   @Prop({ type: Number })
-  smokingPackYears?: number;
+  gestationalWeeks?: number;
 
-  @Prop({ type: String, enum: AlcoholConsumption })
-  alcoholConsumption?: AlcoholConsumption;
+  // Location
+  @Prop({ type: String })
+  city?: string;
 
-  @Prop({ type: Number })
-  sleepHoursPerNight?: number;
+  @Prop({ type: String })
+  state?: string;
 
-  // Medical
+  @Prop({ type: String })
+  country?: string;
+
+  // Clinical history
+  @Prop({ type: [String], default: [] })
+  chronicConditions!: string[];
+
   @Prop({ type: [MedicationSubSchema], default: [] })
   medications!: MedicationSubdoc[];
 
@@ -88,17 +87,40 @@ export class PatientProfile {
   allergies!: AllergySubdoc[];
 
   @Prop({ type: [String], default: [] })
-  chronicConditions!: string[];
+  previousSurgeries!: string[];
 
   @Prop({ type: [String], default: [] })
   familyHistory!: string[];
 
-  @Prop({ type: [String], default: [] })
-  dietaryRestrictions!: string[];
+  // Lifestyle
+  @Prop({ type: String, enum: SmokingStatus })
+  smokingStatus?: SmokingStatus;
 
-  @Prop({ type: String, maxlength: 1000 })
+  @Prop({ type: String, enum: AlcoholUse })
+  alcoholUse?: AlcoholUse;
+
+  @Prop({ type: String, enum: ActivityLevel })
+  activityLevel?: ActivityLevel;
+
+  // Immune & exposure
+  @Prop({ type: String, enum: ImmuneStatus })
+  immuneStatus?: ImmuneStatus;
+
+  @Prop({ type: [String], default: [] })
+  recentTravelCountries!: string[];
+
+  @Prop({ type: [String], default: [] })
+  animalExposure!: string[];
+
+  // Contact preference
+  @Prop({ type: String, enum: LanguageLevel })
+  languageLevel?: LanguageLevel;
+
+  // Free-text notes (tratado apenas como dado clínico no prompt).
+  @Prop({ type: String, maxlength: 2000 })
   observations?: string;
 
+  // Audit
   @Prop({ type: Date })
   lastReviewedAt?: Date;
 }
