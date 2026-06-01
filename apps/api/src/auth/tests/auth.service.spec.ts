@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Types } from 'mongoose';
 import { AuthService } from '../auth.service';
 import { Role } from '../../common/enums/role.enum';
 import { RedisService } from '../../redis/redis.service';
@@ -73,7 +74,7 @@ describe('AuthService', () => {
       } as any;
 
       const createdUser = {
-        _id: { toString: () => 'user-id-1' },
+        _id: { toString: () => '507f1f77bcf86cd799439011' },
         email: patientDto.email,
         role: Role.PATIENT,
       };
@@ -89,7 +90,7 @@ describe('AuthService', () => {
         expect(usersService.createUser).toHaveBeenCalledWith(patientDto);
         expect(patientModel.create).toHaveBeenCalledWith(
           expect.objectContaining({
-            userId: 'user-id-1',
+            userId: expect.any(Types.ObjectId),
             name: patientDto.name,
             phone: '5511987654321',
           }),
@@ -154,7 +155,7 @@ describe('AuthService', () => {
 
       it('should create User but not Patient document', async () => {
         const createdUser = {
-          _id: { toString: () => 'clinic-id-1' },
+          _id: { toString: () => '507f191e810c19729de860ea' },
           email: clinicDto.email,
           role: Role.CLINIC,
         };

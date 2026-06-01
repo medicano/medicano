@@ -63,7 +63,9 @@ export class AuthService {
         await this.createPatientDocument(userId, dto);
       } else if (dto.role === Role.CLINIC) {
         const clinic = await this.clinicModel.create({
-          userId,
+          // Store as ObjectId so profile lookups by userId match (the @Prop
+          // ObjectId type does not cast a raw string here).
+          userId: new Types.ObjectId(userId),
           name: dto.name,
           cnpj: dto.cnpj?.replace(/\D/g, ''),
           // Seed the contact email with the signup email; editable later.
@@ -73,7 +75,7 @@ export class AuthService {
         await this.subscriptionsService.create({ clinicId: clinic._id.toString(), plan: SubscriptionPlan.FREE });
       } else if (dto.role === Role.PROFESSIONAL) {
         await this.professionalModel.create({
-          userId,
+          userId: new Types.ObjectId(userId),
           name: dto.name,
           specialty: dto.specialty,
           registration: dto.regNum,
@@ -171,7 +173,7 @@ export class AuthService {
     }
 
     await this.patientModel.create({
-      userId,
+      userId: new Types.ObjectId(userId),
       name: dto.name,
       dateOfBirth: dob,
       phone: this.normalizePhone(dto.phone),
