@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import {
   SubscriptionPlan,
   SubscriptionStatus,
@@ -9,7 +9,7 @@ export type SubscriptionDocument = Subscription & Document;
 
 @Schema({ timestamps: true })
 export class Subscription {
-  @Prop({ type: Types.ObjectId, ref: 'Clinic', required: true, unique: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Clinic', required: true, unique: true })
   clinicId: Types.ObjectId;
 
   @Prop({ type: String, enum: SubscriptionPlan, default: SubscriptionPlan.FREE })

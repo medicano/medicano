@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
 
 export type ClinicDocument = Clinic & Document;
@@ -33,7 +33,7 @@ export class Clinic {
   @Prop({ type: Boolean, default: false })
   linkedScheduling: boolean;
 
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
   @Prop({ type: String, unique: true, sparse: true, match: /^\d{14}$/ })

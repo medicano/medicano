@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import {
   WeeklySlot,
   WeeklySlotSchema,
@@ -7,7 +7,7 @@ import {
 
 @Schema({ timestamps: true })
 export class ProfessionalAvailability {
-  @Prop({ type: Types.ObjectId, ref: 'Professional', required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Professional', required: true })
   professionalId: Types.ObjectId;
 
   @Prop({ type: Date, required: true })

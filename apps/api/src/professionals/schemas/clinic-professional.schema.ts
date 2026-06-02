@@ -1,12 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 @Schema({ timestamps: true })
 export class ClinicProfessional {
-  @Prop({ type: Types.ObjectId, ref: 'Clinic', required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Clinic', required: true })
   clinicId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Professional', required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Professional', required: true })
   professionalId: Types.ObjectId;
 }
 

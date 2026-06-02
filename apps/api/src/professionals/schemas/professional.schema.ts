@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { Address, AddressSchema } from '../../common/schemas/address.schema';
 import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
@@ -8,7 +8,7 @@ export type ProfessionalDocument = HydratedDocument<Professional>;
 
 @Schema({ timestamps: true })
 export class Professional {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
   @Prop({ type: String, required: true })

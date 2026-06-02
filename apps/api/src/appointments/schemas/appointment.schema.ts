@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export enum AppointmentStatus {
   SCHEDULED = 'scheduled',
@@ -26,13 +26,13 @@ export const VALID_STATUS_TRANSITIONS: Record<
 
 @Schema({ timestamps: true })
 export class Appointment {
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   clinicId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   professionalId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   patientId: Types.ObjectId;
 
   @Prop({ type: Date, required: true })

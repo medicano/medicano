@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export enum MessageRole {
   USER = 'user',
@@ -8,7 +8,7 @@ export enum MessageRole {
 
 @Schema({ timestamps: { createdAt: true, updatedAt: false } })
 export class ChatMessage {
-  @Prop({ type: Types.ObjectId, ref: 'ChatSession', required: true })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'ChatSession', required: true })
   session: Types.ObjectId;
 
   @Prop({ type: String, enum: MessageRole, required: true })

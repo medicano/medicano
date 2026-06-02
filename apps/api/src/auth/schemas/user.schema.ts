@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { Role } from '../../common/enums/role.enum';
 
@@ -20,7 +20,7 @@ export class User {
   @Prop({ type: String })
   username?: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'Clinic' })
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Clinic' })
   clinicId?: Types.ObjectId;
 
   @Prop({ type: String, required: true })
