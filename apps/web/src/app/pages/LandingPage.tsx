@@ -104,7 +104,7 @@ export function LandingPage() {
                       Mais tempo cuidando.<br/><span className="text-[#0077B6]">Menos no telefone.</span>
                     </h1>
                     <p className="text-lg text-[#64748B] leading-relaxed max-w-xl">
-                      Automatize a triagem e os agendamentos da sua clínica. Atraia os pacientes certos e dedique sua energia a quem realmente precisa de você.
+                      Automatize o atendimento e os agendamentos da sua clínica. Atraia os pacientes certos e dedique sua energia a quem realmente precisa de você.
                     </p>
                   </>
                 )}
@@ -120,10 +120,10 @@ export function LandingPage() {
                         Criar conta e agendar
                       </Button>
                     </Link>
-                    <Link to="/triage">
+                    <Link to="/assistant">
                       <Button variant="outline" size="lg" className="gap-2 w-full sm:w-auto">
                         <Bot size={20} />
-                        Triagem por IA (opcional)
+                        Assistente por IA (opcional)
                       </Button>
                     </Link>
                   </>
@@ -184,7 +184,7 @@ export function LandingPage() {
                     </div>
                     <div className="mt-5 flex items-center gap-2 px-3 py-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0]">
                       <Bot size={14} className="text-[#64748B]" />
-                      <span className="text-xs text-[#64748B]">Triagem por IA disponível, se precisar.</span>
+                      <span className="text-xs text-[#64748B]">Assistente por IA disponível, se precisar.</span>
                     </div>
                   </div>
                 </div>
@@ -243,7 +243,7 @@ export function LandingPage() {
           <div className="max-w-[1440px] mx-auto">
             <div className="text-center max-w-2xl mx-auto mb-16">
               <h2 className="text-4xl font-bold text-[#03045E] mb-4">Agendar sua consulta em 4 passos</h2>
-              <p className="text-[#64748B] text-lg">Um processo direto, online e sem ligações. Com triagem por IA opcional, se você precisar de ajuda.</p>
+              <p className="text-[#64748B] text-lg">Um processo direto, online e sem ligações. Com assistente por IA opcional, se você precisar de ajuda.</p>
             </div>
 
             <div className="grid md:grid-cols-4 gap-8 relative">
@@ -268,7 +268,7 @@ export function LandingPage() {
                 },
                 {
                   icon: Bot,
-                  title: "Opcional · Triagem por IA",
+                  title: "Opcional · Assistente por IA",
                   desc: "Em dúvida sobre a especialidade? Converse com a IA para uma indicação rápida."
                 }
               ].map((step, idx) => (
@@ -519,7 +519,7 @@ export function LandingPage() {
             <ul className="space-y-3 text-[#ADE8F4] text-sm">
               <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Buscar Médicos</a></li>
               <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Especialidades</a></li>
-              <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Triagem por IA</a></li>
+              <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Assistente por IA</a></li>
               <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Ajuda</a></li>
             </ul>
           </div>

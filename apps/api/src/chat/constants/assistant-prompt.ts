@@ -34,7 +34,7 @@ function buildClinicalContext(patient: PatientContext): string {
     parts.push(`gênero ${genderLabels[patient.gender]}`);
   }
   if (parts.length === 0) return '';
-  return `Dados do paciente para orientar a triagem (considere prevalência por idade e sexo ao sugerir a especialidade; nunca presuma a queixa a partir deles): ${parts.join(', ')}.`;
+  return `Dados do paciente para orientar o assistente (considere prevalência por idade e sexo ao sugerir a especialidade; nunca presuma a queixa a partir deles): ${parts.join(', ')}.`;
 }
 
 const specialtyLabels: Record<Specialty, string> = {
@@ -89,7 +89,7 @@ function buildPronounInstruction(pronouns: 'SHE' | 'HE' | 'THEY'): string {
   }
 }
 
-export function buildTriageSystemPrompt(patient?: PatientContext): string {
+export function buildAssistantSystemPrompt(patient?: PatientContext): string {
   const nameInstruction = patient?.name
     ? `O paciente se chama ${patient.name}.`
     : '';
@@ -126,6 +126,6 @@ Os valores válidos para recommendedSpecialty são: medicine, cardiology, dermat
 `;
 }
 
-export const TRIAGE_SYSTEM_PROMPT = buildTriageSystemPrompt();
+export const ASSISTANT_SYSTEM_PROMPT = buildAssistantSystemPrompt();
 
-export const TRIAGE_SPECIALTIES = Object.values(Specialty);
+export const ASSISTANT_SPECIALTIES = Object.values(Specialty);

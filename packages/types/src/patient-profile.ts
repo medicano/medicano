@@ -97,8 +97,8 @@ export interface IPatientProfile {
   // Free-text notes provided by the patient (treated only as clinical data).
   observations?: string;
 
-  // Triage opt-in (required — must be set deliberately)
-  useInTriage: boolean;
+  // Assistant opt-in (required — must be set deliberately)
+  useInAssistant: boolean;
 
   // Audit timestamps
   lastReviewedAt?: Date;

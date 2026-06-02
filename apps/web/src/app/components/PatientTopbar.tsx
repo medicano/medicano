@@ -43,7 +43,7 @@ export function PatientTopbar() {
           <div className="hidden md:flex items-center gap-8">
             <NavLink to="/home" end className={linkClass}>Início</NavLink>
             <NavLink to="/search" className={linkClass}>Buscar</NavLink>
-            <NavLink to="/triage" className={linkClass}>Triagem</NavLink>
+            <NavLink to="/assistant" className={linkClass}>Assistente</NavLink>
             <NavLink to="/appointments" className={linkClass}>Meus agendamentos</NavLink>
           </div>
 
@@ -139,7 +139,7 @@ export function PatientTopbar() {
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
               <NavLink to="/home" end className={mobileLinkClass} onClick={() => setMobileOpen(false)}>Início</NavLink>
               <NavLink to="/search" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>Buscar</NavLink>
-              <NavLink to="/triage" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>Triagem</NavLink>
+              <NavLink to="/assistant" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>Assistente</NavLink>
               <NavLink to="/appointments" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>Meus agendamentos</NavLink>
               <NavLink to="/notifications" className={mobileLinkClass} onClick={() => setMobileOpen(false)}>
                 <span className="flex-1">Notificações</span>

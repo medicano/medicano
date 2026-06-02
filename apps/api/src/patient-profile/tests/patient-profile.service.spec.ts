@@ -25,7 +25,7 @@ const USER_ID = '507f1f77bcf86cd799439011';
 
 const baseProfile: Partial<IPatientProfile> = {
   userId: USER_ID,
-  useInTriage: true,
+  useInAssistant: true,
   birthDate: new Date('1990-06-15'),
   biologicalSex: BiologicalSex.FEMALE,
   weightKg: 70,
@@ -149,18 +149,18 @@ describe('PatientProfileService', () => {
     });
   });
 
-  describe('setUseInTriage', () => {
+  describe('setUseInAssistant', () => {
     it('BR-PP-08: forwards the boolean exactly as received', async () => {
       const execMock = jest.fn().mockResolvedValue({ acknowledged: true });
       model.updateOne.mockReturnValue({ exec: execMock });
 
-      await service.setUseInTriage(USER_ID, false);
+      await service.setUseInAssistant(USER_ID, false);
 
       const [filter, update] = model.updateOne.mock.calls[0];
       expect(filter).toEqual({ userId: USER_ID });
       expect(update).toEqual(
         expect.objectContaining({
-          $set: expect.objectContaining({ useInTriage: false }),
+          $set: expect.objectContaining({ useInAssistant: false }),
         }),
       );
     });

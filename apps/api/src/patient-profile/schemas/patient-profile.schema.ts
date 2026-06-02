@@ -35,9 +35,9 @@ export class PatientProfile {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true })
   userId!: Types.ObjectId;
 
-  // Triagem só usa o perfil se o paciente optar explicitamente.
+  // O assistente só usa o perfil se o paciente optar explicitamente.
   @Prop({ type: Boolean, default: false })
-  useInTriage!: boolean;
+  useInAssistant!: boolean;
 
   // Demographics
   @Prop({ type: String })

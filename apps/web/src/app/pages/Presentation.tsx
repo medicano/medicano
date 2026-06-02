@@ -25,7 +25,7 @@ export function Presentation() {
           </div>
           <h1 className="text-white mb-4">Bem-vindo(a) ao Medicano</h1>
           <p className="text-xl text-[#ADE8F4] max-w-2xl font-light">
-            Plataforma brasileira de agendamento de saúde com triagem inteligente.
+            Plataforma brasileira de agendamento de saúde com assistente inteligente.
             Abaixo, confirmo meu entendimento do seu projeto e apresento as direções de logotipo.
           </p>
         </div>
@@ -57,7 +57,7 @@ export function Presentation() {
                   <User className="text-[#10B981] mt-1 shrink-0" size={18} />
                   <div>
                     <strong className="block text-[#0F172A]">Paciente</strong>
-                    <span className="text-sm text-[#64748B]">Busca profissionais, passa por triagem com o chatbot e agenda atendimentos. Não possui assinatura.</span>
+                    <span className="text-sm text-[#64748B]">Busca profissionais, conversa com o assistente e agenda atendimentos. Não possui assinatura.</span>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
@@ -94,7 +94,7 @@ export function Presentation() {
                 <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#E2E8F0] flex items-center justify-between">
                   <div className="flex flex-col items-center gap-2">
                     <div className="w-10 h-10 rounded-full bg-[#023E8A] text-white flex items-center justify-center"><MessageSquare size={18} /></div>
-                    <span className="text-xs font-semibold">Triagem IA</span>
+                    <span className="text-xs font-semibold">Assistente IA</span>
                   </div>
                   <div className="h-0.5 flex-1 bg-[#E2E8F0] mx-2"></div>
                   <div className="flex flex-col items-center gap-2">

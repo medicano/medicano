@@ -17,7 +17,7 @@ type ChatSessionItem = {
   updatedAt?: string;
 };
 
-export function TriageListPage() {
+export function AssistantListPage() {
   const navigate = useNavigate();
   const sessionsApi = useApi<ChatSessionItem[]>('/chat/sessions');
   const sessions = extractList<ChatSessionItem>(sessionsApi.data);
@@ -28,9 +28,9 @@ export function TriageListPage() {
   async function handleNew() {
     setCreating(true);
     try {
-      const { data } = await api.post('/chat/sessions', { type: 'triage' });
+      const { data } = await api.post('/chat/sessions', { type: 'assistant' });
       const sessionId = data.id ?? data._id;
-      navigate(`/triage/${sessionId}`);
+      navigate(`/assistant/${sessionId}`);
     } catch {
       setCreating(false);
     }
@@ -64,7 +64,7 @@ export function TriageListPage() {
       <main className="flex-1 max-w-4xl w-full mx-auto px-6 lg:px-8 py-12">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-10">
           <div>
-            <h1 className="text-4xl font-extrabold text-[#03045E] tracking-tight">Triagens</h1>
+            <h1 className="text-4xl font-extrabold text-[#03045E] tracking-tight">Assistente</h1>
             <p className="text-[#64748B] mt-2 max-w-xl leading-relaxed">
               Converse com nosso assistente para identificar a especialidade adequada às suas necessidades.
             </p>
@@ -81,7 +81,7 @@ export function TriageListPage() {
             <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-[#CAF0F8] to-[#90E0EF] flex items-center justify-center mx-auto mb-6">
               <Bot size={36} className="text-[#0077B6]" />
             </div>
-            <h2 className="text-2xl font-bold text-[#03045E]">Nenhuma triagem ainda</h2>
+            <h2 className="text-2xl font-bold text-[#03045E]">Nenhuma conversa ainda</h2>
             <p className="text-[#64748B] mt-2 mb-6">Comece sua primeira conversa com nosso assistente.</p>
             <Button variant="primary" className="gap-2" disabled={creating} onClick={handleNew}>
               <Plus size={18} /> Nova conversa
@@ -97,7 +97,7 @@ export function TriageListPage() {
                   className="w-full flex items-center gap-4 bg-white border border-[#E2E8F0] hover:border-[#48CAE4] rounded-2xl p-5 transition-all hover:shadow-sm group"
                 >
                   <button
-                    onClick={() => navigate(`/triage/${sessionId}`)}
+                    onClick={() => navigate(`/assistant/${sessionId}`)}
                     className="flex flex-1 items-center gap-4 min-w-0 text-left"
                   >
                     <div className="w-12 h-12 rounded-xl bg-[#CAF0F8]/60 text-[#0077B6] flex items-center justify-center shrink-0">
@@ -113,8 +113,8 @@ export function TriageListPage() {
                   <button
                     onClick={() => setPendingDelete(sessionId)}
                     disabled={deletingId === sessionId}
-                    aria-label="Excluir triagem"
-                    title="Excluir triagem"
+                    aria-label="Excluir conversa"
+                    title="Excluir conversa"
                     className="shrink-0 rounded-lg p-2 text-[#94A3B8] hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={18} />
@@ -136,7 +136,7 @@ export function TriageListPage() {
 
       <ConfirmModal
         open={!!pendingDelete}
-        title="Excluir triagem?"
+        title="Excluir conversa?"
         description="Esta conversa com o assistente será removida permanentemente. Esta ação não pode ser desfeita."
         confirmLabel="Sim, excluir"
         variant="danger"

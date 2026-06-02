@@ -43,11 +43,11 @@ export class PatientProfileController {
     return this.patientProfileService.hardDeleteForUser(userId);
   }
 
-  @Patch('use-in-triage')
-  async setUseInTriage(
+  @Patch('use-in-assistant')
+  async setUseInAssistant(
     @CurrentUser() userId: string,
-    @Body('useInTriage') value: boolean,
+    @Body('useInAssistant') value: boolean,
   ) {
-    return this.patientProfileService.setUseInTriage(userId, value);
+    return this.patientProfileService.setUseInAssistant(userId, value);
   }
 }

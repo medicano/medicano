@@ -51,7 +51,7 @@ const PRO_PLANS = [
   },
   {
     id: 'AVANCADO', name: 'Avançado', price: 'R$ 69', priceNote: '/mês',
-    features: ['Tudo do Básico', 'Triagem com IA', 'Relatórios detalhados', 'Suporte prioritário'],
+    features: ['Tudo do Básico', 'Assistente com IA', 'Relatórios detalhados', 'Suporte prioritário'],
     recommended: true,
   },
 ];

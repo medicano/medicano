@@ -867,7 +867,7 @@ const numOrUndef = (s: string): number | undefined => {
 };
 
 interface RichProfile {
-  useInTriage?: boolean;
+  useInAssistant?: boolean;
   preferredName?: string;
   heightCm?: number;
   weightKg?: number;
@@ -972,7 +972,7 @@ function PatientContextSection() {
   const [gender, setGender] = useState(data.gender ?? '');
 
   // Perfil clínico rico (patient-profile)
-  const [useInTriage, setUseInTriage] = useState(rich.useInTriage ?? false);
+  const [useInAssistant, setUseInAssistant] = useState(rich.useInAssistant ?? false);
   const [preferredName, setPreferredName] = useState(rich.preferredName ?? '');
   const [heightCm, setHeightCm] = useState(rich.heightCm != null ? String(rich.heightCm) : '');
   const [weightKg, setWeightKg] = useState(rich.weightKg != null ? String(rich.weightKg) : '');
@@ -1000,7 +1000,7 @@ function PatientContextSection() {
 
   function handleSave() {
     const richPayload = {
-      useInTriage,
+      useInAssistant,
       preferredName: preferredName || undefined,
       heightCm: numOrUndef(heightCm),
       weightKg: numOrUndef(weightKg),
@@ -1043,15 +1043,15 @@ function PatientContextSection() {
   return (
     <Section
       title="Informações de contexto"
-      description="Opcionais. Usadas apenas para dar mais contexto à ferramenta de IA durante a triagem, ajudando a sugerir a especialidade mais adequada. Você pode deixá-las em branco."
+      description="Opcionais. Usadas apenas para dar mais contexto à ferramenta de IA durante o atendimento do assistente, ajudando a sugerir a especialidade mais adequada. Você pode deixá-las em branco."
     >
       <div className="mb-6">
         <Toggle
-          title="Usar meu perfil clínico na triagem"
+          title="Usar meu perfil clínico no assistente"
           description="Quando ativo, a IA usa as informações abaixo como contexto clínico. Tudo opcional."
           icon={Stethoscope}
-          checked={useInTriage}
-          onChange={setUseInTriage}
+          checked={useInAssistant}
+          onChange={setUseInAssistant}
         />
       </div>
 
@@ -1077,7 +1077,7 @@ function PatientContextSection() {
         <SelectField label="Gênero" icon={Users} value={gender} onChange={setGender} options={GENDER_OPTIONS} />
       </div>
 
-      {/* ── Perfil clínico (opcional; usado na triagem se autorizado) ── */}
+      {/* ── Perfil clínico (opcional; usado pelo assistente se autorizado) ── */}
       <div className="mt-6 space-y-4 border-t border-border pt-6">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <TextField label="Como prefere ser chamado(a)" icon={User} value={preferredName} onChange={setPreferredName} placeholder="Nome social / apelido" />
@@ -1140,7 +1140,7 @@ function PatientContextSection() {
             onChange={(e) => setObservations(e.target.value)}
             rows={3}
             maxLength={2000}
-            placeholder="Qualquer informação adicional relevante para a triagem."
+            placeholder="Qualquer informação adicional relevante para o assistente."
             className="w-full rounded-lg border border-border bg-white px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </label>

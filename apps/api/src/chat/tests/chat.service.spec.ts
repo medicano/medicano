@@ -45,7 +45,7 @@ const flushMicrotasks = () => new Promise<void>((r) => setImmediate(r));
 const makeSession = (overrides: Partial<MockSessionDoc> = {}): MockSessionDoc => ({
   _id: 'sess-1',
   patient: 'patient-1',
-  type: ChatSessionType.SYMPTOM_TRIAGE,
+  type: ChatSessionType.SYMPTOM_ASSISTANT,
   save: jest.fn().mockResolvedValue(undefined),
   ...overrides,
 });
@@ -91,7 +91,7 @@ describe('ChatService', () => {
   describe('createSession', () => {
     it('creates and returns a chat session', async () => {
       const patientId = 'patient-1';
-      const dto = { type: ChatSessionType.SYMPTOM_TRIAGE };
+      const dto = { type: ChatSessionType.SYMPTOM_ASSISTANT };
       const created = { _id: 'sess-1', patient: patientId, type: dto.type };
 
       sessionModel.create.mockResolvedValue(created);
@@ -110,7 +110,7 @@ describe('ChatService', () => {
     it('returns sessions for a patient', async () => {
       const patientId = 'patient-1';
       const sessions = [
-        { _id: 'sess-1', patient: patientId, type: ChatSessionType.SYMPTOM_TRIAGE },
+        { _id: 'sess-1', patient: patientId, type: ChatSessionType.SYMPTOM_ASSISTANT },
       ];
 
       sessionModel.find.mockReturnValue({

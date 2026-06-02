@@ -8,7 +8,7 @@ const USER_ID = '507f1f77bcf86cd799439011';
 
 const fullProfile: Partial<IPatientProfile> = {
   userId: USER_ID,
-  useInTriage: true,
+  useInAssistant: true,
   birthDate: new Date('1990-06-15'),
   biologicalSex: BiologicalSex.FEMALE,
   weightKg: 70,
@@ -25,8 +25,8 @@ describe('buildPatientContext', () => {
     expect(result).toBe('');
   });
 
-  it('BR-CTX-02: returns empty string when useInTriage is false (consent gate)', () => {
-    const profile = { ...fullProfile, useInTriage: false } as Partial<IPatientProfile>;
+  it('BR-CTX-02: returns empty string when useInAssistant is false (consent gate)', () => {
+    const profile = { ...fullProfile, useInAssistant: false } as Partial<IPatientProfile>;
     const result = buildPatientContext(profile as IPatientProfile);
     expect(result).toBe('');
   });
@@ -40,7 +40,7 @@ describe('buildPatientContext', () => {
   it('BR-CTX-04: omits keys that are null, undefined, empty string, or empty array', () => {
     const sparseProfile: Partial<IPatientProfile> = {
       userId: USER_ID,
-      useInTriage: true,
+      useInAssistant: true,
       biologicalSex: undefined,
       medications: [],
       allergies: [],
@@ -115,7 +115,7 @@ describe('buildPatientContext', () => {
   it('returns non-empty string for a profile with minimal valid fields', () => {
     const minimalProfile: Partial<IPatientProfile> = {
       userId: USER_ID,
-      useInTriage: true,
+      useInAssistant: true,
     };
     const result = buildPatientContext(minimalProfile as IPatientProfile);
     expect(result).toMatch(/^<perfil_paciente>/);

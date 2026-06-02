@@ -71,14 +71,14 @@ export class PatientProfileService {
     return { deleted };
   }
 
-  async setUseInTriage(
+  async setUseInAssistant(
     userId: string,
-    useInTriage: boolean,
+    useInAssistant: boolean,
   ): Promise<PatientProfileDocument | null> {
-    await this.model.updateOne({ userId }, { $set: { useInTriage } }).exec();
+    await this.model.updateOne({ userId }, { $set: { useInAssistant } }).exec();
     const profile = await this.model.findOne({ userId }).exec();
     this.logger.log(
-      `setUseInTriage userId=${userId} outcome=${profile ? 'success' : 'notFound'}`,
+      `setUseInAssistant userId=${userId} outcome=${profile ? 'success' : 'notFound'}`,
     );
     return profile;
   }

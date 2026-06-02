@@ -43,8 +43,8 @@ export const initialNotifications: AppNotification[] = [
   {
     id: 'n4',
     type: 'REMINDER',
-    title: 'Complete sua triagem',
-    message: 'Você iniciou uma triagem e ainda não finalizou. Continue de onde parou.',
+    title: 'Continue com o assistente',
+    message: 'Você iniciou uma conversa com o assistente e ainda não finalizou. Continue de onde parou.',
     createdAt: minutesAgo(60 * 50),
     read: true,
   },

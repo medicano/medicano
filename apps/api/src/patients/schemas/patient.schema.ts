@@ -12,7 +12,7 @@ export class Patient {
   @Prop({ type: String, required: true })
   name: string;
 
-  // Opcional: informação de contexto para a triagem, pode ser nula.
+  // Opcional: informação de contexto para o assistente, pode ser nula.
   @Prop({ type: Date })
   dateOfBirth?: Date;
 
