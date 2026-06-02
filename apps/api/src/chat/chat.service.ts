@@ -177,6 +177,16 @@ export class ChatService {
     return session;
   }
 
+  async deleteSession(sessionId: string, patientId: string): Promise<void> {
+    const session = await this.findSessionById(sessionId);
+    if (session.patient.toString() !== patientId) {
+      throw new ForbiddenException('Você não tem acesso a esta sessão.');
+    }
+
+    await this.messageModel.deleteMany({ session: session._id }).exec();
+    await this.sessionModel.deleteOne({ _id: session._id }).exec();
+  }
+
   async findSessionById(sessionId: string): Promise<ChatSessionDocument> {
     const session = await this.sessionModel.findById(sessionId);
     if (!session) {

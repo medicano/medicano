@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Query,
@@ -42,6 +45,15 @@ export class ChatController {
     @Param('sessionId', ParseMongoIdPipe) sessionId: string,
   ) {
     return this.chatService.getSession(sessionId, userId);
+  }
+
+  @Delete('sessions/:sessionId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteSession(
+    @CurrentUser() userId: string,
+    @Param('sessionId', ParseMongoIdPipe) sessionId: string,
+  ): Promise<void> {
+    await this.chatService.deleteSession(sessionId, userId);
   }
 
   @Get('sessions/:sessionId/messages')

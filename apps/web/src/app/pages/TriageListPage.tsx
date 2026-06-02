@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
-import { MessageCircle, Plus, ChevronRight, Bot, Sparkles } from 'lucide-react';
+import { MessageCircle, Plus, ChevronRight, Bot, Sparkles, Trash2 } from 'lucide-react';
 import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
 import { Button } from '../components/ui/Button';
@@ -21,6 +21,7 @@ export function TriageListPage() {
   const sessionsApi = useApi<ChatSessionItem[]>('/chat/sessions');
   const sessions = extractList<ChatSessionItem>(sessionsApi.data);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleNew() {
     setCreating(true);
@@ -30,6 +31,19 @@ export function TriageListPage() {
       navigate(`/triage/${sessionId}`);
     } catch {
       setCreating(false);
+    }
+  }
+
+  async function handleDelete(sessionId: string) {
+    if (!window.confirm('Excluir esta triagem? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    setDeletingId(sessionId);
+    try {
+      await api.delete(`/chat/sessions/${sessionId}`);
+      sessionsApi.refetch();
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -71,24 +85,40 @@ export function TriageListPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {sessions.map((s) => (
-              <button
-                key={s.id ?? s._id}
-                onClick={() => navigate(`/triage/${s.id ?? s._id}`)}
-                className="w-full flex items-center gap-4 bg-white border border-[#E2E8F0] hover:border-[#48CAE4] rounded-2xl p-5 transition-all hover:shadow-sm group text-left"
-              >
-                <div className="w-12 h-12 rounded-xl bg-[#CAF0F8]/60 text-[#0077B6] flex items-center justify-center shrink-0">
-                  <MessageCircle size={22} />
+            {sessions.map((s) => {
+              const sessionId = (s.id ?? s._id) as string;
+              return (
+                <div
+                  key={sessionId}
+                  className="w-full flex items-center gap-4 bg-white border border-[#E2E8F0] hover:border-[#48CAE4] rounded-2xl p-5 transition-all hover:shadow-sm group"
+                >
+                  <button
+                    onClick={() => navigate(`/triage/${sessionId}`)}
+                    className="flex flex-1 items-center gap-4 min-w-0 text-left"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-[#CAF0F8]/60 text-[#0077B6] flex items-center justify-center shrink-0">
+                      <MessageCircle size={22} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-[#0F172A]">Conversa de {formatDate(s.createdAt || s.updatedAt || '')}</p>
+                      <p className="text-sm text-[#64748B] truncate mt-0.5">
+                        {s.lastMessage || s.preview || 'Sem mensagens ainda'}
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(sessionId)}
+                    disabled={deletingId === sessionId}
+                    aria-label="Excluir triagem"
+                    title="Excluir triagem"
+                    className="shrink-0 rounded-lg p-2 text-[#94A3B8] hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <ChevronRight size={20} className="text-[#94A3B8] group-hover:text-[#0077B6] transition-colors shrink-0" />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#0F172A]">Conversa de {formatDate(s.createdAt || s.updatedAt || '')}</p>
-                  <p className="text-sm text-[#64748B] truncate mt-0.5">
-                    {s.lastMessage || s.preview || 'Sem mensagens ainda'}
-                  </p>
-                </div>
-                <ChevronRight size={20} className="text-[#94A3B8] group-hover:text-[#0077B6] transition-colors shrink-0" />
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
 
