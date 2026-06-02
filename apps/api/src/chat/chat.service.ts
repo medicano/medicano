@@ -96,6 +96,12 @@ export class ChatService {
       { role: 'user' as const, content: dto.content },
     ];
 
+    // Perfil clínico rico: opt-in via useInTriage. O mesmo consentimento também
+    // libera os dados demográficos (idade, sexo, gênero) para a triagem.
+    const richProfile = await this.patientProfileService.findByUserId(patientId);
+    const profileForTriage = richProfile as unknown as Partial<IPatientProfile> | null;
+    const useProfileInTriage = profileForTriage?.useInTriage === true;
+
     const patient = await this.patientModel.findOne({ userId: patientId }).exec();
     const age = patient?.dateOfBirth
       ? Math.floor(
@@ -108,18 +114,15 @@ export class ChatService {
         ? {
             name: patient.name,
             pronouns: patient.pronouns as 'SHE' | 'HE' | 'THEY' | undefined,
-            sex: patient.sex,
-            gender: patient.gender,
-            age,
+            // Dados clínicos só entram no prompt se o paciente autorizou.
+            sex: useProfileInTriage ? patient.sex : undefined,
+            gender: useProfileInTriage ? patient.gender : undefined,
+            age: useProfileInTriage ? age : undefined,
           }
         : undefined,
     );
 
-    // Perfil clínico rico (opt-in via useInTriage): adiciona contexto detalhado.
-    const richProfile = await this.patientProfileService.findByUserId(patientId);
-    const richContext = buildPatientContext(
-      richProfile as unknown as Partial<IPatientProfile> | null,
-    );
+    const richContext = buildPatientContext(profileForTriage);
     if (richContext) {
       systemPrompt += `\n\n${PATIENT_CONTEXT_SYSTEM_INSTRUCTION}\n\n${richContext}`;
     }
