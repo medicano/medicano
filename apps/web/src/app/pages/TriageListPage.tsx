@@ -4,6 +4,7 @@ import { MessageCircle, Plus, ChevronRight, Bot, Sparkles, Trash2 } from 'lucide
 import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
 import { Button } from '../components/ui/Button';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 
@@ -22,6 +23,7 @@ export function TriageListPage() {
   const sessions = extractList<ChatSessionItem>(sessionsApi.data);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   async function handleNew() {
     setCreating(true);
@@ -34,16 +36,18 @@ export function TriageListPage() {
     }
   }
 
-  async function handleDelete(sessionId: string) {
-    if (!window.confirm('Excluir esta triagem? Esta ação não pode ser desfeita.')) {
+  async function handleDelete() {
+    if (!pendingDelete) {
       return;
     }
+    const sessionId = pendingDelete;
     setDeletingId(sessionId);
     try {
       await api.delete(`/chat/sessions/${sessionId}`);
       sessionsApi.refetch();
     } finally {
       setDeletingId(null);
+      setPendingDelete(null);
     }
   }
 
@@ -107,7 +111,7 @@ export function TriageListPage() {
                     </div>
                   </button>
                   <button
-                    onClick={() => handleDelete(sessionId)}
+                    onClick={() => setPendingDelete(sessionId)}
                     disabled={deletingId === sessionId}
                     aria-label="Excluir triagem"
                     title="Excluir triagem"
@@ -129,6 +133,16 @@ export function TriageListPage() {
           </p>
         </div>
       </main>
+
+      <ConfirmModal
+        open={!!pendingDelete}
+        title="Excluir triagem?"
+        description="Esta conversa com o assistente será removida permanentemente. Esta ação não pode ser desfeita."
+        confirmLabel="Sim, excluir"
+        variant="danger"
+        onClose={() => setPendingDelete(null)}
+        onConfirm={handleDelete}
+      />
 
       <AppFooter />
     </div>
