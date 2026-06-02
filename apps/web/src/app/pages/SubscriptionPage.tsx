@@ -310,7 +310,7 @@ export function SubscriptionPage() {
               features={[
                 { ok: true,  t: 'Até 2 profissionais' },
                 { ok: true,  t: 'Agendamentos ilimitados' },
-                { ok: true,  t: 'Triagem por chatbot' },
+                { ok: true,  t: 'Assistente por chatbot' },
                 { ok: false, t: 'Suporte prioritário' },
               ]}
             />
@@ -324,7 +324,7 @@ export function SubscriptionPage() {
               features={[
                 { ok: true, t: 'Até 10 profissionais' },
                 { ok: true, t: 'Agendamentos ilimitados' },
-                { ok: true, t: 'Triagem por chatbot' },
+                { ok: true, t: 'Assistente por chatbot' },
                 { ok: true, t: 'Suporte por email' },
               ]}
             />
@@ -337,7 +337,7 @@ export function SubscriptionPage() {
               features={[
                 { ok: true, t: 'Profissionais ilimitados' },
                 { ok: true, t: 'Agendamentos ilimitados' },
-                { ok: true, t: 'Triagem por chatbot' },
+                { ok: true, t: 'Assistente por chatbot' },
                 { ok: true, t: 'Suporte prioritário' },
               ]}
             />

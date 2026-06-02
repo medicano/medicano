@@ -14,7 +14,7 @@ export interface ChatSession {
   _id: string;
   userId: string;
   messages: ChatMessage[];
-  triageCompleted: boolean;
+  assistantCompleted: boolean;
   recommendedSpecialty?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -28,11 +28,11 @@ export interface SendMessageRequest {
 export interface SendMessageResponse {
   sessionId: string;
   message: ChatMessage;
-  triageCompleted?: boolean;
+  assistantCompleted?: boolean;
   recommendedSpecialty?: string;
 }
 
-export interface TriageResult {
+export interface AssistantResult {
   specialty: string;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   reasoning: string;

@@ -369,7 +369,7 @@ function EmptyState() {
       </div>
       <h2 className="text-2xl font-bold text-[#03045E]">Nenhum resultado encontrado</h2>
       <p className="text-[#64748B] mt-2 max-w-md mx-auto">
-        Tente ajustar os filtros ou buscar por outro termo. Você também pode iniciar a triagem para receber recomendações.
+        Tente ajustar os filtros ou buscar por outro termo. Você também pode falar com o assistente para receber recomendações.
       </p>
     </div>
   );

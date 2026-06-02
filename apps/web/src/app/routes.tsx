@@ -3,8 +3,8 @@ import { createBrowserRouter, Navigate } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
-import { TriageListPage } from './pages/TriageListPage';
-import { TriageChatPage } from './pages/TriageChatPage';
+import { AssistantListPage } from './pages/AssistantListPage';
+import { AssistantChatPage } from './pages/AssistantChatPage';
 import { AppointmentsPage } from './pages/AppointmentsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AppointmentDetailPage } from './pages/AppointmentDetailPage';
@@ -57,8 +57,8 @@ export const router = createBrowserRouter([
   { path: '/clinic/:clinicId', element: patient(<ClinicProfilePage />) },
   { path: '/book/success', element: patient(<BookingSuccessPage />) },
   { path: '/book/:professionalId', element: patient(<BookingPage />) },
-  { path: '/triage', element: patient(<TriageListPage />) },
-  { path: '/triage/:sessionId', element: patient(<TriageChatPage />) },
+  { path: '/assistant', element: patient(<AssistantListPage />) },
+  { path: '/assistant/:sessionId', element: patient(<AssistantChatPage />) },
 
   // Shared
   { path: '/appointments', element: anyAuth(<AppointmentsPage />) },

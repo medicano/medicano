@@ -44,7 +44,7 @@ export class AllergyDto {
 export class UpdatePatientProfileDto implements IUpdatePatientProfileDto {
   @IsOptional()
   @IsBoolean()
-  useInTriage?: boolean;
+  useInAssistant?: boolean;
 
   // Demographics
   @IsOptional()

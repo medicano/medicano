@@ -102,12 +102,12 @@ export function HomePage() {
               Olá, {userName}!
             </h1>
             <p className="text-white/80 mt-3 max-w-xl">
-              Como você está se sentindo hoje? Use a triagem inteligente para receber recomendações personalizadas ou agende diretamente.
+              Como você está se sentindo hoje? Use o assistente inteligente para receber recomendações personalizadas ou agende diretamente.
             </p>
             <div className="flex flex-wrap gap-3 mt-6">
-              <Link to="/triage">
+              <Link to="/assistant">
                 <Button variant="primary" className="gap-2">
-                  <MessageSquareHeart size={18} /> Iniciar triagem
+                  <MessageSquareHeart size={18} /> Falar com o assistente
                 </Button>
               </Link>
               <Link to="/search">
@@ -121,9 +121,9 @@ export function HomePage() {
 
         <section className="grid md:grid-cols-3 gap-4 mb-12">
           <QuickAction
-            to="/triage"
+            to="/assistant"
             icon={<MessageSquareHeart size={22} />}
-            title="Triagem inteligente"
+            title="Assistente inteligente"
             description="Receba recomendações com base nos seus sintomas."
             accent="from-[#48CAE4] to-[#0077B6]"
           />
@@ -151,7 +151,7 @@ export function HomePage() {
                 <CalendarClock size={28} className="text-[#0077B6]" />
               </div>
               <h3 className="text-lg font-bold text-[#03045E]">Nenhum agendamento por aqui</h3>
-              <p className="text-sm text-[#64748B] mt-1">Que tal iniciar uma triagem para encontrar o melhor atendimento?</p>
+              <p className="text-sm text-[#64748B] mt-1">Que tal falar com o assistente para encontrar o melhor atendimento?</p>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-4">

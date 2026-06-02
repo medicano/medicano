@@ -13,7 +13,7 @@ import { ChatSession, ChatSessionDocument } from './schemas/chat-session.schema'
 import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { CreateChatSessionDto } from './dto/create-chat-session.dto';
-import { buildTriageSystemPrompt } from './constants/triage-prompt';
+import { buildAssistantSystemPrompt } from './constants/assistant-prompt';
 import { Specialty } from '../common/enums/specialty.enum';
 import { ANTHROPIC_MODEL } from './constants/chat.tokens';
 import { Patient, PatientDocument } from '../patients/schemas/patient.schema';
@@ -96,11 +96,11 @@ export class ChatService {
       { role: 'user' as const, content: dto.content },
     ];
 
-    // Perfil clínico rico: opt-in via useInTriage. O mesmo consentimento também
-    // libera os dados demográficos (idade, sexo, gênero) para a triagem.
+    // Perfil clínico rico: opt-in via useInAssistant. O mesmo consentimento também
+    // libera os dados demográficos (idade, sexo, gênero) para o assistente.
     const richProfile = await this.patientProfileService.findByUserId(patientId);
-    const profileForTriage = richProfile as unknown as Partial<IPatientProfile> | null;
-    const useProfileInTriage = profileForTriage?.useInTriage === true;
+    const profileForAssistant = richProfile as unknown as Partial<IPatientProfile> | null;
+    const useProfileInAssistant = profileForAssistant?.useInAssistant === true;
 
     const patient = await this.patientModel.findOne({ userId: patientId }).exec();
     const age = patient?.dateOfBirth
@@ -109,20 +109,20 @@ export class ChatService {
             (365.25 * 24 * 60 * 60 * 1000),
         )
       : undefined;
-    let systemPrompt = buildTriageSystemPrompt(
+    let systemPrompt = buildAssistantSystemPrompt(
       patient
         ? {
             name: patient.name,
             pronouns: patient.pronouns as 'SHE' | 'HE' | 'THEY' | undefined,
             // Dados clínicos só entram no prompt se o paciente autorizou.
-            sex: useProfileInTriage ? patient.sex : undefined,
-            gender: useProfileInTriage ? patient.gender : undefined,
-            age: useProfileInTriage ? age : undefined,
+            sex: useProfileInAssistant ? patient.sex : undefined,
+            gender: useProfileInAssistant ? patient.gender : undefined,
+            age: useProfileInAssistant ? age : undefined,
           }
         : undefined,
     );
 
-    const richContext = buildPatientContext(profileForTriage);
+    const richContext = buildPatientContext(profileForAssistant);
     if (richContext) {
       systemPrompt += `\n\n${PATIENT_CONTEXT_SYSTEM_INSTRUCTION}\n\n${richContext}`;
     }

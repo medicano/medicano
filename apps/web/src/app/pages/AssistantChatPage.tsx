@@ -54,7 +54,7 @@ function mapMessages(raw: RawMessage[]): Message[] {
   });
 }
 
-export function TriageChatPage() {
+export function AssistantChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
 
@@ -159,7 +159,7 @@ export function TriageChatPage() {
       <div className="flex-1 flex flex-col max-w-4xl w-full mx-auto px-4 lg:px-8 overflow-hidden">
         <div className="py-4 flex items-center gap-3 border-b border-[#E2E8F0]">
           <button
-            onClick={() => navigate('/triage')}
+            onClick={() => navigate('/assistant')}
             className="p-2 rounded-lg hover:bg-[#F8FAFC] text-[#64748B] hover:text-[#0F172A]"
           >
             <ArrowLeft size={18} />
@@ -229,7 +229,7 @@ export function TriageChatPage() {
                 <Stethoscope size={18} className="text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-[#03045E]">Triagem concluída</p>
+                <p className="text-sm font-bold text-[#03045E]">Recomendação concluída</p>
                 <p className="text-sm text-[#0077B6]">
                   Especialidade recomendada: <span className="font-semibold">{SPECIALTY_LABELS[recommendation] ?? recommendation}</span>
                 </p>
