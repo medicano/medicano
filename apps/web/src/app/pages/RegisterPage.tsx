@@ -10,6 +10,7 @@ import { api } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { useAuth, type UserRole } from '../contexts/AuthContext';
 import { SpecialtyCombobox, SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
+import { CepAddressFields, EMPTY_ADDRESS, composeAddressText, type AddressValue } from '../components/ui/CepAddressFields';
 
 type AccountType = 'PATIENT' | 'CLINIC' | 'PROFESSIONAL' | 'ATTENDANT';
 type Step = 1 | 2 | 3;
@@ -277,8 +278,7 @@ export function RegisterPage() {
   // Clinic fields
   const [razaoSocial, setRazaoSocial] = useState('');
   const [cnpj, setCnpj] = useState('');
-  const [clinicAddress, setClinicAddress] = useState('');
-  const [clinicCity, setClinicCity] = useState('');
+  const [clinicAddr, setClinicAddr] = useState<AddressValue>(EMPTY_ADDRESS);
 
   // Professional fields
   const [cpf, setCpf] = useState('');
@@ -326,7 +326,8 @@ export function RegisterPage() {
       if (!razaoSocial.trim()) e.razaoSocial = 'Razão social é obrigatória';
       if (!cnpj.trim()) e.cnpj = 'CNPJ é obrigatório';
       else if (cnpj.replace(/\D/g, '').length < 14) e.cnpj = 'CNPJ inválido';
-      if (!clinicAddress.trim()) e.clinicAddress = 'Endereço é obrigatório';
+      if (clinicAddr.cep.replace(/\D/g, '').length !== 8 || !clinicAddr.street) e.clinicCep = 'Informe um CEP válido para preencher o endereço';
+      if (!clinicAddr.number.trim()) e.clinicNumber = 'Número é obrigatório';
       if (!email.trim()) e.email = 'E-mail é obrigatório';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'E-mail inválido';
       if (!pwd) e.pwd = 'Senha é obrigatória';
@@ -388,7 +389,7 @@ export function RegisterPage() {
       if (account === 'PATIENT') {
         Object.assign(payload, { name, email, password: pwd, phone: phone.replace(/\D/g, '') });
       } else if (account === 'CLINIC') {
-        Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, ''), addressText: clinicAddress, city: clinicCity || undefined });
+        Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, ''), addressText: composeAddressText(clinicAddr), city: clinicAddr.city || undefined, addressReference: clinicAddr.reference || undefined });
       } else if (account === 'PROFESSIONAL') {
         Object.assign(payload, { name, email, password: pwd, cpf, specialty: SPECIALTY_LABEL_TO_ENUM[specialty] || specialty, regNum, city });
       } else if (account === 'ATTENDANT') {
@@ -583,11 +584,11 @@ export function RegisterPage() {
                         onChange={(v) => setCnpj(cnpjMask(v))}
                         placeholder="00.000.000/0000-00" error={errors.cnpj}
                       />
-                      <Field
-                        icon={MapPin} label="Endereço" value={clinicAddress} onChange={setClinicAddress}
-                        placeholder="Av. Exemplo, 123 – Bairro, Cidade, UF" error={errors.clinicAddress}
+                      <CepAddressFields
+                        value={clinicAddr}
+                        onChange={setClinicAddr}
+                        errors={{ cep: errors.clinicCep, number: errors.clinicNumber }}
                       />
-                      <Field icon={MapPin} label="Cidade" value={clinicCity} onChange={setClinicCity} placeholder="São Paulo, SP" />
                       <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="contato@clinica.com.br" error={errors.email} />
                       <PasswordField label="Senha" value={pwd} onChange={setPwd} error={errors.pwd} showStrength />
                       <PasswordField label="Confirmar senha" value={confirm} onChange={setConfirm} error={errors.confirm} />

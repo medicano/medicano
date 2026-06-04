@@ -81,6 +81,7 @@ export class AuthService {
           // Seed the contact email with the signup email; editable later.
           email: dto.email,
           addressText: dto.addressText,
+          addressReference: dto.addressReference,
           city: dto.city,
           ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
         });

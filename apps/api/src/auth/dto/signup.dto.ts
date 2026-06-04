@@ -85,6 +85,11 @@ export class SignupDto {
   @ValidateIf((o) => o.role === Role.CLINIC)
   readonly addressText?: string;
 
+  // Ponto de referência do endereço — opcional, dado não-postal.
+  @IsString()
+  @IsOptional()
+  readonly addressReference?: string;
+
   @IsString()
   @IsOptional()
   readonly regNum?: string;

@@ -48,6 +48,11 @@ export class Clinic {
   @Prop({ type: String })
   addressText?: string;
 
+  // Ponto de referência informado no cadastro — dado não-postal, mantido fora
+  // do addressText para não interferir no geocoding.
+  @Prop({ type: String })
+  addressReference?: string;
+
   @Prop({ type: Number })
   lat?: number;
 
