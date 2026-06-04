@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api, getStoredUser, getToken, setStoredUser, setToken } from '../lib/api';
+import { api, getStoredUser, setStoredUser } from '../lib/api';
 
 export type UserRole = 'patient' | 'clinic' | 'professional' | 'attendant';
 
@@ -15,7 +15,6 @@ export interface AuthUser {
 
 interface AuthContextValue {
   user: AuthUser | null;
-  token: string | null;
   isAuthenticated: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
@@ -28,7 +27,6 @@ interface AuthContextValue {
 
 const defaultContext: AuthContextValue = {
   user: null,
-  token: null,
   isAuthenticated: false,
   loading: false,
   login: async () => { throw new Error('No AuthProvider'); },
@@ -43,18 +41,16 @@ const AuthContext = createContext<AuthContextValue>(defaultContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => getStoredUser<AuthUser>());
-  const [token, setTokenState] = useState<string | null>(() => getToken());
-  const [loading, setLoading] = useState<boolean>(!!getToken() && !getStoredUser());
+  // Há sessão? O token é um cookie httpOnly invisível ao JS, então usamos o
+  // usuário em cache como pista para validar no servidor ao carregar.
+  const [loading, setLoading] = useState<boolean>(() => !!getStoredUser());
 
-  const persist = useCallback((newToken: string | null, newUser: AuthUser | null) => {
-    setToken(newToken);
+  const persist = useCallback((newUser: AuthUser | null) => {
     setStoredUser(newUser);
-    setTokenState(newToken);
     setUser(newUser);
   }, []);
 
   const refresh = useCallback(async (): Promise<AuthUser | null> => {
-    if (!getToken()) return null;
     try {
       const { data } = await api.get('/profile/me');
       const u = (data?.user ?? data) as AuthUser;
@@ -66,12 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // No mount, valida a sessão (cookie) contra o servidor apenas se havia um
+  // usuário em cache — evita disparar /profile/me (e o redirect de 401) para
+  // visitantes anônimos em páginas públicas.
   useEffect(() => {
-    if (token && !user) {
-      setLoading(true);
+    if (getStoredUser()) {
       refresh().finally(() => setLoading(false));
     }
-  }, [token, user, refresh]);
+  }, [refresh]);
 
   const updateUser = useCallback((partial: Partial<AuthUser>) => {
     setUser((prev) => {
@@ -84,39 +82,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password });
-    const t = data?.accessToken ?? data?.token ?? data?.access_token;
     const u = (data?.user ?? data?.profile) as AuthUser;
-    if (!t || !u) throw new Error('Resposta de login inválida');
-    persist(t, u);
+    if (!u) throw new Error('Resposta de login inválida');
+    persist(u);
     return u;
   }, [persist]);
 
   const loginAttendant = useCallback(async (clinicId: string, username: string, password: string) => {
     const { data } = await api.post('/auth/login/attendant', { clinicId, username, password });
-    const t = data?.accessToken ?? data?.token ?? data?.access_token;
     const u = (data?.user ?? data?.profile) as AuthUser;
-    if (!t || !u) throw new Error('Resposta de login inválida');
-    persist(t, u);
+    if (!u) throw new Error('Resposta de login inválida');
+    persist(u);
     return u;
   }, [persist]);
 
   const register = useCallback(async (payload: { name: string; email: string; password: string; role?: UserRole }) => {
     const { data } = await api.post('/auth/signup', { role: 'patient', ...payload });
-    const t = data?.accessToken ?? data?.token ?? data?.access_token;
     const u = (data?.user ?? data?.profile) as AuthUser;
-    if (t && u) persist(t, u);
+    if (u) persist(u);
     return u;
   }, [persist]);
 
   const logout = useCallback(async () => {
     try { await api.post('/auth/logout'); } catch { /* logout best-effort: limpa a sessão local mesmo se a API falhar */ }
-    persist(null, null);
+    persist(null);
   }, [persist]);
 
   const value = useMemo<AuthContextValue>(() => ({
-    user, token, isAuthenticated: !!token, loading,
+    user, isAuthenticated: !!user, loading,
     login, loginAttendant, register, logout, refresh, updateUser,
-  }), [user, token, loading, login, loginAttendant, register, logout, refresh, updateUser]);
+  }), [user, loading, login, loginAttendant, register, logout, refresh, updateUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

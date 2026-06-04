@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../../app.module';
 import { Role } from '../../common/enums/role.enum';
 import { loadAwsSecrets } from '../../common/config/aws-secrets.loader';
@@ -8,6 +9,14 @@ import { GeocodingService } from '../../common/geocoding/geocoding.service';
 
 const uniqueEmail = (): string =>
   `patient-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}@example.com`;
+
+// O token agora vai no cookie httpOnly (Set-Cookie), não no corpo. Extrai o par
+// "medicano_token=<jwt>" para reenviar como header Cookie nas próximas chamadas.
+const sessionCookie = (res: request.Response): string => {
+  const setCookie = (res.headers['set-cookie'] as unknown as string[]) ?? [];
+  const tokenCookie = setCookie.find((c) => c.startsWith('medicano_token='));
+  return tokenCookie ? tokenCookie.split(';')[0] : '';
+};
 
 const patientPayload = (overrides: Record<string, unknown> = {}) => ({
   email: uniqueEmail(),
@@ -37,6 +46,7 @@ describe('Auth (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -52,15 +62,16 @@ describe('Auth (e2e)', () => {
   });
 
   describe('POST /auth/signup', () => {
-    it('should create a new patient user and Patient document, returning an access token (201)', async () => {
+    it('should create a new patient user and set the session cookie (201)', async () => {
       const response = await request(app.getHttpServer())
         .post('/auth/signup')
         .send(patientPayload())
         .expect(201);
 
-      expect(response.body).toHaveProperty('accessToken');
-      expect(typeof response.body.accessToken).toBe('string');
-      expect(response.body.accessToken.length).toBeGreaterThan(0);
+      expect(sessionCookie(response)).toMatch(/^medicano_token=.+/);
+      expect(response.body.user).toHaveProperty('id');
+      // O token nunca é exposto no corpo da resposta.
+      expect(response.body).not.toHaveProperty('accessToken');
     });
 
     it('should accept optional fields (gender, pronouns, cep, city, state)', async () => {
@@ -77,7 +88,7 @@ describe('Auth (e2e)', () => {
         )
         .expect(201);
 
-      expect(response.body).toHaveProperty('accessToken');
+      expect(sessionCookie(response)).toMatch(/^medicano_token=.+/);
     });
 
     it('should allow signup without dateOfBirth for patient (optional)', async () => {
@@ -89,7 +100,7 @@ describe('Auth (e2e)', () => {
         .send(payload)
         .expect(201);
 
-      expect(response.body).toHaveProperty('accessToken');
+      expect(sessionCookie(response)).toMatch(/^medicano_token=.+/);
     });
 
     it('should return 400 when phone is missing for patient', async () => {
@@ -163,7 +174,7 @@ describe('Auth (e2e)', () => {
   });
 
   describe('POST /auth/login', () => {
-    it('should log in with valid credentials and return an access token (200/201)', async () => {
+    it('should log in with valid credentials and set the session cookie (200/201)', async () => {
       const payload = patientPayload();
 
       await request(app.getHttpServer())
@@ -176,8 +187,8 @@ describe('Auth (e2e)', () => {
         .send({ email: payload.email, password: payload.password });
 
       expect([200, 201]).toContain(response.status);
-      expect(response.body).toHaveProperty('accessToken');
-      expect(typeof response.body.accessToken).toBe('string');
+      expect(sessionCookie(response)).toMatch(/^medicano_token=.+/);
+      expect(response.body.user).toHaveProperty('id');
     });
 
     it('should return 401 for wrong password', async () => {
@@ -206,27 +217,25 @@ describe('Auth (e2e)', () => {
   });
 
   describe('POST /auth/logout', () => {
-    it('should return 204 when logging out with a valid bearer token', async () => {
+    it('should return 204 when logging out with a valid session cookie', async () => {
       const signupRes = await request(app.getHttpServer())
         .post('/auth/signup')
         .send(patientPayload())
         .expect(201);
 
-      const accessToken = signupRes.body.accessToken;
-
       await request(app.getHttpServer())
         .post('/auth/logout')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Cookie', sessionCookie(signupRes))
         .expect(204);
     });
 
-    it('should return 401 when no Authorization header is provided', async () => {
+    it('should return 401 when no session cookie is provided', async () => {
       await request(app.getHttpServer()).post('/auth/logout').expect(401);
     });
   });
 
-  describe('Full flow: signup → login → logout → revoked token rejected', () => {
-    it('should reject the same token after logout', async () => {
+  describe('Full flow: signup → login → logout → revoked session rejected', () => {
+    it('should reject the same session cookie after logout', async () => {
       const payload = patientPayload();
 
       await request(app.getHttpServer())
@@ -239,17 +248,17 @@ describe('Auth (e2e)', () => {
         .send({ email: payload.email, password: payload.password });
 
       expect([200, 201]).toContain(loginRes.status);
-      const accessToken = loginRes.body.accessToken;
-      expect(typeof accessToken).toBe('string');
+      const cookie = sessionCookie(loginRes);
+      expect(cookie).toMatch(/^medicano_token=.+/);
 
       await request(app.getHttpServer())
         .post('/auth/logout')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Cookie', cookie)
         .expect(204);
 
       await request(app.getHttpServer())
         .post('/auth/logout')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Cookie', cookie)
         .expect(401);
     });
   });

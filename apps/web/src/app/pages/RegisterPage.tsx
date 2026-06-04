@@ -6,7 +6,7 @@ import {
   MapPin, FileText, BadgeCheck, Check, Sparkles, Phone
 } from 'lucide-react';
 import { MedicanoLogo } from '../components/MedicanoLogo';
-import { api } from '../lib/api';
+import { api, setStoredUser } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { useAuth, type UserRole } from '../contexts/AuthContext';
 import { SpecialtyCombobox, SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
@@ -397,12 +397,12 @@ export function RegisterPage() {
       }
 
       const { data } = await api.post('/auth/signup', payload);
-      const token = data?.token ?? data?.accessToken;
       const user = data?.user ?? data?.profile;
 
-      if (token && user) {
-        localStorage.setItem('medicano_token', token);
-        localStorage.setItem('medicano_user', JSON.stringify(user));
+      // A sessão já vem no cookie httpOnly setado pela API; só guardamos o
+      // usuário (dado não-sensível) para hidratar a UI após o redirect.
+      if (user) {
+        setStoredUser(user);
         window.location.href = ['patient'].includes(user.role) ? '/home' : '/dashboard';
         return;
       }

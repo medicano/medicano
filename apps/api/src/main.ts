@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -21,7 +22,16 @@ async function bootstrap(): Promise<void> {
 
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  app.enableCors();
+  app.use(cookieParser());
+
+  // credentials: true é obrigatório para o browser enviar/receber o cookie de
+  // sessão. Com credenciais o Allow-Origin não pode ser '*': refletimos a origem
+  // (ou a allowlist de CORS_ORIGIN, se definida no secret).
+  const corsOrigins = process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim()).filter(Boolean);
+  app.enableCors({
+    origin: corsOrigins && corsOrigins.length > 0 ? corsOrigins : true,
+    credentials: true,
+  });
 
   const port = process.env.PORT ?? 3000;
 

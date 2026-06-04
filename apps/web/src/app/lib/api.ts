@@ -1,25 +1,16 @@
 import axios from 'axios';
 
-export const TOKEN_KEY = 'medicano_token';
 export const USER_KEY = 'medicano_user';
 
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// withCredentials: o token vive num cookie httpOnly setado pela API; o browser
+// o reenvia automaticamente. O JS não lê nem escreve o token.
 export const api = axios.create({
   baseURL,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
-
-export function getToken(): string | null {
-  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
-}
-
-export function setToken(token: string | null) {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch { /* localStorage indisponível (ex.: modo privado) */ }
-}
 
 export function getStoredUser<T = unknown>(): T | null {
   try {
@@ -35,12 +26,6 @@ export function setStoredUser(user: unknown | null) {
   } catch { /* localStorage indisponível (ex.: modo privado) */ }
 }
 
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) config.headers.set('Authorization', `Bearer ${token}`);
-  return config;
-});
-
 let isRedirecting = false;
 api.interceptors.response.use(
   (res) => res,
@@ -48,7 +33,6 @@ api.interceptors.response.use(
     const status = error?.response?.status;
     if (status === 401 && !isRedirecting && typeof window !== 'undefined') {
       isRedirecting = true;
-      setToken(null);
       setStoredUser(null);
       if (window.location.pathname !== '/login') window.location.href = '/login';
       setTimeout(() => { isRedirecting = false; }, 1000);
@@ -72,10 +56,9 @@ export function streamChatMessage(
     try {
       const response = await fetch(`${baseURL}/chat/sessions/${sessionId}/messages`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
+        // Envia o cookie httpOnly de sessão na requisição de streaming.
+        credentials: 'include',
         body: JSON.stringify({ content: message }),
         signal: controller.signal,
       });
