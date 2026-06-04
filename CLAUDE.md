@@ -58,7 +58,8 @@ Cada secret é um JSON no formato:
   "MONGODB_URI": "mongodb://...",
   "REDIS_HOST": "...",
   "REDIS_PORT": "6379",
-  "JWT_SECRET": "..."
+  "JWT_SECRET": "...",
+  "ANTHROPIC_API_KEY": "sk-ant-..."
 }
 ```
 
