@@ -6,6 +6,7 @@ import { Appointment } from '../schemas/appointment.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
 import { Clinic } from '../../clinics/schemas/clinic.schema';
 import { User } from '../../auth/schemas/user.schema';
+import { Role } from '../../common/enums/role.enum';
 import { NotificationsService } from '../../notifications/notifications.service';
 
 const mockNotificationsService = {
@@ -42,6 +43,23 @@ const mockAppointmentModel = {
   constructor: jest.fn(),
 };
 
+const mockProfessionalModel = {
+  find: jest.fn(),
+  findOne: jest.fn().mockReturnValue(buildExecChain(null)),
+  findById: jest.fn().mockReturnValue(buildExecChain(null)),
+};
+
+const mockClinicModel = {
+  find: jest.fn(),
+  findOne: jest.fn().mockReturnValue(buildExecChain(null)),
+  findById: jest.fn().mockReturnValue(buildExecChain(null)),
+};
+
+const mockUserModel = {
+  find: jest.fn(),
+  findById: jest.fn().mockReturnValue(buildExecChain(null)),
+};
+
 describe('AppointmentsService', () => {
   let service: AppointmentsService;
 
@@ -57,15 +75,15 @@ describe('AppointmentsService', () => {
         },
         {
           provide: getModelToken(Professional.name),
-          useValue: { find: jest.fn(), findById: jest.fn().mockReturnValue(buildExecChain(null)) },
+          useValue: mockProfessionalModel,
         },
         {
           provide: getModelToken(Clinic.name),
-          useValue: { find: jest.fn(), findById: jest.fn().mockReturnValue(buildExecChain(null)) },
+          useValue: mockClinicModel,
         },
         {
           provide: getModelToken(User.name),
-          useValue: { findById: jest.fn().mockReturnValue(buildExecChain(null)) },
+          useValue: mockUserModel,
         },
         {
           provide: NotificationsService,
@@ -79,6 +97,73 @@ describe('AppointmentsService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('findAll — escopo de acesso por papel', () => {
+    beforeEach(() => {
+      mockAppointmentModel.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+    });
+
+    it('limita uma clínica aos agendamentos do próprio clinicId, ignorando o clinicId da query', async () => {
+      mockClinicModel.findOne.mockReturnValue(buildExecChain({ _id: 'clinic-own' }));
+
+      await service.findAll({ clinicId: 'clinic-alheia' } as any, {
+        userId: 'user-clinic',
+        role: Role.CLINIC,
+      });
+
+      expect(mockClinicModel.findOne).toHaveBeenCalledWith({ userId: 'user-clinic' });
+      expect(mockAppointmentModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ clinicId: 'clinic-own' }),
+      );
+    });
+
+    it('retorna filtro vazio (nenhum agendamento) quando a clínica do usuário não existe', async () => {
+      mockClinicModel.findOne.mockReturnValue(buildExecChain(null));
+
+      await service.findAll(undefined, { userId: 'user-sem-clinica', role: Role.CLINIC });
+
+      expect(mockAppointmentModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ clinicId: null }),
+      );
+    });
+
+    it('limita um paciente aos próprios agendamentos, ignorando patientId da query', async () => {
+      await service.findAll({ patientId: 'outro-paciente' } as any, {
+        userId: 'user-patient',
+        role: Role.PATIENT,
+      });
+
+      expect(mockAppointmentModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ patientId: 'user-patient' }),
+      );
+    });
+
+    it('limita um profissional ao próprio professionalId', async () => {
+      mockProfessionalModel.findOne.mockReturnValue(buildExecChain({ _id: 'prof-own' }));
+
+      await service.findAll(undefined, { userId: 'user-pro', role: Role.PROFESSIONAL });
+
+      expect(mockProfessionalModel.findOne).toHaveBeenCalledWith({ userId: 'user-pro' });
+      expect(mockAppointmentModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ professionalId: 'prof-own' }),
+      );
+    });
+
+    it('limita um atendente ao clinicId gravado no próprio usuário', async () => {
+      mockUserModel.findById.mockReturnValue(buildExecChain({ clinicId: 'clinic-do-atendente' }));
+
+      await service.findAll(undefined, { userId: 'user-attendant', role: Role.ATTENDANT });
+
+      expect(mockUserModel.findById).toHaveBeenCalledWith('user-attendant');
+      expect(mockAppointmentModel.find).toHaveBeenCalledWith(
+        expect.objectContaining({ clinicId: 'clinic-do-atendente' }),
+      );
+    });
   });
 
   describe('createAppointment', () => {

@@ -15,11 +15,17 @@ import {
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
 import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
+import { Role } from '../common/enums/role.enum';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { GetAppointmentsQueryDto } from './dto/get-appointments-query.dto';
 
 type CancelledBy = 'patient' | 'provider';
+
+interface AuthenticatedUser {
+  userId: string;
+  role: Role;
+}
 
 @Injectable()
 export class AppointmentsService {
@@ -44,7 +50,7 @@ export class AppointmentsService {
     return appointment;
   }
 
-  async findAll(query?: GetAppointmentsQueryDto): Promise<any[]> {
+  async findAll(query: GetAppointmentsQueryDto | undefined, user: AuthenticatedUser): Promise<any[]> {
     const filter: Record<string, unknown> = {};
     if (query?.clinicId) filter['clinicId'] = query.clinicId;
     if (query?.professionalId) filter['professionalId'] = query.professionalId;
@@ -56,6 +62,10 @@ export class AppointmentsService {
       filter['startAt'] = { $gte: todayMidnight };
       if (!query?.status) filter['status'] = { $in: ['scheduled', 'confirmed'] };
     }
+
+    // Escopo de acesso obrigatório: sobrescreve qualquer filtro de identidade da
+    // query para que cada papel só enxergue os agendamentos que lhe pertencem.
+    Object.assign(filter, await this.resolveAccessScope(user));
 
     const appointments = await this.appointmentModel.find(filter).sort({ startAt: 1 }).lean().exec();
     if (appointments.length === 0) return [];
@@ -87,6 +97,46 @@ export class AppointmentsService {
         clinicName: clinic?.name ?? '',
       };
     });
+  }
+
+  // Resolve o filtro de identidade que delimita o que cada papel pode listar.
+  // Um usuário clinic/professional é dono de um documento Clinic/Professional
+  // (vinculado por userId), e o agendamento referencia o _id desses documentos,
+  // não o userId. Atendentes herdam o clinicId gravado no próprio usuário.
+  private async resolveAccessScope(
+    user: AuthenticatedUser,
+  ): Promise<Record<string, unknown>> {
+    switch (user.role) {
+      case Role.PATIENT:
+        return { patientId: user.userId };
+      case Role.CLINIC: {
+        const clinic = await this.clinicModel
+          .findOne({ userId: user.userId })
+          .select('_id')
+          .lean()
+          .exec();
+        return { clinicId: clinic?._id ?? null };
+      }
+      case Role.PROFESSIONAL: {
+        const professional = await this.professionalModel
+          .findOne({ userId: user.userId })
+          .select('_id')
+          .lean()
+          .exec();
+        return { professionalId: professional?._id ?? null };
+      }
+      case Role.ATTENDANT: {
+        const attendant = await this.userModel
+          .findById(user.userId)
+          .select('clinicId')
+          .lean()
+          .exec();
+        return { clinicId: attendant?.clinicId ?? null };
+      }
+      default:
+        // Nenhum papel conhecido: filtro impossível, nunca retorna agendamentos.
+        return { _id: null };
+    }
   }
 
   async getAppointmentById(id: string): Promise<any> {

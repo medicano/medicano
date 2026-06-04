@@ -198,7 +198,7 @@ export function LandingPage() {
                   {/* Composition */}
                   <div className="relative z-10 flex flex-col items-center gap-6">
                     <div className="flex items-end gap-5">
-                      <div className="w-16 h-20 bg-white rounded-2xl shadow-lg shadow-[#03045E]/5 flex items-center justify-center border border-[#E2E8F0]/50 -rotate-6">
+                      <div className="w-16 h-20 bg-white rounded-2xl shadow-lg shadow-[#03045E]/5 flex items-center justify-center border border-[#E2E8F0]/50">
                         <Activity className="w-7 h-7 text-[#00B4D8]" strokeWidth={2} />
                       </div>
                       <div className="w-40 h-48 bg-white rounded-[2rem] shadow-xl shadow-[#03045E]/5 flex items-center justify-center rotate-3 border border-[#E2E8F0]/50 backdrop-blur-sm">

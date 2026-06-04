@@ -39,11 +39,10 @@ export class AppointmentsController {
 
   @Get()
   findAll(@Req() req: any, @Query() query: GetAppointmentsQueryDto) {
-    const resolvedQuery = { ...query };
-    if (req.user?.role === 'patient' && !resolvedQuery.patientId) {
-      resolvedQuery.patientId = req.user.userId;
-    }
-    return this.appointmentsService.findAll(resolvedQuery);
+    return this.appointmentsService.findAll(query, {
+      userId: req.user.userId,
+      role: req.user.role,
+    });
   }
 
   @Get(':id')
