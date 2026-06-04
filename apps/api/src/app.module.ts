@@ -16,6 +16,7 @@ import { SearchModule } from './search/search.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { RedisModule } from './redis/redis.module';
 import { PatientProfileModule } from './patient-profile/patient-profile.module';
+import { GeocodingModule } from './common/geocoding/geocoding.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { PatientProfileModule } from './patient-profile/patient-profile.module';
     NotificationsModule,
     RedisModule,
     PatientProfileModule,
+    GeocodingModule,
   ],
 })
 export class AppModule {}

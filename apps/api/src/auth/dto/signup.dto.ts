@@ -78,6 +78,13 @@ export class SignupDto {
   @ValidateIf((o) => o.role === Role.CLINIC)
   readonly cnpj?: string;
 
+  // Endereço da clínica — obrigatório no cadastro para que a clínica tenha
+  // coordenadas desde o início e apareça nas buscas por proximidade. Editável
+  // depois em "Dados da clínica".
+  @IsString()
+  @ValidateIf((o) => o.role === Role.CLINIC)
+  readonly addressText?: string;
+
   @IsString()
   @IsOptional()
   readonly regNum?: string;

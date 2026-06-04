@@ -243,6 +243,10 @@ function ClinicDataSection() {
       toast.error('O nome da clínica é obrigatório.');
       return;
     }
+    if (!addressText.trim()) {
+      toast.error('O endereço da clínica é obrigatório — ele posiciona a clínica nas buscas por proximidade.');
+      return;
+    }
     if (email && !/\S+@\S+\.\S+/.test(email)) {
       toast.error('Por favor, informe um e-mail válido.');
       return;

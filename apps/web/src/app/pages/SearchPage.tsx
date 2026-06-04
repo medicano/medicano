@@ -95,10 +95,11 @@ export function SearchPage() {
   const [specialty, setSpecialty] = useState(initialSpecialty);
   const [city, setCity] = useState('');
   const [type, setType] = useState<ResultType>('all');
+  const [radius, setRadius] = useState('');
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType });
+  const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType, radius: '' });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [, setLocating] = useState(false);
 
@@ -133,6 +134,8 @@ export function SearchPage() {
     if (userLocation) {
       params.userLat = String(userLocation.lat);
       params.userLng = String(userLocation.lng);
+      // O raio só faz sentido com localização — sem ela não há distância a medir.
+      if (submittedFilters.radius) params.radius = submittedFilters.radius;
     }
 
     api.get('/search', { params })
@@ -155,7 +158,7 @@ export function SearchPage() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmittedFilters({ query, specialty, city, type });
+    setSubmittedFilters({ query, specialty, city, type, radius });
   }
 
   return (
@@ -184,9 +187,26 @@ export function SearchPage() {
           </div>
 
           {userLocation && (
-            <p className="mb-3 flex items-center gap-1.5 text-xs text-[#00B4D8] font-medium">
-              <Navigation size={12} /> Usando sua localização — resultados ordenados por proximidade
-            </p>
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <p className="flex items-center gap-1.5 text-xs text-[#00B4D8] font-medium">
+                <Navigation size={12} /> Usando sua localização — resultados ordenados por proximidade
+              </p>
+              <label className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
+                Raio
+                <select
+                  value={radius}
+                  onChange={(e) => setRadius(e.target.value)}
+                  className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-[#0F172A] focus:outline-none focus:border-[#00B4D8]"
+                >
+                  <option value="">Qualquer distância</option>
+                  <option value="5">Até 5 km</option>
+                  <option value="10">Até 10 km</option>
+                  <option value="25">Até 25 km</option>
+                  <option value="50">Até 50 km</option>
+                  <option value="100">Até 100 km</option>
+                </select>
+              </label>
+            </div>
           )}
 
           <div className="grid md:grid-cols-[1fr_1fr_auto] gap-4 items-end">

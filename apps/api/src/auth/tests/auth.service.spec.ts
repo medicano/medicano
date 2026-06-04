@@ -44,6 +44,10 @@ describe('AuthService', () => {
     create: jest.fn(),
   };
 
+  const geocodingService = {
+    geocodeAddress: jest.fn().mockResolvedValue(null),
+  };
+
   const TOKEN_TTL = 7 * 24 * 3600;
 
   beforeEach(() => {
@@ -55,6 +59,7 @@ describe('AuthService', () => {
       patientModel as any,
       clinicModel as any,
       professionalModel as any,
+      geocodingService as any,
     );
   });
 
@@ -168,6 +173,30 @@ describe('AuthService', () => {
         await service.signup(clinicDto);
 
         expect(patientModel.create).not.toHaveBeenCalled();
+      });
+
+      it('geocodes the clinic address and stores lat/lng on signup', async () => {
+        usersService.createUser.mockResolvedValue({
+          _id: { toString: () => '507f191e810c19729de860ea' },
+          email: clinicDto.email,
+          role: Role.CLINIC,
+        });
+        clinicModel.create.mockResolvedValue({ _id: { toString: () => 'clinic-doc-id' } });
+        subscriptionsService.create.mockResolvedValue(undefined);
+        jwtService.sign.mockReturnValue('clinic.token');
+        redisService.saveToken.mockResolvedValue(undefined);
+        geocodingService.geocodeAddress.mockResolvedValue({ lat: -23.5, lng: -46.6 });
+
+        await service.signup({ ...clinicDto, addressText: 'Av. Paulista, 1000, São Paulo' });
+
+        expect(geocodingService.geocodeAddress).toHaveBeenCalledWith('Av. Paulista, 1000, São Paulo');
+        expect(clinicModel.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            addressText: 'Av. Paulista, 1000, São Paulo',
+            lat: -23.5,
+            lng: -46.6,
+          }),
+        );
       });
     });
   });

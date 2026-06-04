@@ -10,6 +10,7 @@ import { UpdateClinicProfileDto } from './dto/update-clinic-profile.dto';
 import { UpdateProfessionalProfileDto } from './dto/update-professional-profile.dto';
 import { UpdatePatientProfileDto } from '../patients/dto/update-patient-profile.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
+import { GeocodingService } from '../common/geocoding/geocoding.service';
 
 @Injectable()
 export class ProfileService {
@@ -23,6 +24,7 @@ export class ProfileService {
     @InjectModel('User')
     private readonly userModel: Model<UserDocument>,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly geocodingService: GeocodingService,
   ) {}
 
   async getMyProfile(
@@ -82,7 +84,7 @@ export class ProfileService {
   ): Promise<ClinicDocument> {
     const geoUpdate: { lat?: number; lng?: number } = {};
     if (updateDto.addressText) {
-      const coords = await this.geocodeAddress(updateDto.addressText);
+      const coords = await this.geocodingService.geocodeAddress(updateDto.addressText);
       if (coords) {
         geoUpdate.lat = coords.lat;
         geoUpdate.lng = coords.lng;
@@ -114,27 +116,6 @@ export class ProfileService {
     );
 
     return clinic;
-  }
-
-  private async geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
-    // Nominatim é um serviço externo: limitamos o tempo de espera para que uma
-    // resposta lenta não bloqueie o salvamento do perfil da clínica.
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&countrycodes=br`;
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'Medicano/1.0 (contato@medicano.app)' },
-        signal: controller.signal,
-      });
-      const data = await res.json() as any[];
-      if (!data[0]) return null;
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    } catch {
-      return null;
-    } finally {
-      clearTimeout(timeout);
-    }
   }
 
   async updateProfessionalProfile(

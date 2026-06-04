@@ -42,6 +42,14 @@ const mockSubscriptionModel = {
   }),
 };
 
+const mockClinicModel = {
+  find: jest.fn().mockReturnValue({
+    select: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue([]),
+  }),
+};
+
 // ---------------------------------------------------------------------------
 // Suite
 // ---------------------------------------------------------------------------
@@ -70,6 +78,12 @@ describe('SearchService', () => {
       exec: jest.fn().mockResolvedValue([]),
     });
 
+    mockClinicModel.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest.fn().mockResolvedValue([]),
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SearchService,
@@ -83,13 +97,7 @@ describe('SearchService', () => {
         },
         {
           provide: getModelToken(Clinic.name),
-          useValue: {
-            find: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnThis(),
-              lean: jest.fn().mockReturnThis(),
-              exec: jest.fn().mockResolvedValue([]),
-            }),
-          },
+          useValue: mockClinicModel,
         },
         {
           provide: getModelToken(Subscription.name),
@@ -329,6 +337,58 @@ describe('SearchService', () => {
       await service.search({ query: '', city: 'São Paulo' } as any);
 
       expect(mockProfessionalModel.find).toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Radius filter — clinics beyond the chosen radius must be dropped
+  // -------------------------------------------------------------------------
+  describe('radius filter (clinics)', () => {
+    const NEAR = { _id: C1, name: 'Perto', specialties: [], lat: -23.561, lng: -46.656 }; // ~São Paulo
+    const FAR = { _id: C2, name: 'Longe', specialties: [], lat: -22.9068, lng: -43.1729 }; // ~Rio (~360 km)
+    const userAt = { userLat: -23.55, userLng: -46.63 };
+
+    function setupClinics(docs: unknown[], activeIds: string[]) {
+      mockSubscriptionModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(activeIds.map((id) => ({ clinicId: id }))),
+      });
+      mockClinicModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue(docs),
+      });
+    }
+
+    it('drops clinics farther than the radius when location + radius are given', async () => {
+      setupClinics([NEAR, FAR], [C1, C2]);
+
+      const result = await service.search({ type: 'clinic', ...userAt, radius: 50 } as any);
+
+      const names = result.clinics.map((c) => c.name);
+      expect(names).toContain('Perto');
+      expect(names).not.toContain('Longe');
+    });
+
+    it('keeps all clinics when no radius is given (only sorts by distance)', async () => {
+      setupClinics([NEAR, FAR], [C1, C2]);
+
+      const result = await service.search({ type: 'clinic', ...userAt } as any);
+
+      const names = result.clinics.map((c) => c.name);
+      expect(names).toEqual(['Perto', 'Longe']);
+    });
+
+    it('drops clinics without coordinates when a radius is given', async () => {
+      const noCoords = { _id: C2, name: 'SemCoords', specialties: [] };
+      setupClinics([NEAR, noCoords], [C1, C2]);
+
+      const result = await service.search({ type: 'clinic', ...userAt, radius: 50 } as any);
+
+      const names = result.clinics.map((c) => c.name);
+      expect(names).toContain('Perto');
+      expect(names).not.toContain('SemCoords');
     });
   });
 });

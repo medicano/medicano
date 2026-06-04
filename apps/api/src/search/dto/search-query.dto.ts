@@ -46,4 +46,13 @@ export class SearchQueryDto {
   @IsNumber()
   @IsOptional()
   userLng?: number;
+
+  // Raio máximo de busca em km. Só é aplicado quando a localização do usuário
+  // (userLat/userLng) está presente; sem ela não há como medir distância.
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(500)
+  @IsOptional()
+  radius?: number;
 }

@@ -19,6 +19,7 @@ import { LoginStandardDto } from './dto/login-standard.dto';
 import { SignupDto } from './dto/signup.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { SubscriptionPlan } from '../subscriptions/constants/subscription.constants';
+import { GeocodingService } from '../common/geocoding/geocoding.service';
 
 const TOKEN_TTL = 7 * 24 * 3600;
 const STANDARD_ROLES = [Role.PATIENT, Role.CLINIC, Role.PROFESSIONAL];
@@ -48,6 +49,7 @@ export class AuthService {
     @InjectModel(Patient.name) private readonly patientModel: Model<PatientDocument>,
     @InjectModel(Clinic.name) private readonly clinicModel: Model<ClinicDocument>,
     @InjectModel(Professional.name) private readonly professionalModel: Model<ProfessionalDocument>,
+    private readonly geocodingService: GeocodingService,
   ) {}
 
   async signup(dto: SignupDto): Promise<AuthResponse> {
@@ -63,6 +65,13 @@ export class AuthService {
       if (dto.role === Role.PATIENT) {
         await this.createPatientDocument(userId, dto);
       } else if (dto.role === Role.CLINIC) {
+        // Geocodifica o endereço no cadastro para que a clínica já apareça nas
+        // buscas por proximidade. Se o Nominatim falhar, salva o endereço sem
+        // coordenadas; a clínica pode reabastecê-las salvando em "Dados da clínica".
+        const coords = dto.addressText
+          ? await this.geocodingService.geocodeAddress(dto.addressText)
+          : null;
+
         const clinic = await this.clinicModel.create({
           // Store as ObjectId so profile lookups by userId match (the @Prop
           // ObjectId type does not cast a raw string here).
@@ -71,6 +80,9 @@ export class AuthService {
           cnpj: dto.cnpj?.replace(/\D/g, ''),
           // Seed the contact email with the signup email; editable later.
           email: dto.email,
+          addressText: dto.addressText,
+          city: dto.city,
+          ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
         });
         createdClinicId = clinic._id;
         await this.subscriptionsService.create({ clinicId: clinic._id.toString(), plan: SubscriptionPlan.FREE });

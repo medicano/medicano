@@ -98,7 +98,9 @@ export class SearchService {
 
     const docs = await this.clinicModel.find(filter).select('+lat +lng').lean().exec();
 
-    const results = docs.map((c) => {
+    const hasLocation = query.userLat != null && query.userLng != null;
+
+    let results = docs.map((c) => {
       const result: ClinicResult = {
         id: (c._id as Types.ObjectId).toString(),
         name: c.name,
@@ -106,13 +108,20 @@ export class SearchService {
         city: (c as any).city ?? (c.address as any)?.city ?? '',
         phone: c.phone ?? '',
       };
-      if (query.userLat != null && query.userLng != null && (c as any).lat && (c as any).lng) {
-        result.distance = Math.round(haversineKm(query.userLat, query.userLng, (c as any).lat, (c as any).lng) * 10) / 10;
+      if (hasLocation && (c as any).lat && (c as any).lng) {
+        result.distance = Math.round(haversineKm(query.userLat!, query.userLng!, (c as any).lat, (c as any).lng) * 10) / 10;
       }
       return result;
     });
 
-    if (query.userLat != null) {
+    // Corte por raio: com localização e raio definidos, descarta o que está além
+    // do limite — inclusive clínicas sem coordenadas, pois não dá para garantir
+    // que estejam dentro do raio.
+    if (hasLocation && query.radius != null) {
+      results = results.filter((r) => r.distance != null && r.distance <= query.radius!);
+    }
+
+    if (hasLocation) {
       results.sort((a, b) => {
         if (a.distance == null) return 1;
         if (b.distance == null) return -1;
@@ -175,7 +184,9 @@ export class SearchService {
       }
     });
 
-    const results = filtered.map((p) => {
+    const hasLocation = query.userLat != null && query.userLng != null;
+
+    let results = filtered.map((p) => {
       const profId = (p._id as Types.ObjectId).toString();
       const clinicId = profToClinicId.get(profId) ?? '';
       const result: ProfessionalResult = {
@@ -186,16 +197,22 @@ export class SearchService {
         clinicId,
         clinicName: clinicNameMap.get(clinicId) ?? '',
       };
-      if (query.userLat != null && query.userLng != null) {
+      if (hasLocation) {
         const coords = clinicCoordMap.get(clinicId);
         if (coords) {
-          result.distance = Math.round(haversineKm(query.userLat, query.userLng, coords.lat, coords.lng) * 10) / 10;
+          result.distance = Math.round(haversineKm(query.userLat!, query.userLng!, coords.lat, coords.lng) * 10) / 10;
         }
       }
       return result;
     });
 
-    if (query.userLat != null) {
+    // Mesmo corte por raio das clínicas: a distância do profissional vem da
+    // clínica vinculada, então sem coordenadas ele fica fora do raio.
+    if (hasLocation && query.radius != null) {
+      results = results.filter((r) => r.distance != null && r.distance <= query.radius!);
+    }
+
+    if (hasLocation) {
       results.sort((a, b) => {
         if (a.distance == null) return 1;
         if (b.distance == null) return -1;

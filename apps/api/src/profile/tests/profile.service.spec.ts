@@ -8,6 +8,7 @@ import { Professional } from '../../professionals/schemas/professional.schema';
 import { Patient } from '../../patients/schemas/patient.schema';
 import { User } from '../../auth/schemas/user.schema';
 import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
+import { GeocodingService } from '../../common/geocoding/geocoding.service';
 import { Specialty } from '../../common/enums/specialty.enum';
 import { Address } from '../../common/schemas/address.schema';
 
@@ -99,6 +100,10 @@ describe('ProfileService', () => {
         {
           provide: SubscriptionsService,
           useValue: { ensureForClinic: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: GeocodingService,
+          useValue: { geocodeAddress: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();

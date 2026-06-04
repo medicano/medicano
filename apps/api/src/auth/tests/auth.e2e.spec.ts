@@ -4,6 +4,7 @@ import request from 'supertest';
 import { AppModule } from '../../app.module';
 import { Role } from '../../common/enums/role.enum';
 import { loadAwsSecrets } from '../../common/config/aws-secrets.loader';
+import { GeocodingService } from '../../common/geocoding/geocoding.service';
 
 const uniqueEmail = (): string =>
   `patient-${Date.now()}-${Math.floor(Math.random() * 1_000_000)}@example.com`;
@@ -29,7 +30,11 @@ describe('Auth (e2e)', () => {
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // Evita chamada de rede ao Nominatim durante os testes; coordenadas fixas.
+      .overrideProvider(GeocodingService)
+      .useValue({ geocodeAddress: jest.fn().mockResolvedValue({ lat: -23.55, lng: -46.63 }) })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.useGlobalPipes(
@@ -140,6 +145,7 @@ describe('Auth (e2e)', () => {
         email: uniqueEmail(),
         password: 'StrongPassword123!',
         cnpj,
+        addressText: 'Av. Paulista, 1000, São Paulo, SP',
       });
 
       await request(app.getHttpServer())
