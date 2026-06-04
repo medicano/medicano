@@ -131,6 +131,29 @@ describe('Auth (e2e)', () => {
         })
         .expect(400);
     });
+
+    it('should return 409 (not 500) when a clinic signs up with a duplicate CNPJ', async () => {
+      const cnpj = String(Math.floor(Math.random() * 1e14)).padStart(14, '0');
+      const clinicPayload = (): Record<string, unknown> => ({
+        role: Role.CLINIC,
+        name: 'Clínica Tester',
+        email: uniqueEmail(),
+        password: 'StrongPassword123!',
+        cnpj,
+      });
+
+      await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send(clinicPayload())
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/signup')
+        .send(clinicPayload())
+        .expect(409);
+
+      expect(String(response.body.message).toLowerCase()).toContain('cnpj');
+    });
   });
 
   describe('POST /auth/login', () => {

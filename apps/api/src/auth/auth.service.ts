@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -89,6 +90,19 @@ export class AuthService {
         await this.clinicModel.deleteOne({ _id: createdClinicId }).exec().catch(() => undefined);
       }
       await this.usersService.deleteById(userId).catch(() => undefined);
+
+      // A unique-index collision (e.g. CNPJ já cadastrado) chega aqui como um
+      // MongoServerError cru; sem tradução vira 500. Devolve um 409 com mensagem
+      // que o frontend consegue mapear ao campo correto.
+      if ((error as { code?: number }).code === 11000) {
+        const duplicatedKey = Object.keys(
+          (error as { keyPattern?: Record<string, unknown> }).keyPattern ?? {},
+        )[0];
+        if (duplicatedKey === 'cnpj') {
+          throw new ConflictException('CNPJ já cadastrado');
+        }
+        throw new ConflictException('Estabelecimento já cadastrado');
+      }
       throw error;
     }
 
