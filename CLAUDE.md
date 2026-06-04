@@ -9,7 +9,7 @@ Este documento é a fonte de verdade para qualquer agente de IA (Claude Code, Cr
 ## Estrutura do Monorepo
 
 ```
-medicano-project/
+medicano/
 ├── apps/
 │   ├── api/                  # Backend NestJS
 │   └── web/                  # Frontend React (Vite)

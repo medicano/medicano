@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "description": "Medicano project frontend and backend",
   "private": true,
-  "homepage": "https://github.com/medicano/medicano-project#readme",
+  "homepage": "https://github.com/medicano/medicano#readme",
   "bugs": {
-    "url": "https://github.com/medicano/medicano-project/issues"
+    "url": "https://github.com/medicano/medicano/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/medicano/medicano-project.git"
+    "url": "git+https://github.com/medicano/medicano.git"
   },
   "license": "MIT",
   "author": "Medicano Development Group",

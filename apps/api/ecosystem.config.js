@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'medicano-api',
       script: 'dist/main.js',
-      cwd: '/home/ubuntu/medicano-project/apps/api',
+      cwd: '/home/ubuntu/medicano/apps/api',
       instances: 1,
       exec_mode: 'fork',
       max_memory_restart: '400M',
@@ -18,7 +18,7 @@ module.exports = {
     {
       name: 'medicano-api-staging',
       script: 'dist/main.js',
-      cwd: '/home/ubuntu/medicano-project/apps/api',
+      cwd: '/home/ubuntu/medicano/apps/api',
       instances: 1,
       exec_mode: 'fork',
       max_memory_restart: '400M',

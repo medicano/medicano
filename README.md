@@ -5,7 +5,7 @@ Plataforma de gestão de clínicas e agendamentos médicos.
 ## Estrutura do monorepo
 
 ```
-medicano-project/
+medicano/
 ├── apps/
 │   ├── api/          # Backend NestJS (TypeScript + MongoDB + Redis)
 │   └── web/          # Frontend React

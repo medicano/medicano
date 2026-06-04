@@ -63,7 +63,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            cd ~/medicano-project
+            cd ~/medicano
             git fetch origin main
             git reset --hard origin/main
             npm ci

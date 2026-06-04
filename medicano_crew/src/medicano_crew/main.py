@@ -21,7 +21,7 @@ def _strip_outer_codeblock(text: str) -> str:
 
 # medicano_crew/ (3 parents up from src/medicano_crew/main.py)
 CREW_DIR = Path(__file__).parent.parent.parent
-# medicano-project/ — git root where Aider should run
+# medicano/ — git root where Aider should run
 PROJECT_ROOT = CREW_DIR.parent
 
 _SCAN_DIRS = ["apps/api/src", "apps/web/src", "packages"]
