@@ -95,11 +95,11 @@ export function SearchPage() {
   const [specialty, setSpecialty] = useState(initialSpecialty);
   const [city, setCity] = useState('');
   const [type, setType] = useState<ResultType>('all');
-  const [radius, setRadius] = useState('');
+  const [radius, setRadius] = useState('10');
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType, radius: '' });
+  const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType, radius: '10' });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [, setLocating] = useState(false);
 
@@ -198,12 +198,11 @@ export function SearchPage() {
                   onChange={(e) => setRadius(e.target.value)}
                   className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-[#0F172A] focus:outline-none focus:border-[#00B4D8]"
                 >
-                  <option value="">Qualquer distância</option>
-                  <option value="5">Até 5 km</option>
                   <option value="10">Até 10 km</option>
                   <option value="25">Até 25 km</option>
                   <option value="50">Até 50 km</option>
                   <option value="100">Até 100 km</option>
+                  <option value="">Qualquer distância</option>
                 </select>
               </label>
             </div>
