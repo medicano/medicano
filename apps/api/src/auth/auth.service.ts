@@ -20,6 +20,7 @@ import { SignupDto } from './dto/signup.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { SubscriptionPlan } from '../subscriptions/constants/subscription.constants';
 import { GeocodingService } from '../common/geocoding/geocoding.service';
+import { composeAddressText } from '../common/utils/address-form.util';
 
 const TOKEN_TTL = 7 * 24 * 3600;
 const STANDARD_ROLES = [Role.PATIENT, Role.CLINIC, Role.PROFESSIONAL];
@@ -65,11 +66,16 @@ export class AuthService {
       if (dto.role === Role.PATIENT) {
         await this.createPatientDocument(userId, dto);
       } else if (dto.role === Role.CLINIC) {
+        // Endereço estruturado (addressForm) é a fonte; deriva o texto p/ geocoding.
+        const addressText = dto.addressForm ? composeAddressText(dto.addressForm) : dto.addressText;
+        const city = dto.addressForm?.city ?? dto.city;
+        const addressReference = dto.addressForm?.reference ?? dto.addressReference;
+
         // Geocodifica o endereço no cadastro para que a clínica já apareça nas
         // buscas por proximidade. Se o Nominatim falhar, salva o endereço sem
         // coordenadas; a clínica pode reabastecê-las salvando em "Dados da clínica".
-        const coords = dto.addressText
-          ? await this.geocodingService.geocodeAddress(dto.addressText)
+        const coords = addressText
+          ? await this.geocodingService.geocodeAddress(addressText)
           : null;
 
         const clinic = await this.clinicModel.create({
@@ -80,9 +86,10 @@ export class AuthService {
           cnpj: dto.cnpj?.replace(/\D/g, ''),
           // Seed the contact email with the signup email; editable later.
           email: dto.email,
-          addressText: dto.addressText,
-          addressReference: dto.addressReference,
-          city: dto.city,
+          addressText,
+          addressReference,
+          addressForm: dto.addressForm,
+          city,
           ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
         });
         createdClinicId = clinic._id;
@@ -96,6 +103,7 @@ export class AuthService {
           cpf: dto.cpf,
           // Seed the contact email with the signup email; editable later.
           email: dto.email,
+          addressForm: dto.addressForm,
         });
       }
     } catch (error) {

@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AddressDto } from '../../common/dto/address.dto';
+import { AddressFormDto } from '../../common/dto/address-form.dto';
 import { Specialty } from '../../common/enums/specialty.enum';
 
 export class UpdateClinicProfileDto {
@@ -72,6 +73,11 @@ export class UpdateClinicProfileDto {
   @Type(() => AddressDto)
   @IsOptional()
   address?: AddressDto;
+
+  @ValidateNested()
+  @Type(() => AddressFormDto)
+  @IsOptional()
+  addressForm?: AddressFormDto;
 
   @IsArray()
   @IsEnum(Specialty, { each: true })

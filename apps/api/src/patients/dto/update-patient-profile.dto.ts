@@ -3,10 +3,13 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
 import { Sex } from '../../common/enums/sex.enum';
+import { AddressFormDto } from '../../common/dto/address-form.dto';
 
 export class UpdatePatientProfileDto {
   @IsString()
@@ -44,4 +47,9 @@ export class UpdatePatientProfileDto {
   @IsString()
   @IsOptional()
   state?: string;
+
+  @ValidateNested()
+  @Type(() => AddressFormDto)
+  @IsOptional()
+  addressForm?: AddressFormDto;
 }

@@ -27,6 +27,20 @@ export const EMPTY_ADDRESS: AddressValue = {
   reference: '',
 };
 
+// Hidrata um AddressValue a partir do addressForm salvo (mesmos nomes de campo).
+export function toAddressValue(saved?: Partial<AddressValue> | null): AddressValue {
+  return {
+    cep: saved?.cep ?? '',
+    street: saved?.street ?? '',
+    number: saved?.number ?? '',
+    complement: saved?.complement ?? '',
+    neighborhood: saved?.neighborhood ?? '',
+    city: saved?.city ?? '',
+    state: saved?.state ?? '',
+    reference: saved?.reference ?? '',
+  };
+}
+
 export function cepMask(value: string): string {
   return value
     .replace(/\D/g, '')

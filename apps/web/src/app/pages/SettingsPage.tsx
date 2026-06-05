@@ -28,7 +28,7 @@ import { Page } from '@/app/components/ui/Page';
 import { Section } from '@/app/components/ui/Section';
 import { Spinner } from '@/app/components/ui/Spinner';
 import { TextField } from '@/app/components/ui/TextField';
-import { AddressAutocomplete } from '@/app/components/ui/AddressAutocomplete';
+import { CepAddressFields, toAddressValue, type AddressValue } from '@/app/components/ui/CepAddressFields';
 import { useAsyncAction } from '@/app/lib/hooks';
 import { api, phoneMask } from '@/app/lib/utils';
 import { SPECIALTY_LABELS } from '@/app/utils/specialtyLabels';
@@ -43,6 +43,7 @@ interface ClinicProfile {
   hours?: string;
   addressText?: string;
   city?: string;
+  addressForm?: AddressValue;
   customCode?: string;
   allowConsecutiveAttendants?: boolean;
   notifyEmail?: boolean;
@@ -59,6 +60,7 @@ interface ProfessionalProfile {
   specialty?: string;
   cpf?: string;
   autoConfirm?: boolean;
+  addressForm?: AddressValue;
 }
 
 interface PatientProfile {
@@ -71,6 +73,7 @@ interface PatientProfile {
   cep?: string;
   city?: string;
   state?: string;
+  addressForm?: AddressValue;
 }
 
 // Sexo biológico e gênero — relevantes para diagnóstico; ambos opcionais.
@@ -85,11 +88,6 @@ const GENDER_OPTIONS = [
   { value: 'FEMALE', label: 'Feminino' },
   { value: 'OTHER', label: 'Outros' },
 ];
-
-function formatCep(v: string): string {
-  const d = v.replace(/\D/g, '').slice(0, 8);
-  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
-}
 
 function Toggle({
   title,
@@ -219,8 +217,7 @@ function ClinicDataSection() {
   const [phone, setPhone] = useState(data.phone ? phoneMask(data.phone) : '');
   const [cnpj, setCnpj] = useState(data.cnpj ? formatCnpj(data.cnpj) : '');
   const [website, setWebsite] = useState(data.website ?? '');
-  const [addressText, setAddressText] = useState(data.addressText ?? '');
-  const [city, setCity] = useState(data.city ?? '');
+  const [addr, setAddr] = useState<AddressValue>(toAddressValue(data.addressForm));
   const [hours, setHours] = useState(data.hours ?? '');
 
   useEffect(() => {
@@ -229,8 +226,7 @@ function ClinicDataSection() {
     setPhone(data.phone ? phoneMask(data.phone) : '');
     setCnpj(data.cnpj ? formatCnpj(data.cnpj) : '');
     setWebsite(data.website ?? '');
-    setAddressText(data.addressText ?? '');
-    setCity(data.city ?? '');
+    setAddr(toAddressValue(data.addressForm));
     setHours(data.hours ?? '');
   }, [data]);
 
@@ -243,8 +239,8 @@ function ClinicDataSection() {
       toast.error('O nome da clínica é obrigatório.');
       return;
     }
-    if (!addressText.trim()) {
-      toast.error('O endereço da clínica é obrigatório — ele posiciona a clínica nas buscas por proximidade.');
+    if (addr.cep.replace(/\D/g, '').length !== 8 || !addr.street || !addr.number.trim()) {
+      toast.error('Informe o endereço completo (CEP e número) — ele posiciona a clínica nas buscas por proximidade.');
       return;
     }
     if (email && !/\S+@\S+\.\S+/.test(email)) {
@@ -263,8 +259,7 @@ function ClinicDataSection() {
           phone: rawPhone || undefined,
           cnpj: rawCnpj || undefined,
           website: website || undefined,
-          addressText: addressText || undefined,
-          city: city || undefined,
+          addressForm: addr,
           hours: hours || undefined,
         })
         .then(() => {
@@ -318,12 +313,7 @@ function ClinicDataSection() {
             placeholder="clinica.com.br"
           />
         </div>
-        <AddressAutocomplete
-          value={addressText}
-          onChange={setAddressText}
-          onSelect={(s) => setCity(s.city)}
-          placeholder="Av. Exemplo, 123 – Cidade, UF"
-        />
+        <CepAddressFields value={addr} onChange={setAddr} />
         <TextField
           label="Horário de funcionamento"
           icon={Clock}
@@ -604,6 +594,16 @@ function ProfessionalDataSection() {
   const [phone, setPhone] = useState(data.phone ?? '');
   const [bio, setBio] = useState(data.bio ?? '');
   const [specialty, setSpecialty] = useState(data.specialty ?? '');
+  const [addr, setAddr] = useState<AddressValue>(toAddressValue(data.addressForm));
+
+  useEffect(() => {
+    setName(data.name ?? '');
+    setEmail(data.email ?? '');
+    setPhone(data.phone ?? '');
+    setBio(data.bio ?? '');
+    setSpecialty(data.specialty ?? '');
+    setAddr(toAddressValue(data.addressForm));
+  }, [data]);
 
   function handleSave() {
     if (!name.trim()) {
@@ -618,6 +618,7 @@ function ProfessionalDataSection() {
           phone: phone.replace(/\D/g, '') || undefined,
           bio: bio || undefined,
           specialty: specialty || undefined,
+          addressForm: addr,
         })
         .then(() => {
           toast.success('Dados atualizados!');
@@ -678,6 +679,9 @@ function ProfessionalDataSection() {
           className="md:col-span-2"
         />
       </div>
+      <div className="mt-4">
+        <CepAddressFields value={addr} onChange={setAddr} />
+      </div>
       <div className="mt-6 flex justify-end">
         <Button onClick={handleSave} loading={isMutating}>
           Salvar alterações
@@ -735,31 +739,13 @@ function PatientProfileSection() {
 
   const [name, setName] = useState(data.name ?? '');
   const [phone, setPhone] = useState(data.phone ?? '');
-  const [cep, setCep] = useState(data.cep ? formatCep(data.cep) : '');
-  const [city, setCity] = useState(data.city ?? '');
-  const [state, setState] = useState(data.state ?? '');
-  const [cepLoading, setCepLoading] = useState(false);
+  const [addr, setAddr] = useState<AddressValue>(toAddressValue(data.addressForm));
 
-  // Ao completar 8 dígitos, busca cidade/estado pelo CEP (ViaCEP).
-  async function handleCepChange(v: string) {
-    const masked = formatCep(v);
-    setCep(masked);
-    const digits = masked.replace(/\D/g, '');
-    if (digits.length !== 8) return;
-    setCepLoading(true);
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      const via = await res.json();
-      if (!via.erro) {
-        if (via.localidade) setCity(via.localidade);
-        if (via.uf) setState(via.uf);
-      }
-    } catch {
-      /* lookup de CEP é best-effort; ignora falha de rede */
-    } finally {
-      setCepLoading(false);
-    }
-  }
+  useEffect(() => {
+    setName(data.name ?? '');
+    setPhone(data.phone ?? '');
+    setAddr(toAddressValue(data.addressForm));
+  }, [data]);
 
   function handleSave() {
     if (!name.trim()) {
@@ -771,9 +757,7 @@ function PatientProfileSection() {
         .put('/profile/me/patient', {
           name,
           phone: phone.replace(/\D/g, '') || undefined,
-          cep: cep.replace(/\D/g, '') || undefined,
-          city: city || undefined,
-          state: state || undefined,
+          addressForm: addr,
         })
         .then(() => {
           toast.success('Perfil atualizado!');
@@ -805,27 +789,9 @@ function PatientProfileSection() {
           onChange={(v) => setPhone(phoneMask(v))}
           placeholder="(11) 99999-9999"
         />
-        <TextField
-          label={cepLoading ? 'CEP (buscando…)' : 'CEP'}
-          icon={MapPin}
-          value={cep}
-          onChange={handleCepChange}
-          placeholder="00000-000"
-        />
-        <TextField
-          label="Cidade"
-          icon={MapPin}
-          value={city}
-          onChange={setCity}
-          placeholder="São Paulo"
-        />
-        <TextField
-          label="Estado"
-          icon={MapPin}
-          value={state}
-          onChange={setState}
-          placeholder="SP"
-        />
+      </div>
+      <div className="mt-4">
+        <CepAddressFields value={addr} onChange={setAddr} />
       </div>
       <div className="mt-6 flex justify-end">
         <Button onClick={handleSave} loading={isMutating}>

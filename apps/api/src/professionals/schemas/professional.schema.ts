@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { Address, AddressSchema } from '../../common/schemas/address.schema';
+import { AddressForm, AddressFormSchema } from '../../common/schemas/address-form.schema';
 import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
 
@@ -37,6 +38,10 @@ export class Professional {
 
   @Prop({ type: AddressSchema })
   address?: Address;
+
+  // Endereço estruturado do formulário (CEP) — fonte de reidratação no Settings.
+  @Prop({ type: AddressFormSchema })
+  addressForm?: AddressForm;
 
   @Prop({ type: [WeeklySlotSchema], default: [] })
   weeklySlots: WeeklySlot[];

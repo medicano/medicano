@@ -3,14 +3,14 @@ import { Link, useNavigate } from 'react-router';
 import {
   ArrowLeft, ArrowRight, User, Building2, Stethoscope, Headset,
   Mail, Lock, Eye, EyeOff, Hash, ShieldCheck, Info, AlertCircle,
-  MapPin, FileText, BadgeCheck, Check, Sparkles, Phone
+  FileText, BadgeCheck, Check, Sparkles, Phone
 } from 'lucide-react';
 import { MedicanoLogo } from '../components/MedicanoLogo';
 import { api, setStoredUser } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 import { useAuth, type UserRole } from '../contexts/AuthContext';
 import { SpecialtyCombobox, SPECIALTY_LABEL_TO_ENUM } from '../components/SpecialtyCombobox';
-import { CepAddressFields, EMPTY_ADDRESS, composeAddressText, type AddressValue } from '../components/ui/CepAddressFields';
+import { CepAddressFields, EMPTY_ADDRESS, type AddressValue } from '../components/ui/CepAddressFields';
 
 type AccountType = 'PATIENT' | 'CLINIC' | 'PROFESSIONAL' | 'ATTENDANT';
 type Step = 1 | 2 | 3;
@@ -284,7 +284,7 @@ export function RegisterPage() {
   const [cpf, setCpf] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [regNum, setRegNum] = useState('');
-  const [city, setCity] = useState('');
+  const [proAddr, setProAddr] = useState<AddressValue>(EMPTY_ADDRESS);
 
   // Attendant fields
   const [clinicCode, setClinicCode] = useState('');
@@ -342,11 +342,12 @@ export function RegisterPage() {
       else if (cpf.replace(/\D/g, '').length < 11) e.cpf = 'CPF inválido';
       if (!specialty) e.specialty = 'Selecione uma especialidade';
       if (!regNum.trim()) e.regNum = 'Registro profissional é obrigatório';
-      if (!city.trim()) e.city = 'Cidade é obrigatória';
       if (!email.trim()) e.email = 'E-mail é obrigatório';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) e.email = 'E-mail inválido';
       if (!pwd) e.pwd = 'Senha é obrigatória';
       else if (pwd.length < 8) e.pwd = 'Senha deve ter pelo menos 8 caracteres';
+      if (proAddr.cep.replace(/\D/g, '').length !== 8 || !proAddr.street) e.proCep = 'Informe um CEP válido para preencher o endereço';
+      if (!proAddr.number.trim()) e.proNumber = 'Número é obrigatório';
       if (!confirm) e.confirm = 'Confirme a senha';
       else if (pwd !== confirm) e.confirm = 'As senhas não conferem';
     }
@@ -389,9 +390,9 @@ export function RegisterPage() {
       if (account === 'PATIENT') {
         Object.assign(payload, { name, email, password: pwd, phone: phone.replace(/\D/g, '') });
       } else if (account === 'CLINIC') {
-        Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, ''), addressText: composeAddressText(clinicAddr), city: clinicAddr.city || undefined, addressReference: clinicAddr.reference || undefined });
+        Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, ''), addressForm: clinicAddr });
       } else if (account === 'PROFESSIONAL') {
-        Object.assign(payload, { name, email, password: pwd, cpf, specialty: SPECIALTY_LABEL_TO_ENUM[specialty] || specialty, regNum, city });
+        Object.assign(payload, { name, email, password: pwd, cpf, specialty: SPECIALTY_LABEL_TO_ENUM[specialty] || specialty, regNum, addressForm: proAddr });
       } else if (account === 'ATTENDANT') {
         Object.assign(payload, { clinicId: clinicCode, username, password: pwd });
       }
@@ -584,14 +585,14 @@ export function RegisterPage() {
                         onChange={(v) => setCnpj(cnpjMask(v))}
                         placeholder="00.000.000/0000-00" error={errors.cnpj}
                       />
+                      <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="contato@clinica.com.br" error={errors.email} />
+                      <PasswordField label="Senha" value={pwd} onChange={setPwd} error={errors.pwd} showStrength />
+                      <PasswordField label="Confirmar senha" value={confirm} onChange={setConfirm} error={errors.confirm} />
                       <CepAddressFields
                         value={clinicAddr}
                         onChange={setClinicAddr}
                         errors={{ cep: errors.clinicCep, number: errors.clinicNumber }}
                       />
-                      <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="contato@clinica.com.br" error={errors.email} />
-                      <PasswordField label="Senha" value={pwd} onChange={setPwd} error={errors.pwd} showStrength />
-                      <PasswordField label="Confirmar senha" value={confirm} onChange={setConfirm} error={errors.confirm} />
                     </>
                   )}
 
@@ -614,10 +615,14 @@ export function RegisterPage() {
                         />
                         <Field icon={BadgeCheck} label="Registro profissional" value={regNum} onChange={setRegNum} placeholder="Ex.: CRM, CRN, CRP, COREN, CRO…" error={errors.regNum} />
                       </div>
-                      <Field icon={MapPin} label="Cidade de atendimento" value={city} onChange={setCity} placeholder="São Paulo, SP" error={errors.city} />
                       <Field icon={Mail} label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com.br" error={errors.email} />
                       <PasswordField label="Senha" value={pwd} onChange={setPwd} error={errors.pwd} showStrength />
                       <PasswordField label="Confirmar senha" value={confirm} onChange={setConfirm} error={errors.confirm} />
+                      <CepAddressFields
+                        value={proAddr}
+                        onChange={setProAddr}
+                        errors={{ cep: errors.proCep, number: errors.proNumber }}
+                      />
                     </>
                   )}
 

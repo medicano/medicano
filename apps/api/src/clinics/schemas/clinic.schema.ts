@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
+import { AddressForm, AddressFormSchema } from '../../common/schemas/address-form.schema';
 
 export type ClinicDocument = Clinic & Document;
 
@@ -52,6 +53,11 @@ export class Clinic {
   // do addressText para não interferir no geocoding.
   @Prop({ type: String })
   addressReference?: string;
+
+  // Endereço estruturado (CEP, número, etc.) — fonte para reidratar o formulário
+  // no Settings. addressText/city/lat/lng continuam derivados daqui.
+  @Prop({ type: AddressFormSchema })
+  addressForm?: AddressForm;
 
   @Prop({ type: Number })
   lat?: number;

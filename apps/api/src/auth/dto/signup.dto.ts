@@ -9,11 +9,14 @@ import {
   Matches,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
 import { Role } from '../../common/enums/role.enum';
+import { AddressFormDto } from '../../common/dto/address-form.dto';
 
 export class SignupDto {
   @IsEnum(Role)
@@ -78,14 +81,19 @@ export class SignupDto {
   @ValidateIf((o) => o.role === Role.CLINIC)
   readonly cnpj?: string;
 
-  // Endereço da clínica — obrigatório no cadastro para que a clínica tenha
-  // coordenadas desde o início e apareça nas buscas por proximidade. Editável
-  // depois em "Dados da clínica".
+  // Endereço estruturado (CEP, número, etc.) preenchido no cadastro de clínica
+  // e profissional. O backend deriva addressText/city/coordenadas a partir dele.
+  @ValidateNested()
+  @Type(() => AddressFormDto)
+  @IsOptional()
+  readonly addressForm?: AddressFormDto;
+
+  // Compatibilidade: texto de endereço e referência (derivados de addressForm no
+  // front, mas ainda aceitos avulsos).
   @IsString()
-  @ValidateIf((o) => o.role === Role.CLINIC)
+  @IsOptional()
   readonly addressText?: string;
 
-  // Ponto de referência do endereço — opcional, dado não-postal.
   @IsString()
   @IsOptional()
   readonly addressReference?: string;

@@ -150,7 +150,11 @@ export class SearchService {
     const professionalFilter: Record<string, unknown> = {};
     if (query.specialty) professionalFilter['specialty'] = query.specialty;
     if (query.name) professionalFilter['name'] = { $regex: query.name, $options: 'i' };
-    if (query.city) professionalFilter['address.city'] = { $regex: query.city, $options: 'i' };
+    if (query.city) {
+      // Cidade pode estar no endereço legado (address.city) ou no novo addressForm.
+      const cityRegex = { $regex: query.city, $options: 'i' };
+      professionalFilter['$or'] = [{ 'address.city': cityRegex }, { 'addressForm.city': cityRegex }];
+    }
 
     const docs = await this.professionalModel.find(professionalFilter).lean().exec();
     const filtered = docs.filter((p) =>

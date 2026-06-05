@@ -3,6 +3,7 @@ import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
 import { Sex } from '../../common/enums/sex.enum';
+import { AddressForm, AddressFormSchema } from '../../common/schemas/address-form.schema';
 
 @Schema({ timestamps: true })
 export class Patient {
@@ -37,6 +38,10 @@ export class Patient {
 
   @Prop({ type: String })
   state?: string;
+
+  // Endereço estruturado do formulário (CEP) — fonte de reidratação no Settings.
+  @Prop({ type: AddressFormSchema })
+  addressForm?: AddressForm;
 }
 
 export type PatientDocument = Patient & Document;

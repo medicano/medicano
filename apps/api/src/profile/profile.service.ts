@@ -11,6 +11,7 @@ import { UpdateProfessionalProfileDto } from './dto/update-professional-profile.
 import { UpdatePatientProfileDto } from '../patients/dto/update-patient-profile.dto';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { GeocodingService } from '../common/geocoding/geocoding.service';
+import { composeAddressText } from '../common/utils/address-form.util';
 
 @Injectable()
 export class ProfileService {
@@ -76,10 +77,18 @@ export class ProfileService {
     userId: string,
     updateDto: UpdatePatientProfileDto,
   ): Promise<PatientDocument> {
+    // Mantém cep/city/state (campos de contexto) em sincronia com o addressForm.
+    const derived: Record<string, unknown> = {};
+    if (updateDto.addressForm) {
+      if (updateDto.addressForm.cep) derived.cep = updateDto.addressForm.cep;
+      if (updateDto.addressForm.city) derived.city = updateDto.addressForm.city;
+      if (updateDto.addressForm.state) derived.state = updateDto.addressForm.state;
+    }
+
     const patient = await this.patientModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
-        { $set: updateDto },
+        { $set: { ...updateDto, ...derived } },
         { new: true, upsert: true },
       )
       .exec();
@@ -91,12 +100,23 @@ export class ProfileService {
     userId: string,
     updateDto: UpdateClinicProfileDto,
   ): Promise<ClinicDocument> {
-    const geoUpdate: { lat?: number; lng?: number } = {};
-    if (updateDto.addressText) {
-      const coords = await this.geocodingService.geocodeAddress(updateDto.addressText);
+    // addressForm (estruturado) é a fonte: deriva addressText/city/reference e,
+    // a partir do texto, geocodifica lat/lng. Sem addressForm, usa o addressText
+    // avulso (compatibilidade).
+    const derived: Record<string, unknown> = {};
+    const addressText = updateDto.addressForm
+      ? composeAddressText(updateDto.addressForm)
+      : updateDto.addressText;
+    if (updateDto.addressForm) {
+      derived.addressText = addressText;
+      if (updateDto.addressForm.city) derived.city = updateDto.addressForm.city;
+      derived.addressReference = updateDto.addressForm.reference;
+    }
+    if (addressText) {
+      const coords = await this.geocodingService.geocodeAddress(addressText);
       if (coords) {
-        geoUpdate.lat = coords.lat;
-        geoUpdate.lng = coords.lng;
+        derived.lat = coords.lat;
+        derived.lng = coords.lng;
       }
     }
 
@@ -105,7 +125,7 @@ export class ProfileService {
     const clinic = await this.clinicModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId) },
-        { $set: { ...updateDto, ...geoUpdate } },
+        { $set: { ...updateDto, ...derived } },
         { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
       )
       .exec();
