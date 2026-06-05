@@ -4,6 +4,7 @@ import { Address, AddressSchema } from '../../common/schemas/address.schema';
 import { AddressForm, AddressFormSchema } from '../../common/schemas/address-form.schema';
 import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
 import { Specialty } from '../../common/enums/specialty.enum';
+import { ProfessionalPlan } from '../../common/enums/professional-plan.enum';
 
 export type ProfessionalDocument = HydratedDocument<Professional>;
 
@@ -54,6 +55,9 @@ export class Professional {
 
   @Prop({ type: Boolean, default: false })
   autoConfirm: boolean;
+
+  @Prop({ type: String, enum: ProfessionalPlan, default: ProfessionalPlan.FREE })
+  plan: ProfessionalPlan;
 }
 
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional);

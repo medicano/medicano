@@ -106,6 +106,7 @@ export class AuthService {
           // Seed the contact email with the signup email; editable later.
           email: dto.email,
           addressForm: dto.addressForm,
+          ...(dto.plan ? { plan: dto.plan } : {}),
         });
       }
     } catch (error) {

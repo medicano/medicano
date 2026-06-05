@@ -61,6 +61,7 @@ interface ProfessionalProfile {
   cpf?: string;
   autoConfirm?: boolean;
   addressForm?: AddressValue;
+  plan?: string;
 }
 
 interface PatientProfile {
@@ -727,6 +728,82 @@ function ProfessionalAppointmentSection() {
   );
 }
 
+// Planos do profissional autônomo (valores batem com ProfessionalPlan no backend).
+const PROFESSIONAL_PLANS: { id: string; name: string; price: string; features: string[] }[] = [
+  { id: 'free', name: 'Gratuito', price: 'Gratuito', features: ['Agenda online', 'Agendamentos ilimitados', 'Perfil público'] },
+  { id: 'basico', name: 'Básico', price: 'R$ 39/mês', features: ['Tudo do Gratuito', 'Notificações por e-mail', 'Lembretes automáticos'] },
+  { id: 'avancado', name: 'Avançado', price: 'R$ 69/mês', features: ['Tudo do Básico', 'Assistente com IA', 'Relatórios detalhados'] },
+];
+
+function ProfessionalPlanSection() {
+  const { data: rawProfPlan, mutate } = useSWR<ProfessionalProfile>('/profile/me/professional', {
+    suspense: true,
+  });
+  const data = rawProfPlan!;
+  const { trigger, isMutating } = useAsyncAction(mutate);
+
+  const [plan, setPlan] = useState(data.plan ?? 'free');
+
+  useEffect(() => {
+    setPlan(data.plan ?? 'free');
+  }, [data]);
+
+  function handleSave() {
+    trigger(() =>
+      api.put('/profile/me/professional', { plan }).then(() => {
+        toast.success('Plano atualizado!');
+        mutate();
+      }),
+    );
+  }
+
+  return (
+    <Section title="Plano" description="Escolha o plano da sua conta de profissional.">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {PROFESSIONAL_PLANS.map((p) => {
+          const selected = plan === p.id;
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => setPlan(p.id)}
+              className={`flex flex-col rounded-2xl border p-4 text-left transition-all ${
+                selected
+                  ? 'border-[#00B4D8] bg-[#CAF0F8]/30 ring-2 ring-[#00B4D8]/30'
+                  : 'border-border bg-surface-muted hover:border-[#00B4D8]/50'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-foreground">{p.name}</span>
+                <span
+                  className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                    selected ? 'border-[#00B4D8] bg-[#00B4D8] text-white' : 'border-slate-300'
+                  }`}
+                >
+                  {selected && <Check size={12} />}
+                </span>
+              </div>
+              <span className="mt-1 text-lg font-extrabold text-[#03045E]">{p.price}</span>
+              <ul className="mt-3 space-y-1.5">
+                {p.features.map((f) => (
+                  <li key={f} className="flex items-start gap-1.5 text-sm text-foreground-muted">
+                    <Check size={14} className="mt-0.5 shrink-0 text-[#10B981]" /> {f}
+                  </li>
+                ))}
+              </ul>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-6 flex justify-end">
+        <Button onClick={handleSave} loading={isMutating}>
+          Salvar alterações
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
 // ─── Patient section ──────────────────────────────────────────────────────────
 
 function PatientProfileSection() {
@@ -1177,6 +1254,9 @@ export function SettingsPage() {
           </Suspense>
           <Suspense fallback={<LoadingSection title="Preferências de agendamento" />}>
             <ProfessionalAppointmentSection />
+          </Suspense>
+          <Suspense fallback={<LoadingSection title="Plano" />}>
+            <ProfessionalPlanSection />
           </Suspense>
         </div>
       </Page>

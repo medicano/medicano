@@ -46,12 +46,17 @@ const CLINIC_PLANS = [
 
 const PRO_PLANS = [
   {
-    id: 'BASICO', name: 'Básico', price: 'R$ 39', priceNote: '/mês',
-    features: ['Agenda online', 'Agendamentos ilimitados', 'Perfil público', 'Notificações por e-mail'],
+    id: 'free', name: 'Gratuito', price: 'Gratuito', priceNote: '',
+    features: ['Agenda online', 'Agendamentos ilimitados', 'Perfil público'],
     recommended: false,
   },
   {
-    id: 'AVANCADO', name: 'Avançado', price: 'R$ 69', priceNote: '/mês',
+    id: 'basico', name: 'Básico', price: 'R$ 39', priceNote: '/mês',
+    features: ['Tudo do Gratuito', 'Notificações por e-mail', 'Lembretes automáticos'],
+    recommended: false,
+  },
+  {
+    id: 'avancado', name: 'Avançado', price: 'R$ 69', priceNote: '/mês',
     features: ['Tudo do Básico', 'Assistente com IA', 'Relatórios detalhados', 'Suporte prioritário'],
     recommended: true,
   },
@@ -368,7 +373,7 @@ export function RegisterPage() {
   function handleNextFromStep2() {
     if (!validateStep2()) return;
     if (hasStep3) {
-      if (!plan && plans[1]) setPlan(plans[1].id); // default to recommended
+      if (!plan) setPlan((plans.find((p) => p.recommended) ?? plans[0]).id); // default to recommended
       setStep(3);
     } else {
       handleSubmit();
@@ -392,7 +397,7 @@ export function RegisterPage() {
       } else if (account === 'CLINIC') {
         Object.assign(payload, { name: razaoSocial, email, password: pwd, cnpj: cnpj.replace(/\D/g, ''), addressForm: clinicAddr });
       } else if (account === 'PROFESSIONAL') {
-        Object.assign(payload, { name, email, password: pwd, cpf, specialty: SPECIALTY_LABEL_TO_ENUM[specialty] || specialty, regNum, addressForm: proAddr });
+        Object.assign(payload, { name, email, password: pwd, cpf, specialty: SPECIALTY_LABEL_TO_ENUM[specialty] || specialty, regNum, addressForm: proAddr, plan: plan || undefined });
       } else if (account === 'ATTENDANT') {
         Object.assign(payload, { clinicId: clinicCode, username, password: pwd });
       }

@@ -10,6 +10,7 @@ import { Type } from 'class-transformer';
 import { AddressDto } from '../../common/dto/address.dto';
 import { AddressFormDto } from '../../common/dto/address-form.dto';
 import { Specialty } from '../../common/enums/specialty.enum';
+import { ProfessionalPlan } from '../../common/enums/professional-plan.enum';
 
 export class UpdateProfessionalProfileDto {
   @IsString()
@@ -49,4 +50,8 @@ export class UpdateProfessionalProfileDto {
   @Type(() => AddressFormDto)
   @IsOptional()
   addressForm?: AddressFormDto;
+
+  @IsEnum(ProfessionalPlan)
+  @IsOptional()
+  plan?: ProfessionalPlan;
 }
