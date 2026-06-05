@@ -313,7 +313,6 @@ function ClinicDataSection() {
             placeholder="clinica.com.br"
           />
         </div>
-        <CepAddressFields value={addr} onChange={setAddr} />
         <TextField
           label="Horário de funcionamento"
           icon={Clock}
@@ -321,6 +320,7 @@ function ClinicDataSection() {
           onChange={setHours}
           placeholder="Seg–Sex: 08h–18h | Sáb: 08h–13h"
         />
+        <CepAddressFields value={addr} onChange={setAddr} />
       </div>
       <SaveFooter onClick={handleSave} loading={isMutating} />
     </Section>
