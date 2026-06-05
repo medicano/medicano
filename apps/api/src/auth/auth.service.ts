@@ -97,6 +97,12 @@ export class AuthService {
         createdClinicId = clinic._id;
         await this.subscriptionsService.create({ clinicId: clinic._id.toString(), plan: SubscriptionPlan.FREE });
       } else if (dto.role === Role.PROFESSIONAL) {
+        // Geocodifica para que o profissional autônomo apareça nas buscas por
+        // proximidade. Falha do Nominatim não bloqueia o cadastro.
+        const proCoords = dto.addressForm
+          ? await this.geocodingService.geocodeAddressForm(dto.addressForm)
+          : null;
+
         await this.professionalModel.create({
           userId: new Types.ObjectId(userId),
           name: dto.name,
@@ -106,6 +112,7 @@ export class AuthService {
           // Seed the contact email with the signup email; editable later.
           email: dto.email,
           addressForm: dto.addressForm,
+          ...(proCoords ? { lat: proCoords.lat, lng: proCoords.lng } : {}),
           ...(dto.plan ? { plan: dto.plan } : {}),
         });
       }

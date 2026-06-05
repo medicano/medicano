@@ -153,10 +153,21 @@ export class ProfileService {
     userId: string,
     updateDto: UpdateProfessionalProfileDto,
   ): Promise<ProfessionalDocument> {
+    // Geocodifica o endereço para a busca por proximidade (profissional autônomo
+    // usa as próprias coordenadas).
+    const derived: Record<string, unknown> = {};
+    if (updateDto.addressForm) {
+      const coords = await this.geocodingService.geocodeAddressForm(updateDto.addressForm);
+      if (coords) {
+        derived.lat = coords.lat;
+        derived.lng = coords.lng;
+      }
+    }
+
     const professional = await this.professionalModel
       .findOneAndUpdate(
         { userId: new Types.ObjectId(userId), isActive: true },
-        { $set: updateDto },
+        { $set: { ...updateDto, ...derived } },
         { new: true, runValidators: true },
       )
       .exec();

@@ -141,18 +141,26 @@ export class SearchService {
     query: SearchQueryDto,
     activeClinicIds: Set<string>,
   ): Promise<ProfessionalResult[]> {
-    const includedIds = [...activeClinicIds].map((id) => new Types.ObjectId(id));
-    const links = await this.clinicProfessionalModel
-      .find({ clinicId: { $in: includedIds } })
+    // Todos os vínculos (qualquer clínica) — para saber quem é vinculado e quem é
+    // autônomo (sem nenhum vínculo).
+    const allLinks = await this.clinicProfessionalModel
+      .find({})
       .select('clinicId professionalId')
       .lean()
       .exec();
 
-    const activeProfessionalIds = new Set(
-      links.map((l) => (l.professionalId as Types.ObjectId).toString()),
-    );
+    const linkedProfessionalIds = new Set<string>();
+    const profToActiveClinicId = new Map<string, string>();
+    for (const link of allLinks) {
+      const profId = (link.professionalId as Types.ObjectId).toString();
+      const clinicId = (link.clinicId as Types.ObjectId).toString();
+      linkedProfessionalIds.add(profId);
+      if (activeClinicIds.has(clinicId) && !profToActiveClinicId.has(profId)) {
+        profToActiveClinicId.set(profId, clinicId);
+      }
+    }
 
-    const professionalFilter: Record<string, unknown> = {};
+    const professionalFilter: Record<string, unknown> = { isActive: { $ne: false } };
     if (query.specialty) professionalFilter['specialty'] = query.specialty;
     if (query.name) professionalFilter['name'] = { $regex: query.name, $options: 'i' };
     if (query.city) {
@@ -162,19 +170,15 @@ export class SearchService {
     }
 
     const docs = await this.professionalModel.find(professionalFilter).lean().exec();
-    const filtered = docs.filter((p) =>
-      activeProfessionalIds.has((p._id as Types.ObjectId).toString()),
-    );
-
-    const profToClinicId = new Map<string, string>();
-    links.forEach((l) => {
-      const profId = (l.professionalId as Types.ObjectId).toString();
-      if (!profToClinicId.has(profId)) {
-        profToClinicId.set(profId, (l.clinicId as Types.ObjectId).toString());
-      }
+    // Aparece quem está vinculado a uma clínica com assinatura ativa OU quem é
+    // autônomo (sem vínculo com nenhuma clínica). Vinculado só a clínica sem
+    // assinatura ativa continua oculto.
+    const filtered = docs.filter((p) => {
+      const profId = (p._id as Types.ObjectId).toString();
+      return profToActiveClinicId.has(profId) || !linkedProfessionalIds.has(profId);
     });
 
-    const neededClinicIds = [...new Set([...profToClinicId.values()])].map(
+    const neededClinicIds = [...new Set([...profToActiveClinicId.values()])].map(
       (id) => new Types.ObjectId(id),
     );
     const clinicDocs = await this.clinicModel
@@ -197,17 +201,22 @@ export class SearchService {
 
     let results = filtered.map((p) => {
       const profId = (p._id as Types.ObjectId).toString();
-      const clinicId = profToClinicId.get(profId) ?? '';
+      const clinicId = profToActiveClinicId.get(profId) ?? '';
       const result: ProfessionalResult = {
         id: profId,
         name: p.name as string,
         specialty: p.specialty as string,
-        city: (p.address as any)?.city ?? '',
+        city: (p as any).addressForm?.city ?? (p.address as any)?.city ?? '',
         clinicId,
         clinicName: clinicNameMap.get(clinicId) ?? '',
       };
       if (hasLocation) {
-        const coords = clinicCoordMap.get(clinicId);
+        // Vinculado usa as coordenadas da clínica; autônomo usa as próprias.
+        const coords = clinicId
+          ? clinicCoordMap.get(clinicId)
+          : (p as any).lat && (p as any).lng
+            ? { lat: (p as any).lat, lng: (p as any).lng }
+            : undefined;
         if (coords) {
           result.distance = Math.round(haversineKm(query.userLat!, query.userLng!, coords.lat, coords.lng) * 10) / 10;
         }

@@ -58,6 +58,14 @@ export class Professional {
 
   @Prop({ type: String, enum: ProfessionalPlan, default: ProfessionalPlan.FREE })
   plan: ProfessionalPlan;
+
+  // Coordenadas do endereço do profissional (geocodadas do addressForm) — usadas
+  // na busca por proximidade quando ele é autônomo (sem clínica vinculada).
+  @Prop({ type: Number })
+  lat?: number;
+
+  @Prop({ type: Number })
+  lng?: number;
 }
 
 export const ProfessionalSchema = SchemaFactory.createForClass(Professional);

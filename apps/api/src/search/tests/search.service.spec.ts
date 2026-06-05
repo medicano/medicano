@@ -171,12 +171,13 @@ describe('SearchService', () => {
         exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
       });
 
-      // ClinicProfessional links: only P1 → C1 (simulating DB filtering — C2 has no active sub)
+      // Links: P1 → C1 (ativa); P2 → C2 (sem assinatura ativa) — P2 fica oculto.
       mockClinicProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
           { clinicId: C1, professionalId: P1 },
+          { clinicId: C2, professionalId: P2 },
         ]),
       });
 
@@ -205,11 +206,13 @@ describe('SearchService', () => {
         exec: jest.fn().mockResolvedValue([]),
       });
 
-      // No links relevant (service should short-circuit or return empty)
+      // P1 vinculado a C1 (sem assinatura ativa) — vinculado mas inativo, oculto.
       mockClinicProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
-        exec: jest.fn().mockResolvedValue([]),
+        exec: jest.fn().mockResolvedValue([
+          { clinicId: C1, professionalId: P1 },
+        ]),
       });
 
       mockProfessionalModel.find.mockReturnValueOnce({
@@ -251,15 +254,15 @@ describe('SearchService', () => {
       );
     });
 
-    it('RN20-04 — professional with no clinic link is excluded even when subscriptions exist', async () => {
-      // Active subscription for C1
+    it('RN20-04 — profissional autônomo (sem vínculo) aparece na busca', async () => {
+      // Assinatura ativa para C1
       mockSubscriptionModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
       });
 
-      // P1 linked to C1, but P3 is NOT linked to any clinic
+      // P1 vinculado a C1; P3 não tem vínculo (autônomo)
       mockClinicProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
@@ -268,7 +271,7 @@ describe('SearchService', () => {
         ]),
       });
 
-      // Professional universe: P1 and P3
+      // Professional universe: P1 (vinculado) e P3 (autônomo)
       mockProfessionalModel.find.mockReturnValueOnce({
         select: jest.fn().mockReturnThis(),
         lean: jest.fn().mockReturnThis(),
@@ -282,7 +285,7 @@ describe('SearchService', () => {
 
       const ids = result.professionals.map((r: any) => r._id ?? r.id);
       expect(ids).toContain(P1);
-      expect(ids).not.toContain(P3);
+      expect(ids).toContain(P3);
     });
   });
 
