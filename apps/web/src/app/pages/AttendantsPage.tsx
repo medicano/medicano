@@ -9,18 +9,31 @@ import { getErrorMessage } from '../lib/errors';
 import { useAuth } from '../contexts/AuthContext';
 import type { Attendant, Clinic } from '../lib/types';
 
+// Limites de atendentes por plano (espelham o backend). -1 = ilimitado.
+const CLINIC_ATTENDANT_LIMITS: Record<string, number> = { free: 2, basic: 5, pro: 10 };
+const PRO_ATTENDANT_LIMITS: Record<string, number> = { free: 2, basico: 4, avancado: 6 };
+
 export function AttendantsPage() {
   const { user } = useAuth();
-  const profileApi = useApi<Clinic>('/profile/me');
+  const profileApi = useApi<Clinic & { plan?: string }>('/profile/me');
   const ownerId = profileApi.data?._id ?? profileApi.data?.id ?? null;
   // O dono dos atendentes é a clínica ou o profissional autônomo, conforme o papel.
-  const ownerKind = user?.role === 'professional' ? 'professionals' : 'clinics';
+  const isProfessional = user?.role === 'professional';
+  const ownerKind = isProfessional ? 'professionals' : 'clinics';
   const basePath = ownerId ? `/${ownerKind}/${ownerId}/attendants` : null;
 
   const atendApi = useApi<Attendant[]>(basePath);
   // A API retorna o atendente com _id (Mongoose), sem `id`. Normaliza para que
   // editar/remover/listar usem sempre um id válido (senão a URL vira .../undefined).
   const list = extractList<Attendant>(atendApi.data).map((a) => ({ ...a, id: a.id ?? a._id ?? '' }));
+
+  // Limite do plano: profissional vem do próprio perfil; clínica, da assinatura.
+  const subApi = useApi<{ plan?: string }>(!isProfessional && ownerId ? `/subscriptions/clinic/${ownerId}` : null);
+  const plan = isProfessional ? profileApi.data?.plan : subApi.data?.plan;
+  const limit = plan
+    ? (isProfessional ? PRO_ATTENDANT_LIMITS[plan] : CLINIC_ATTENDANT_LIMITS[plan]) ?? -1
+    : -1;
+  const atLimit = limit >= 0 && list.length >= limit;
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Attendant | null>(null);
@@ -75,13 +88,20 @@ export function AttendantsPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-[#03045E] tracking-tight">Atendentes</h1>
           <p className="text-[#64748B] mt-1 text-sm">
-            <span className="font-bold">{list.length}</span> atendentes cadastrados
+            <span className="font-bold">{list.length}</span>
+            {limit >= 0 ? ` de ${limit}` : ''} atendentes cadastrados
           </p>
         </div>
-        <Button variant="primary" className="gap-2" onClick={() => { setFormError(null); setCreating(true); }}>
+        <Button variant="primary" className="gap-2" disabled={atLimit} onClick={() => { setFormError(null); setCreating(true); }}>
           <Plus size={18} /> Novo atendente
         </Button>
       </div>
+
+      {atLimit && (
+        <div className="mb-6 px-4 py-3 bg-[#FEF3C7] border border-[#FCD34D] rounded-xl text-sm text-[#92400E]">
+          Você atingiu o limite de atendentes do plano atual. Faça upgrade para adicionar mais.
+        </div>
+      )}
 
       {atendApi.loading ? (
         <div className="space-y-3">{[1,2,3].map((i) => <div key={i} className="h-16 bg-[#F8FAFC] rounded-2xl animate-pulse" />)}</div>

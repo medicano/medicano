@@ -11,9 +11,15 @@ import { Model, Types } from 'mongoose';
 import { UserDocument } from '../../auth/schemas/user.schema';
 import { Role } from '../../common/enums/role.enum';
 import {
+  ProfessionalPlan,
+  PROFESSIONAL_PLAN_ATTENDANT_LIMITS,
+} from '../../common/enums/professional-plan.enum';
+import {
   Professional,
   ProfessionalDocument,
 } from '../../professionals/schemas/professional.schema';
+import { PLAN_ATTENDANT_LIMITS } from '../../subscriptions/constants/subscription.constants';
+import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
 import { ClinicsService } from '../clinics.service';
 import { CreateAttendantDto } from '../dto/create-attendant.dto';
 import { UpdateAttendantDto } from '../dto/update-attendant.dto';
@@ -33,7 +39,24 @@ export class AttendantsService {
     @InjectModel(Professional.name)
     private readonly professionalModel: Model<ProfessionalDocument>,
     private readonly clinicsService: ClinicsService,
+    private readonly subscriptionsService: SubscriptionsService,
   ) {}
+
+  // Bloqueia a criação quando o dono já atingiu o limite de atendentes do plano.
+  private async assertWithinAttendantLimit(
+    owner: OwnerFilter,
+    limit: number,
+  ): Promise<void> {
+    if (limit < 0) return; // ilimitado
+    const count = await this.userModel
+      .countDocuments({ role: Role.ATTENDANT, ...owner })
+      .exec();
+    if (count >= limit) {
+      throw new ForbiddenException(
+        `Limite de ${limit} atendentes do plano atingido. Faça upgrade para adicionar mais.`,
+      );
+    }
+  }
 
   private async assertClinicOwnership(
     clinicId: string,
@@ -158,6 +181,11 @@ export class AttendantsService {
     dto: CreateAttendantDto,
   ): Promise<UserDocument> {
     await this.assertClinicOwnership(clinicId, currentUserId);
+    const subscription = await this.subscriptionsService.ensureForClinic(clinicId);
+    await this.assertWithinAttendantLimit(
+      { clinicId },
+      PLAN_ATTENDANT_LIMITS[subscription.plan],
+    );
     return this.createForOwner({ clinicId }, dto);
   }
 
@@ -196,6 +224,16 @@ export class AttendantsService {
     dto: CreateAttendantDto,
   ): Promise<UserDocument> {
     await this.assertProfessionalOwnership(professionalId, currentUserId);
+    const professional = await this.professionalModel
+      .findById(professionalId)
+      .select('plan')
+      .lean()
+      .exec();
+    const plan = (professional?.plan as ProfessionalPlan) ?? ProfessionalPlan.FREE;
+    await this.assertWithinAttendantLimit(
+      { professionalId },
+      PROFESSIONAL_PLAN_ATTENDANT_LIMITS[plan],
+    );
     return this.createForOwner({ professionalId }, dto);
   }
 
