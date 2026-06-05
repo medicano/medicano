@@ -66,9 +66,10 @@ interface CepAddressFieldsProps {
   value: AddressValue;
   onChange: (next: AddressValue) => void;
   errors?: { cep?: string; number?: string };
+  title?: string;
 }
 
-export function CepAddressFields({ value, onChange, errors }: CepAddressFieldsProps) {
+export function CepAddressFields({ value, onChange, errors, title = 'Endereço' }: CepAddressFieldsProps) {
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState<string | null>(null);
 
@@ -115,7 +116,7 @@ export function CepAddressFields({ value, onChange, errors }: CepAddressFieldsPr
 
   return (
     <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 space-y-4">
-      <p className="text-sm font-semibold text-[#0F172A]">Endereço da clínica</p>
+      <p className="text-sm font-semibold text-[#0F172A]">{title}</p>
 
       <EditableField
         icon={MapPin}

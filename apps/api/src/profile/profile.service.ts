@@ -39,19 +39,21 @@ export class ProfileService {
 
     if (!profile) return null;
 
-    // O documento de perfil não guarda o papel (role vive no User). O front usa
-    // este endpoint para reidratar a sessão no F5; sem role + id aqui, o
-    // roteamento por papel quebra (paciente acabava caindo em /dashboard).
+    // O documento de perfil não guarda role/email (vivem no User). O front usa
+    // este endpoint para reidratar a sessão no F5; sem role + id o roteamento por
+    // papel quebra, e o paciente (cujo doc não tem email) fica sem email na tela.
     const user = await this.userModel
       .findById(userId)
-      .select('role')
+      .select('role email')
       .lean()
       .exec();
 
+    const plain = profile.toObject();
     return {
-      ...profile.toObject(),
+      ...plain,
       id: (profile._id as Types.ObjectId).toString(),
       role: (user as { role?: string } | null)?.role,
+      email: (plain as { email?: string }).email ?? (user as { email?: string } | null)?.email,
     };
   }
 

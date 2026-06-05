@@ -322,7 +322,7 @@ function ClinicDataSection() {
           onChange={setHours}
           placeholder="Seg–Sex: 08h–18h | Sáb: 08h–13h"
         />
-        <CepAddressFields value={addr} onChange={setAddr} />
+        <CepAddressFields title="Endereço da clínica" value={addr} onChange={setAddr} />
       </div>
       <SaveFooter onClick={handleSave} loading={isMutating} />
     </Section>

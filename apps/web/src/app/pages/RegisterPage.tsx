@@ -594,6 +594,7 @@ export function RegisterPage() {
                       <PasswordField label="Senha" value={pwd} onChange={setPwd} error={errors.pwd} showStrength />
                       <PasswordField label="Confirmar senha" value={confirm} onChange={setConfirm} error={errors.confirm} />
                       <CepAddressFields
+                        title="Endereço da clínica"
                         value={clinicAddr}
                         onChange={setClinicAddr}
                         errors={{ cep: errors.clinicCep, number: errors.clinicNumber }}
