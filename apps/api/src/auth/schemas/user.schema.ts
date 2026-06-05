@@ -23,6 +23,11 @@ export class User {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Clinic' })
   clinicId?: Types.ObjectId;
 
+  // Atendente pode ser dono por uma clínica (clinicId) OU por um profissional
+  // autônomo (professionalId). Exatamente um é preenchido.
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Professional' })
+  professionalId?: Types.ObjectId;
+
   @Prop({ type: String, required: true })
   passwordHash: string;
 
@@ -43,3 +48,4 @@ UserSchema.methods.comparePassword = async function (
 
 UserSchema.index({ email: 1 }, { sparse: true, unique: true });
 UserSchema.index({ clinicId: 1, username: 1 }, { sparse: true, unique: true });
+UserSchema.index({ professionalId: 1, username: 1 }, { sparse: true, unique: true });

@@ -6,13 +6,18 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { useApi, extractList } from '../lib/hooks';
 import { api } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
+import { useAuth } from '../contexts/AuthContext';
 import type { Attendant, Clinic } from '../lib/types';
 
 export function AttendantsPage() {
+  const { user } = useAuth();
   const profileApi = useApi<Clinic>('/profile/me');
-  const clinicId = profileApi.data?._id ?? profileApi.data?.id ?? null;
+  const ownerId = profileApi.data?._id ?? profileApi.data?.id ?? null;
+  // O dono dos atendentes é a clínica ou o profissional autônomo, conforme o papel.
+  const ownerKind = user?.role === 'professional' ? 'professionals' : 'clinics';
+  const basePath = ownerId ? `/${ownerKind}/${ownerId}/attendants` : null;
 
-  const atendApi = useApi<Attendant[]>(clinicId ? `/clinics/${clinicId}/attendants` : null);
+  const atendApi = useApi<Attendant[]>(basePath);
   // A API retorna o atendente com _id (Mongoose), sem `id`. Normaliza para que
   // editar/remover/listar usem sempre um id válido (senão a URL vira .../undefined).
   const list = extractList<Attendant>(atendApi.data).map((a) => ({ ...a, id: a.id ?? a._id ?? '' }));
@@ -27,8 +32,8 @@ export function AttendantsPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      if (!clinicId) throw new Error('Clínica não encontrada');
-      await api.post(`/clinics/${clinicId}/attendants`, data);
+      if (!basePath) throw new Error('Perfil não encontrado');
+      await api.post(`${basePath}`, data);
       atendApi.refetch();
       setCreating(false);
     } catch (err) {
@@ -43,8 +48,8 @@ export function AttendantsPage() {
     setSubmitting(true);
     setFormError(null);
     try {
-      if (!clinicId) throw new Error('Clínica não encontrada');
-      await api.put(`/clinics/${clinicId}/attendants/${editing.id}`, data);
+      if (!basePath) throw new Error('Perfil não encontrado');
+      await api.put(`${basePath}/${editing.id}`, data);
       atendApi.refetch();
       setEditing(null);
     } catch (err) {
@@ -57,8 +62,8 @@ export function AttendantsPage() {
   async function handleRemove() {
     if (!removing) return;
     try {
-      if (!clinicId) return;
-      await api.delete(`/clinics/${clinicId}/attendants/${removing.id}`);
+      if (!basePath) return;
+      await api.delete(`${basePath}/${removing.id}`);
       atendApi.refetch();
     } catch { /* mantém a lista atual se a remoção falhar */ }
     setRemoving(null);
@@ -87,7 +92,7 @@ export function AttendantsPage() {
           </div>
           <h2 className="text-2xl font-bold text-[#03045E]">Nenhum atendente cadastrado</h2>
           <p className="text-[#64748B] mt-2 mb-6 max-w-md mx-auto">
-            Cadastre atendentes para que possam gerenciar a agenda da sua clínica.
+            Cadastre atendentes para que possam gerenciar a sua agenda.
           </p>
           <Button variant="primary" className="gap-2" onClick={() => { setFormError(null); setCreating(true); }}>
             <Plus size={18} /> Novo atendente

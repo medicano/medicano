@@ -38,7 +38,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const items: Array<{ to: string; label: string; icon: React.ElementType; end?: boolean; roles: string[]; badge?: number }> = [
     { to: '/dashboard', label: 'Agenda', icon: CalendarDays, end: true, roles: ['clinic', 'professional', 'attendant'] },
     { to: '/professionals', label: 'Profissionais', icon: Stethoscope, roles: ['clinic', 'attendant'] },
-    { to: '/attendants', label: 'Atendentes', icon: UserCog, roles: ['clinic'] },
+    { to: '/attendants', label: 'Atendentes', icon: UserCog, roles: ['clinic', 'professional'] },
     { to: '/availability', label: 'Disponibilidade', icon: Clock, roles: ['clinic', 'professional'] },
     { to: '/notifications', label: 'Notificações', icon: Bell, roles: ['clinic', 'professional', 'attendant'], badge: unread },
     { to: '/subscription', label: 'Assinatura', icon: CreditCard, roles: ['clinic', 'professional'] },

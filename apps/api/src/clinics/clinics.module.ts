@@ -9,6 +9,7 @@ import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 
 import { ClinicsController } from './clinics.controller';
 import { AttendantsController } from './controllers/attendants.controller';
+import { ProfessionalAttendantsController } from './controllers/professional-attendants.controller';
 
 import { ClinicsService } from './clinics.service';
 import { AttendantsService } from './services/attendants.service';
@@ -23,7 +24,7 @@ import { AttendantsService } from './services/attendants.service';
     ]),
     SubscriptionsModule,
   ],
-  controllers: [ClinicsController, AttendantsController],
+  controllers: [ClinicsController, AttendantsController, ProfessionalAttendantsController],
   providers: [ClinicsService, AttendantsService],
   exports: [ClinicsService],
 })

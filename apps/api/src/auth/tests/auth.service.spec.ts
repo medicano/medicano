@@ -13,6 +13,7 @@ describe('AuthService', () => {
     createUser: jest.fn(),
     findByEmail: jest.fn(),
     findByClinicIdAndUsername: jest.fn(),
+    findByProfessionalIdAndUsername: jest.fn().mockResolvedValue(null),
     deleteById: jest.fn().mockResolvedValue(undefined),
   };
 

@@ -97,6 +97,16 @@ export class UsersService {
     return this.usersRepository.findByClinicIdAndUsername(clinicId, username);
   }
 
+  async findByProfessionalIdAndUsername(
+    professionalId: string,
+    username: string,
+  ): Promise<UserDocument | null> {
+    return this.usersRepository.findByProfessionalIdAndUsername(
+      professionalId,
+      username,
+    );
+  }
+
   async getById(id: string): Promise<UserDocument> {
     const user = await this.usersRepository.findById(id);
     if (!user) {

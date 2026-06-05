@@ -126,11 +126,16 @@ export class AppointmentsService {
         return { professionalId: professional?._id ?? null };
       }
       case Role.ATTENDANT: {
+        // Atendente de clínica enxerga os agendamentos da clínica; atendente de
+        // profissional autônomo enxerga os do profissional.
         const attendant = await this.userModel
           .findById(user.userId)
-          .select('clinicId')
+          .select('clinicId professionalId')
           .lean()
           .exec();
+        if (attendant?.professionalId) {
+          return { professionalId: attendant.professionalId };
+        }
         return { clinicId: attendant?.clinicId ?? null };
       }
       default:

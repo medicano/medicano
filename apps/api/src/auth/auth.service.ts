@@ -32,6 +32,7 @@ export interface AuthUser {
   email?: string;
   username?: string;
   clinicId?: string;
+  professionalId?: string;
   name?: string;
 }
 
@@ -165,22 +166,9 @@ export class AuthService {
   }
 
   async loginAttendant(dto: LoginAttendantDto): Promise<AuthResponse> {
-    let resolvedClinicId = dto.clinicId;
-    if (!Types.ObjectId.isValid(dto.clinicId)) {
-      const clinic = await this.clinicModel
-        .findOne({ customCode: dto.clinicId })
-        .select('_id')
-        .exec();
-      if (!clinic) {
-        throw new UnauthorizedException('Credenciais inválidas');
-      }
-      resolvedClinicId = clinic._id.toString();
-    }
-
-    const user = await this.usersService.findByClinicIdAndUsername(
-      resolvedClinicId,
-      dto.username,
-    );
+    // O identificador pode apontar para uma clínica (id ou customCode) ou para um
+    // profissional autônomo (id). Procura o atendente em ambos os donos.
+    const user = await this.resolveAttendant(dto.clinicId, dto.username);
 
     if (!user || user.role !== Role.ATTENDANT) {
       throw new UnauthorizedException('Credenciais inválidas');
@@ -198,6 +186,34 @@ export class AuthService {
     await this.redisService.saveToken(userId, token, TOKEN_TTL);
 
     return { accessToken: token, user: this.toAuthUser(user) };
+  }
+
+  // Localiza o atendente a partir do identificador do dono: tenta clínica (por id
+  // ou customCode) e, em seguida, profissional (por id). Retorna null se nenhum
+  // corresponder ao username informado.
+  private async resolveAttendant(
+    identifier: string,
+    username: string,
+  ): Promise<UserDocument | null> {
+    if (Types.ObjectId.isValid(identifier)) {
+      const byClinic = await this.usersService.findByClinicIdAndUsername(identifier, username);
+      if (byClinic) return byClinic;
+      const byProfessional = await this.usersService.findByProfessionalIdAndUsername(
+        identifier,
+        username,
+      );
+      if (byProfessional) return byProfessional;
+    }
+
+    const clinic = await this.clinicModel
+      .findOne({ customCode: identifier })
+      .select('_id')
+      .exec();
+    if (clinic) {
+      return this.usersService.findByClinicIdAndUsername(clinic._id.toString(), username);
+    }
+
+    return null;
   }
 
   async logout(userId: string): Promise<void> {
@@ -244,6 +260,7 @@ export class AuthService {
       email: user.email,
       username: user.username,
       clinicId: user.clinicId?.toString(),
+      professionalId: user.professionalId?.toString(),
       name: user.displayName,
     };
   }

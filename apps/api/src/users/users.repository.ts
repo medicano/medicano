@@ -36,6 +36,16 @@ export class UsersRepository {
       .exec();
   }
 
+  async findByProfessionalIdAndUsername(
+    professionalId: string,
+    username: string,
+  ): Promise<UserDocument | null> {
+    return this.userModel
+      .findOne({ professionalId, username })
+      .select('+passwordHash')
+      .exec();
+  }
+
   async findById(id: string): Promise<UserDocument | null> {
     return this.userModel.findById(id).exec();
   }

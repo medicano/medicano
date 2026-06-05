@@ -48,7 +48,6 @@ function SubscriptionRoute() {
 
 const patient = (el: React.ReactNode) => <ProtectedRoute roles={['patient']}>{el}</ProtectedRoute>;
 const staff = (el: React.ReactNode) => <ProtectedRoute roles={['clinic', 'professional', 'attendant']}>{el}</ProtectedRoute>;
-const clinicOnly = (el: React.ReactNode) => <ProtectedRoute roles={['clinic']}>{el}</ProtectedRoute>;
 const clinicOrPro = (el: React.ReactNode) => <ProtectedRoute roles={['clinic', 'professional']}>{el}</ProtectedRoute>;
 const anyAuth = (el: React.ReactNode) => <ProtectedRoute>{el}</ProtectedRoute>;
 
@@ -77,7 +76,7 @@ export const router = createBrowserRouter([
   { path: '/dashboard', element: staff(<DashboardPage />) },
   { path: '/professionals', element: <ProtectedRoute roles={['clinic', 'attendant']}><ProfessionalsPage /></ProtectedRoute> },
   { path: '/availability', element: clinicOrPro(<AvailabilityPage />) },
-  { path: '/attendants', element: clinicOnly(<AttendantsPage />) },
+  { path: '/attendants', element: clinicOrPro(<AttendantsPage />) },
   { path: '/subscription', element: clinicOrPro(<SubscriptionRoute />) },
 
   // Legacy redirects
