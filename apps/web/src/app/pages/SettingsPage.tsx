@@ -4,6 +4,7 @@ import {
   BookOpen,
   Building,
   Calendar,
+  Check,
   Clock,
   FileText,
   Globe,
