@@ -83,6 +83,8 @@ export function SpecialtyCombobox({
       const idx = filtered.indexOf(value as MedicalSpecialty);
       setHighlighted(idx >= 0 ? idx : -1);
     }
+    // Intencional: realça o valor atual apenas ao abrir o dropdown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Close on outside click (skip when _forceOpen)

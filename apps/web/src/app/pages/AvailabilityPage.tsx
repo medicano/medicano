@@ -363,6 +363,8 @@ export function AvailabilityPage() {
   useEffect(() => {
     if (isProfessional || professionals.length !== 1) return;
     setSelectedId(professionals[0].id);
+    // Intencional: só auto-seleciona quando muda a quantidade/papel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProfessional, professionals.length]);
 
   const selectedPro = isProfessional

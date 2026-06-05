@@ -45,6 +45,8 @@ export function NewAppointmentModal({ open, onClose }: Props) {
     }
 
     loadProfessionals();
+    // Intencional: recarrega a lista apenas quando o modal abre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function reset() {
