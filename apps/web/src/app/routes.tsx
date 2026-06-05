@@ -75,7 +75,7 @@ export const router = createBrowserRouter([
 
   // Staff
   { path: '/dashboard', element: staff(<DashboardPage />) },
-  { path: '/professionals', element: staff(<ProfessionalsPage />) },
+  { path: '/professionals', element: <ProtectedRoute roles={['clinic', 'attendant']}><ProfessionalsPage /></ProtectedRoute> },
   { path: '/availability', element: clinicOrPro(<AvailabilityPage />) },
   { path: '/attendants', element: clinicOnly(<AttendantsPage />) },
   { path: '/subscription', element: clinicOrPro(<SubscriptionRoute />) },
