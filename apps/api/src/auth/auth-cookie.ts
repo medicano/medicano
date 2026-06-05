@@ -12,16 +12,23 @@ const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 // - sameSite 'lax': frontend e API são o mesmo site (eTLD+1 medicano.app), então
 //   o cookie viaja nas chamadas XHR same-site; bloqueia o grosso de CSRF cross-site.
 // - secure só em produção (em dev o front roda em http://localhost).
-// - sem `domain`: cookie host-only do próprio host da API, que é para onde o
-//   frontend faz as requisições — não depende do domínio do frontend.
+// - domain: em produção o front está no apex (medicano.app) e a API num subdomínio
+//   (api.medicano.app). Setar COOKIE_DOMAIN=.medicano.app faz o cookie ser
+//   first-party do site inteiro — alguns navegadores (ex.: Brave) bloqueiam um
+//   cookie host-only de subdomínio tratando-o como cross-site. Em dev fica vazio
+//   (host-only em localhost).
 export function buildAuthCookieOptions(): CookieOptions {
   const isProduction = process.env.NODE_ENV === 'production';
+  // Em produção o cookie precisa cobrir apex + subdomínios (.medicano.app);
+  // COOKIE_DOMAIN permite sobrescrever. Em dev/test fica host-only (localhost).
+  const domain = process.env.COOKIE_DOMAIN ?? (isProduction ? '.medicano.app' : undefined);
   return {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'lax',
     path: '/',
     maxAge: TOKEN_TTL_MS,
+    ...(domain ? { domain } : {}),
   };
 }
 
