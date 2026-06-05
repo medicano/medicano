@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AppointmentDetailPage } from './pages/AppointmentDetailPage';
 import { ProfessionalsPage } from './pages/ProfessionalsPage';
 import { SubscriptionPage } from './pages/SubscriptionPage';
+import { ProfessionalSubscriptionPage } from './pages/ProfessionalSubscriptionPage';
 import { SearchPage } from './pages/SearchPage';
 import { BookingPage } from './pages/BookingPage';
 import { BookingSuccessPage } from './pages/BookingSuccessPage';
@@ -37,6 +38,12 @@ function RootPage() {
   if (!isAuthenticated) return <LandingPage />;
   if (user?.role === 'patient') return <Navigate to="/home" replace />;
   return <Navigate to="/dashboard" replace />;
+}
+
+// Assinatura: clínica e profissional têm planos diferentes (entidades distintas).
+function SubscriptionRoute() {
+  const { user } = useAuth();
+  return user?.role === 'professional' ? <ProfessionalSubscriptionPage /> : <SubscriptionPage />;
 }
 
 const patient = (el: React.ReactNode) => <ProtectedRoute roles={['patient']}>{el}</ProtectedRoute>;
@@ -71,7 +78,7 @@ export const router = createBrowserRouter([
   { path: '/professionals', element: staff(<ProfessionalsPage />) },
   { path: '/availability', element: clinicOrPro(<AvailabilityPage />) },
   { path: '/attendants', element: clinicOnly(<AttendantsPage />) },
-  { path: '/subscription', element: clinicOnly(<SubscriptionPage />) },
+  { path: '/subscription', element: clinicOrPro(<SubscriptionRoute />) },
 
   // Legacy redirects
   { path: '/signup', element: <Navigate to="/register" replace /> },

@@ -41,7 +41,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     { to: '/attendants', label: 'Atendentes', icon: UserCog, roles: ['clinic'] },
     { to: '/availability', label: 'Disponibilidade', icon: Clock, roles: ['clinic', 'professional'] },
     { to: '/notifications', label: 'Notificações', icon: Bell, roles: ['clinic', 'professional', 'attendant'], badge: unread },
-    { to: '/subscription', label: 'Assinatura', icon: CreditCard, roles: ['clinic'] },
+    { to: '/subscription', label: 'Assinatura', icon: CreditCard, roles: ['clinic', 'professional'] },
     { to: '/settings', label: 'Configurações', icon: Settings, roles: ['clinic', 'professional', 'attendant'] },
   ].filter((i) => i.roles.includes(role));
 
