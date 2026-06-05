@@ -93,7 +93,12 @@ export class SearchService {
     const includedIds = [...activeClinicIds].map((id) => new Types.ObjectId(id));
     const filter: Record<string, unknown> = { _id: { $in: includedIds }, isActive: { $ne: false } };
     if (query.name) filter['name'] = { $regex: query.name, $options: 'i' };
-    if (query.city) filter['address.city'] = { $regex: query.city, $options: 'i' };
+    if (query.city) {
+      // Clínica guarda a cidade em city (top-level) e em addressForm.city; o
+      // endereço legado pode ter address.city. Casa qualquer um deles.
+      const cityRegex = { $regex: query.city, $options: 'i' };
+      filter['$or'] = [{ city: cityRegex }, { 'addressForm.city': cityRegex }, { 'address.city': cityRegex }];
+    }
     if (query.specialty) filter['specialties'] = query.specialty;
 
     const docs = await this.clinicModel.find(filter).select('+lat +lng').lean().exec();

@@ -66,7 +66,7 @@ export class AuthService {
       if (dto.role === Role.PATIENT) {
         await this.createPatientDocument(userId, dto);
       } else if (dto.role === Role.CLINIC) {
-        // Endereço estruturado (addressForm) é a fonte; deriva o texto p/ geocoding.
+        // Endereço estruturado (addressForm) é a fonte; deriva o texto p/ exibição.
         const addressText = dto.addressForm ? composeAddressText(dto.addressForm) : dto.addressText;
         const city = dto.addressForm?.city ?? dto.city;
         const addressReference = dto.addressForm?.reference ?? dto.addressReference;
@@ -74,9 +74,11 @@ export class AuthService {
         // Geocodifica o endereço no cadastro para que a clínica já apareça nas
         // buscas por proximidade. Se o Nominatim falhar, salva o endereço sem
         // coordenadas; a clínica pode reabastecê-las salvando em "Dados da clínica".
-        const coords = addressText
-          ? await this.geocodingService.geocodeAddress(addressText)
-          : null;
+        const coords = dto.addressForm
+          ? await this.geocodingService.geocodeAddressForm(dto.addressForm)
+          : addressText
+            ? await this.geocodingService.geocodeAddress(addressText)
+            : null;
 
         const clinic = await this.clinicModel.create({
           // Store as ObjectId so profile lookups by userId match (the @Prop

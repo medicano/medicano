@@ -112,12 +112,14 @@ export class ProfileService {
       if (updateDto.addressForm.city) derived.city = updateDto.addressForm.city;
       derived.addressReference = updateDto.addressForm.reference;
     }
-    if (addressText) {
-      const coords = await this.geocodingService.geocodeAddress(addressText);
-      if (coords) {
-        derived.lat = coords.lat;
-        derived.lng = coords.lng;
-      }
+    const coords = updateDto.addressForm
+      ? await this.geocodingService.geocodeAddressForm(updateDto.addressForm)
+      : addressText
+        ? await this.geocodingService.geocodeAddress(addressText)
+        : null;
+    if (coords) {
+      derived.lat = coords.lat;
+      derived.lng = coords.lng;
     }
 
     // upsert: clinic-role users whose Clinic document was never created
