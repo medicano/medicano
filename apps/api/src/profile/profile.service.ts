@@ -29,20 +29,29 @@ export class ProfileService {
 
   async getMyProfile(
     userId: string,
-  ): Promise<ClinicDocument | ProfessionalDocument | PatientDocument | null> {
-    const clinic = await this.clinicModel
-      .findOne({ userId: new Types.ObjectId(userId) })
-      .exec();
-    if (clinic) return clinic;
+  ): Promise<Record<string, unknown> | null> {
+    const userObjectId = new Types.ObjectId(userId);
+    const profile =
+      (await this.clinicModel.findOne({ userId: userObjectId }).exec()) ??
+      (await this.professionalModel.findOne({ userId: userObjectId }).exec()) ??
+      (await this.patientModel.findOne({ userId: userObjectId }).exec());
 
-    const professional = await this.professionalModel
-      .findOne({ userId: new Types.ObjectId(userId) })
-      .exec();
-    if (professional) return professional;
+    if (!profile) return null;
 
-    return this.patientModel
-      .findOne({ userId: new Types.ObjectId(userId) })
+    // O documento de perfil não guarda o papel (role vive no User). O front usa
+    // este endpoint para reidratar a sessão no F5; sem role + id aqui, o
+    // roteamento por papel quebra (paciente acabava caindo em /dashboard).
+    const user = await this.userModel
+      .findById(userId)
+      .select('role')
+      .lean()
       .exec();
+
+    return {
+      ...profile.toObject(),
+      id: (profile._id as Types.ObjectId).toString(),
+      role: (user as { role?: string } | null)?.role,
+    };
   }
 
   async getClinicProfile(userId: string): Promise<ClinicDocument | null> {
