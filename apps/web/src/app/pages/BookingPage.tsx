@@ -55,6 +55,8 @@ function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+const font: React.CSSProperties = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
+
 export function BookingPage() {
   const { professionalId = '' } = useParams();
   const [searchParams] = useSearchParams();
@@ -195,58 +197,56 @@ export function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
+    <div className="min-h-screen flex flex-col bg-[#F0F4F8]" style={font}>
       <PatientTopbar />
 
-      <main className="flex-1 max-w-[1100px] w-full mx-auto px-8 py-10">
-        <button
-          onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#0077B6] hover:text-[#023E8A] mb-6"
-        >
-          <ArrowLeft size={16} /> Voltar
-        </button>
+      {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+      <div className="relative bg-gradient-to-br from-[#03045E] via-[#023E8A] to-[#0077B6] overflow-hidden">
+        <div className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-white/5" />
+        <div className="absolute bottom-0 left-1/4 w-56 h-56 rounded-full bg-white/5" />
+        <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-20 relative z-10">
+          <button
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white/70 hover:text-white mb-6 transition-colors"
+          >
+            <ArrowLeft size={16} /> Voltar à busca
+          </button>
 
-        <h1 className="text-3xl font-extrabold text-[#03045E] tracking-tight">Agendar atendimento</h1>
-        <p className="text-[#64748B] mt-1 mb-8">Escolha uma data, um horário disponível e confirme.</p>
-
-        {/* Professional / Clinic card */}
-        <div className="bg-white border border-[#E2E8F0] rounded-3xl p-6 shadow-sm mb-6">
-          <div className="flex items-center gap-5">
+          <div className="flex flex-col sm:flex-row items-start gap-5">
             {isAny ? (
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#CAF0F8] to-[#48CAE4] flex items-center justify-center shrink-0">
-                <Shuffle size={26} className="text-white" />
+              <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur border border-white/20 flex items-center justify-center shrink-0">
+                <Shuffle size={28} className="text-white" />
               </div>
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#90E0EF] to-[#00B4D8] flex items-center justify-center shrink-0 text-white font-bold text-lg">
+              <div className="w-16 h-16 rounded-2xl bg-white/15 backdrop-blur border border-white/20 flex items-center justify-center shrink-0 text-white font-bold text-xl">
                 {initials}
               </div>
             )}
             <div className="flex-1 min-w-0">
-              {isAny ? (
-                <>
-                  <h2 className="text-xl font-bold text-[#03045E]">Sem preferência de profissional</h2>
-                  <p className="text-sm text-[#0077B6] font-semibold mt-0.5">A clínica designará o profissional disponível</p>
-                  {clinicName && (
-                    <p className="text-sm text-[#64748B] mt-1 inline-flex items-center gap-1.5">
-                      <Building2 size={14} /> {clinicName}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <h2 className="text-xl font-bold text-[#03045E]">{professional.name}</h2>
-                  <p className="text-sm font-semibold text-[#0077B6] mt-0.5">{SPECIALTY_LABELS[professional.specialty] ?? professional.specialty}</p>
-                  {professional.clinicName && (
-                    <p className="text-sm text-[#64748B] mt-1 inline-flex items-center gap-1.5">
-                      <Building2 size={14} /> {professional.clinicName}
-                    </p>
-                  )}
-                </>
-              )}
+              <p className="text-xs font-bold tracking-widest text-[#90E0EF] uppercase mb-1">Agendar atendimento</p>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-1.5">
+                {isAny ? 'Sem preferência de profissional' : professional.name}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/75">
+                {!isAny && professional.specialty && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-white/85 text-xs font-semibold border border-white/15">
+                    {SPECIALTY_LABELS[professional.specialty] ?? professional.specialty}
+                  </span>
+                )}
+                {(isAny ? clinicName : professional.clinicName) && (
+                  <span className="flex items-center gap-1.5">
+                    <Building2 size={13} className="text-[#48CAE4]" /> {isAny ? clinicName : professional.clinicName}
+                  </span>
+                )}
+              </div>
+              {isAny && <p className="text-sm text-white/70 mt-2">A clínica designará o profissional disponível.</p>}
             </div>
           </div>
         </div>
+      </div>
 
+      {/* ── Body ─────────────────────────────────────────────────────────────── */}
+      <main className="flex-1 max-w-[1100px] w-full mx-auto px-4 sm:px-6 lg:px-8 -mt-12 pb-16 relative z-10">
         <div className="grid lg:grid-cols-[auto_1fr] gap-6 mb-6">
           <div className="bg-white border border-[#E2E8F0] rounded-3xl p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
