@@ -174,8 +174,10 @@ export function BookingPage() {
       };
       if (!isAny) {
         payload.professionalId = professionalId;
-        payload.clinicId = professional.clinicId ?? clinicIdParam;
-      } else {
+        // Profissional autônomo não tem clínica — não envia clinicId vazio.
+        const cid = professional.clinicId ?? clinicIdParam;
+        if (cid) payload.clinicId = cid;
+      } else if (clinicIdParam) {
         payload.clinicId = clinicIdParam;
       }
       const { data } = await api.post('/appointments', payload);

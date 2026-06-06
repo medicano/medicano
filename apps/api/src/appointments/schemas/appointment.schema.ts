@@ -26,8 +26,9 @@ export const VALID_STATUS_TRANSITIONS: Record<
 
 @Schema({ timestamps: true })
 export class Appointment {
-  @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
-  clinicId: Types.ObjectId;
+  // Opcional: agendamento com profissional autônomo não tem clínica.
+  @Prop({ type: MongooseSchema.Types.ObjectId })
+  clinicId?: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   professionalId: Types.ObjectId;

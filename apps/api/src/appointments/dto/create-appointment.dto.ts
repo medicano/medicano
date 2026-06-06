@@ -9,8 +9,10 @@ import {
 } from 'class-validator';
 
 export class CreateAppointmentDto {
+  // Opcional: agendamento com profissional autônomo não tem clínica.
   @IsMongoId()
-  readonly clinicId: string;
+  @IsOptional()
+  readonly clinicId?: string;
 
   @IsMongoId()
   @IsOptional()
