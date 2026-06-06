@@ -103,40 +103,61 @@ export function SearchPage() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [locationSource, setLocationSource] = useState<'gps' | 'ip' | null>(null);
 
-  const requestLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setLocationDenied(true);
-      return;
-    }
+  const tryIpLocation = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('https://ipapi.co/json/');
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (data.latitude && data.longitude) {
+        setUserLocation({ lat: data.latitude, lng: data.longitude });
+        setLocationSource('ip');
+        return true;
+      }
+    } catch { /* silently ignore */ }
+    return false;
+  }, []);
+
+  const requestLocation = useCallback(async () => {
     setLocating(true);
     setLocationDenied(false);
 
-    let settled = false;
-    // Fallback: alguns browsers no Windows nunca disparam o callback de erro
-    // quando o Location Services está desativado — o timeout da API não ajuda.
-    const fallback = setTimeout(() => {
-      if (!settled) { settled = true; setLocating(false); setLocationDenied(true); }
-    }, 11000);
+    const gpsSuccess = await new Promise<boolean>((resolve) => {
+      if (!navigator.geolocation) { resolve(false); return; }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(fallback);
-        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setLocating(false);
-      },
-      () => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(fallback);
-        setLocating(false);
-        setLocationDenied(true);
-      },
-      { timeout: 10000, enableHighAccuracy: true, maximumAge: 60000 },
-    );
-  }, []);
+      let settled = false;
+      // Fallback: no Windows o Location Services desativado nunca dispara callbacks.
+      const fallback = setTimeout(() => {
+        if (!settled) { settled = true; resolve(false); }
+      }, 6000);
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(fallback);
+          setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setLocationSource('gps');
+          resolve(true);
+        },
+        () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(fallback);
+          resolve(false);
+        },
+        { timeout: 5000, enableHighAccuracy: false, maximumAge: 60000 },
+      );
+    });
+
+    if (!gpsSuccess) {
+      const ipSuccess = await tryIpLocation();
+      if (!ipSuccess) setLocationDenied(true);
+    }
+
+    setLocating(false);
+  }, [tryIpLocation]);
 
   useEffect(() => { requestLocation(); }, [requestLocation]);
 
@@ -211,7 +232,10 @@ export function SearchPage() {
           {userLocation ? (
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <p className="flex items-center gap-1.5 text-xs text-[#00B4D8] font-medium">
-                <Navigation size={12} /> Usando sua localização — resultados ordenados por proximidade
+                <Navigation size={12} />
+                {locationSource === 'ip'
+                  ? 'Localização aproximada (por IP) — resultados ordenados por proximidade'
+                  : 'Usando sua localização — resultados ordenados por proximidade'}
               </p>
               <label className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
                 Raio
