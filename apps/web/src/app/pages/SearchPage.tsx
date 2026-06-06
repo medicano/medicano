@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { Search, MapPin, Phone, Building2, SearchX, Calendar, Navigation } from 'lucide-react';
 import { SpecialtyCombobox } from '../components/SpecialtyCombobox';
+import { CityAutocomplete } from '../components/ui/CityAutocomplete';
 import { PatientTopbar } from '../components/PatientTopbar';
 import { AppFooter } from '../components/AppFooter';
 import { Button } from '../components/ui/Button';
@@ -280,16 +281,7 @@ export function SearchPage() {
 
             <div>
               <label className="block text-xs font-bold text-[#64748B] uppercase tracking-wider mb-2">Cidade</label>
-              <div className="relative">
-                <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Ex.: São Paulo"
-                  className="w-full h-11 pl-9 pr-4 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#00B4D8] transition-colors"
-                />
-              </div>
+              <CityAutocomplete value={city} onChange={setCity} placeholder="Ex.: São Paulo" />
             </div>
 
             <Button type="submit" variant="primary" className="gap-2 h-11">
