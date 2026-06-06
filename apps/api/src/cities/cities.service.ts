@@ -73,11 +73,14 @@ export class CitiesService {
     }
   }
 
+  // Reduz o texto a apenas letras/n\u00fameros sem acento. Remover espa\u00e7os e
+  // pontua\u00e7\u00e3o (ap\u00f3strofo, h\u00edfen, ponto) faz "estrela do" casar com
+  // "Estrela d'Oeste" sem o usu\u00e1rio precisar digitar a pontua\u00e7\u00e3o exata.
   private normalize(text: string): string {
     return text
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
-      .trim();
+      .replace(/[^a-z0-9]/g, '');
   }
 }

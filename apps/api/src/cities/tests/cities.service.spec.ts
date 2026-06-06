@@ -6,6 +6,7 @@ const ibgeResponse = [
   { nome: 'São Bernardo do Campo', microrregiao: { mesorregiao: { UF: { sigla: 'SP' } } } },
   { nome: 'Salvador', microrregiao: { mesorregiao: { UF: { sigla: 'BA' } } } },
   { nome: 'Santos', microrregiao: { mesorregiao: { UF: { sigla: 'SP' } } } },
+  { nome: "Estrela d'Oeste", microrregiao: { mesorregiao: { UF: { sigla: 'SP' } } } },
 ];
 
 describe('CitiesService', () => {
@@ -37,6 +38,14 @@ describe('CitiesService', () => {
       const result = await citiesService.search('sao paulo');
 
       expect(result).toContainEqual({ name: 'São Paulo', state: 'SP' });
+    });
+
+    it('matches names with punctuation without typing the punctuation', async () => {
+      const withoutApostrophe = await citiesService.search('estrela do');
+      expect(withoutApostrophe).toContainEqual({ name: "Estrela d'Oeste", state: 'SP' });
+
+      const partial = await citiesService.search('estrela');
+      expect(partial).toContainEqual({ name: "Estrela d'Oeste", state: 'SP' });
     });
 
     it('prioritizes prefix matches over substring matches', async () => {
