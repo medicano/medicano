@@ -101,17 +101,25 @@ export function SearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [submittedFilters, setSubmittedFilters] = useState({ query: '', specialty: initialSpecialty, city: '', type: 'all' as ResultType, radius: '10' });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [, setLocating] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
 
   const requestLocation = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setLocationDenied(true);
+      return;
+    }
     setLocating(true);
+    setLocationDenied(false);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocating(false);
       },
-      () => setLocating(false),
+      () => {
+        setLocating(false);
+        setLocationDenied(true);
+      },
       { timeout: 10000, enableHighAccuracy: true, maximumAge: 60000 },
     );
   }, []);
@@ -186,7 +194,7 @@ export function SearchPage() {
             />
           </div>
 
-          {userLocation && (
+          {userLocation ? (
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <p className="flex items-center gap-1.5 text-xs text-[#00B4D8] font-medium">
                 <Navigation size={12} /> Usando sua localização — resultados ordenados por proximidade
@@ -205,6 +213,22 @@ export function SearchPage() {
                   <option value="">Qualquer distância</option>
                 </select>
               </label>
+            </div>
+          ) : (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={requestLocation}
+                disabled={locating}
+                className="flex items-center gap-1.5 text-xs text-[#64748B] hover:text-[#00B4D8] transition-colors disabled:opacity-50"
+              >
+                <Navigation size={12} />
+                {locating
+                  ? 'Obtendo localização...'
+                  : locationDenied
+                    ? 'Permitir localização para filtrar por distância'
+                    : 'Ativar localização para filtrar por distância'}
+              </button>
             </div>
           )}
 
