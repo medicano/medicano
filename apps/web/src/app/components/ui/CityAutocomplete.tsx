@@ -1,5 +1,6 @@
 import { MapPin } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { api } from '../../lib/api';
 
 interface City {
   name: string;
@@ -12,88 +13,40 @@ interface CityAutocompleteProps {
   placeholder?: string;
 }
 
-// A lista de municípios do IBGE é estável e grande (~5570); buscamos uma única
-// vez por sessão e compartilhamos a mesma promise entre instâncias, filtrando no
-// cliente. Sem rate limit nem chave, e sem chamada de rede a cada tecla.
-let citiesCache: Promise<City[]> | null = null;
-
-interface IbgeMunicipio {
-  nome: string;
-  microrregiao?: { mesorregiao?: { UF?: { sigla?: string } } };
-}
-
-function loadCities(): Promise<City[]> {
-  if (citiesCache) return citiesCache;
-  citiesCache = fetch(
-    'https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome',
-  )
-    .then((res) => res.json() as Promise<IbgeMunicipio[]>)
-    .then((data) =>
-      data.map((m) => ({
-        name: m.nome,
-        state: m.microrregiao?.mesorregiao?.UF?.sigla ?? '',
-      })),
-    )
-    .catch(() => {
-      // Falha de rede não deve travar o filtro: zera o cache para tentar de novo
-      // na próxima interação e devolve lista vazia (input vira texto livre).
-      citiesCache = null;
-      return [];
-    });
-  return citiesCache;
-}
-
-function normalize(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-}
-
 export function CityAutocomplete({ value, onChange, placeholder }: CityAutocompleteProps) {
-  const [cities, setCities] = useState<City[]>([]);
   const [suggestions, setSuggestions] = useState<City[]>([]);
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
+  const [loading, setLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Busca os municípios pela nossa API (que consulta o IBGE no servidor): assim
+  // a sugestão funciona mesmo em navegadores que bloqueiam requisições externas.
   function handleChange(input: string) {
     onChange(input);
-    const term = normalize(input);
-    if (term.length < 2) {
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (input.trim().length < 2) {
       setSuggestions([]);
       setOpen(false);
       return;
     }
 
-    const list = cities.length > 0 ? cities : null;
-    if (!list) {
-      // Primeira interação: carrega a lista e refiltra quando ela chega.
-      loadCities().then((loaded) => {
-        setCities(loaded);
-        setSuggestions(filterCities(loaded, term));
-        setOpen(filterCities(loaded, term).length > 0);
-      });
-      return;
-    }
-
-    const matches = filterCities(list, term);
-    setSuggestions(matches);
-    setOpen(matches.length > 0);
-    setHighlighted(-1);
-  }
-
-  function filterCities(list: City[], term: string): City[] {
-    const startsWith: City[] = [];
-    const contains: City[] = [];
-    for (const city of list) {
-      const normalized = normalize(city.name);
-      if (normalized.startsWith(term)) startsWith.push(city);
-      else if (normalized.includes(term)) contains.push(city);
-      if (startsWith.length >= 8) break;
-    }
-    return [...startsWith, ...contains].slice(0, 8);
+    debounceRef.current = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get<City[]>('/cities', { params: { q: input.trim() } });
+        setSuggestions(data);
+        setOpen(data.length > 0);
+        setHighlighted(-1);
+      } catch {
+        setSuggestions([]);
+        setOpen(false);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
   }
 
   function handleSelect(city: City) {
@@ -133,6 +86,16 @@ export function CityAutocomplete({ value, onChange, placeholder }: CityAutocompl
   return (
     <div ref={containerRef} className="relative">
       <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#64748B]" />
+      {loading && (
+        <svg
+          className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#94A3B8]"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      )}
       <input
         type="text"
         value={value}
@@ -141,7 +104,7 @@ export function CityAutocomplete({ value, onChange, placeholder }: CityAutocompl
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full h-11 pl-9 pr-4 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#00B4D8] transition-colors"
+        className="w-full h-11 pl-9 pr-9 rounded-xl bg-white border border-[#E2E8F0] text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#00B4D8] transition-colors"
       />
 
       {open && suggestions.length > 0 && (
