@@ -107,11 +107,9 @@ export function SearchPage() {
 
   const tryIpLocation = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch('https://ipapi.co/json/');
-      if (!res.ok) return false;
-      const data = await res.json();
-      if (data.latitude && data.longitude) {
-        setUserLocation({ lat: data.latitude, lng: data.longitude });
+      const res = await api.get<{ lat: number; lng: number } | null>('/location');
+      if (res.data?.lat && res.data?.lng) {
+        setUserLocation({ lat: res.data.lat, lng: res.data.lng });
         setLocationSource('ip');
         return true;
       }

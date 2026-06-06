@@ -32,6 +32,29 @@ export class GeocodingService {
     return null;
   }
 
+  // IPs privados/loopback não têm geolocalização significativa.
+  private isPrivateIp(ip: string): boolean {
+    return !ip || ip === '127.0.0.1' || ip === '::1' || /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(ip);
+  }
+
+  async getLocationByIp(ip: string): Promise<GeoCoordinates | null> {
+    if (this.isPrivateIp(ip)) return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(`http://ip-api.com/json/${ip}?fields=status,lat,lon`, {
+        signal: controller.signal,
+      });
+      const data = (await response.json()) as { status: string; lat: number; lon: number };
+      if (data.status === 'success') return { lat: data.lat, lng: data.lon };
+      return null;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   // Nominatim é um serviço externo: limitamos o tempo de espera para que uma
   // resposta lenta não bloqueie o fluxo que depende das coordenadas (cadastro
   // ou edição de clínica). Em caso de falha, devolve null e o chamador decide.
