@@ -188,6 +188,83 @@ describe('AppointmentsService', () => {
       );
     });
 
+    it('RN-APP-06 — clínica com autoConfirm cria agendamento já confirmado e notifica confirmação', async () => {
+      const createDto = {
+        clinicId: 'clinic-1',
+        professionalId: 'prof-1',
+        patientId: 'patient-1',
+        startAt: '2025-06-01T10:00:00Z',
+      };
+
+      mockClinicModel.findById.mockReturnValue(buildExecChain({ autoConfirm: true }));
+      mockAppointmentModel.create.mockResolvedValue({ ...appointmentFixture, status: 'confirmed' });
+
+      await service.createAppointment(createDto as any);
+
+      expect(mockAppointmentModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'confirmed' }),
+      );
+      expect(mockNotificationsService.notifyAppointmentConfirmed).toHaveBeenCalledTimes(1);
+    });
+
+    it('RN-APP-07 — profissional autônomo (sem clínica) usa o próprio autoConfirm', async () => {
+      const createDto = {
+        professionalId: 'prof-1',
+        patientId: 'patient-1',
+        startAt: '2025-06-01T10:00:00Z',
+      };
+
+      mockProfessionalModel.findById.mockReturnValue(buildExecChain({ autoConfirm: true }));
+      mockAppointmentModel.create.mockResolvedValue({ ...appointmentFixture, status: 'confirmed' });
+
+      await service.createAppointment(createDto as any);
+
+      expect(mockProfessionalModel.findById).toHaveBeenCalledWith('prof-1');
+      expect(mockAppointmentModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'confirmed' }),
+      );
+      expect(mockNotificationsService.notifyAppointmentConfirmed).toHaveBeenCalledTimes(1);
+    });
+
+    it('RN-APP-08 — clínica sem autoConfirm mantém agendamento como scheduled e não notifica confirmação', async () => {
+      const createDto = {
+        clinicId: 'clinic-1',
+        professionalId: 'prof-1',
+        patientId: 'patient-1',
+        startAt: '2025-06-01T10:00:00Z',
+      };
+
+      mockClinicModel.findById.mockReturnValue(buildExecChain({ autoConfirm: false }));
+      mockAppointmentModel.create.mockResolvedValue({ ...appointmentFixture });
+
+      await service.createAppointment(createDto as any);
+
+      expect(mockAppointmentModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'scheduled' }),
+      );
+      expect(mockNotificationsService.notifyAppointmentConfirmed).not.toHaveBeenCalled();
+    });
+
+    it('RN-APP-09 — funcionário de clínica ignora o autoConfirm do profissional (clínica tem prioridade)', async () => {
+      const createDto = {
+        clinicId: 'clinic-1',
+        professionalId: 'prof-1',
+        patientId: 'patient-1',
+        startAt: '2025-06-01T10:00:00Z',
+      };
+
+      mockClinicModel.findById.mockReturnValue(buildExecChain({ autoConfirm: false }));
+      mockProfessionalModel.findById.mockReturnValue(buildExecChain({ autoConfirm: true }));
+      mockAppointmentModel.create.mockResolvedValue({ ...appointmentFixture });
+
+      await service.createAppointment(createDto as any);
+
+      expect(mockProfessionalModel.findById).not.toHaveBeenCalled();
+      expect(mockAppointmentModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'scheduled' }),
+      );
+    });
+
     it('RN-APP-05 — notification failure does not propagate on create', async () => {
       const createDto = {
         clinicId: 'clinic-1',

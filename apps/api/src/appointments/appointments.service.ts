@@ -45,9 +45,49 @@ export class AppointmentsService {
     const durationMinutes = dto.durationMinutes ?? 30;
     const startAt = new Date(dto.startAt);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60 * 1000);
-    const appointment = await this.appointmentModel.create({ ...dto, durationMinutes, endAt });
+
+    const status = (await this.shouldAutoConfirm(dto))
+      ? AppointmentStatus.CONFIRMED
+      : AppointmentStatus.SCHEDULED;
+
+    const appointment = await this.appointmentModel.create({
+      ...dto,
+      durationMinutes,
+      endAt,
+      status,
+    });
+
     this.notificationsService.notifyAppointmentCreated(appointment).catch(() => {});
+    if (status === AppointmentStatus.CONFIRMED) {
+      this.notificationsService.notifyAppointmentConfirmed(appointment).catch(() => {});
+    }
+
     return appointment;
+  }
+
+  // Confirmação automática segue a hierarquia de privilégio: dentro de uma
+  // clínica, vale o autoConfirm da clínica (funcionários seguem a decisão dela);
+  // profissional autônomo (sem clinicId) decide pelo próprio autoConfirm.
+  private async shouldAutoConfirm(dto: CreateAppointmentDto): Promise<boolean> {
+    if (dto.clinicId) {
+      const clinic = await this.clinicModel
+        .findById(dto.clinicId)
+        .select('autoConfirm')
+        .lean()
+        .exec();
+      return clinic?.autoConfirm ?? false;
+    }
+
+    if (dto.professionalId) {
+      const professional = await this.professionalModel
+        .findById(dto.professionalId)
+        .select('autoConfirm')
+        .lean()
+        .exec();
+      return professional?.autoConfirm ?? false;
+    }
+
+    return false;
   }
 
   async findAll(query: GetAppointmentsQueryDto | undefined, user: AuthenticatedUser): Promise<any[]> {
