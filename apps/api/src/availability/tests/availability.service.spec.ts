@@ -17,6 +17,10 @@ const professionalWithFridaySlots = {
   weeklySlots: [{ dayOfWeek: 5, startTime: '09:00', endTime: '11:00' }],
 };
 
+const professionalWithHourlySlots = {
+  weeklySlots: [{ dayOfWeek: 5, startTime: '09:00', endTime: '11:00', slotDurationMinutes: 60 }],
+};
+
 describe('AvailabilityService', () => {
   let service: AvailabilityService;
 
@@ -50,6 +54,20 @@ describe('AvailabilityService', () => {
 
       const result = await service.getAvailableSlotsForDay('prof-1', '2025-01-10');
       expect(Array.isArray(result)).toBe(true);
+    });
+
+    it('propaga a duração configurada do slot para o DTO retornado', async () => {
+      mockProfessionalModel.findById.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(professionalWithHourlySlots),
+      });
+      mockAppointmentModel.find.mockReturnValue({
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await service.getAvailableSlotsForDay('prof-1', '2025-01-10');
+
+      expect(result.length).toBeGreaterThan(0);
+      expect(result.every((slot) => slot.durationMinutes === 60)).toBe(true);
     });
 
     it('returns empty array when no availability configured', async () => {

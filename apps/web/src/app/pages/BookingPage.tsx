@@ -24,6 +24,7 @@ interface Slot {
   start: string;
   available: boolean;
   label: string;
+  durationMinutes?: number;
 }
 
 type RawSlot = {
@@ -33,6 +34,7 @@ type RawSlot = {
   available?: boolean;
   taken?: boolean;
   label?: string;
+  durationMinutes?: number;
 };
 
 type ProfessionalApiData = {
@@ -124,6 +126,7 @@ export function BookingPage() {
               start: s.start ?? s.startAt ?? s.time ?? '',
               available: s.available !== false && !s.taken,
               label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time ?? ''),
+              durationMinutes: s.durationMinutes,
             }));
             skipFetchRef.current = true;
             setDate(d);
@@ -152,6 +155,7 @@ export function BookingPage() {
           start: s.start ?? s.startAt ?? s.time ?? '',
           available: s.available !== false && !s.taken,
           label: s.label ?? toLocalTime(s.start ?? s.startAt ?? s.time ?? ''),
+          durationMinutes: s.durationMinutes,
         }));
         setSlots(normalized);
         setSlot(prev => normalized.some(s => s.start === prev) ? prev : null);
@@ -168,9 +172,17 @@ export function BookingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const payload: { startAt: string; notes?: string; professionalId?: string; clinicId?: string } = {
+      const selectedSlot = slots.find((s) => s.start === slot);
+      const payload: {
+        startAt: string;
+        notes?: string;
+        professionalId?: string;
+        clinicId?: string;
+        durationMinutes?: number;
+      } = {
         startAt: slot,
         notes: notes || undefined,
+        durationMinutes: selectedSlot?.durationMinutes,
       };
       if (!isAny) {
         payload.professionalId = professionalId;

@@ -207,7 +207,13 @@ export class AvailabilityService {
           });
 
           if (!hasOverlap) {
-            availableSlots.push(new AvailableSlotDto({ startAt: start, endAt: end }));
+            availableSlots.push(
+              new AvailableSlotDto({
+                startAt: start,
+                endAt: end,
+                durationMinutes: slot.slotDurationMinutes ?? 30,
+              }),
+            );
           }
         }
 
@@ -257,7 +263,14 @@ export class AvailabilityService {
           const start = new Date(cursor);
           const end = new Date(cursor + durationMs);
           const taken = existing.some(a => new Date(a.startAt) < end && new Date(a.endAt) > start);
-          if (!taken) daySlots.push(new AvailableSlotDto({ startAt: start, endAt: end }));
+          if (!taken)
+            daySlots.push(
+              new AvailableSlotDto({
+                startAt: start,
+                endAt: end,
+                durationMinutes: (slot as any).slotDurationMinutes ?? 30,
+              }),
+            );
           cursor += durationMs;
         }
       }
