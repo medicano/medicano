@@ -111,12 +111,26 @@ export function SearchPage() {
     }
     setLocating(true);
     setLocationDenied(false);
+
+    let settled = false;
+    // Fallback: alguns browsers no Windows nunca disparam o callback de erro
+    // quando o Location Services está desativado — o timeout da API não ajuda.
+    const fallback = setTimeout(() => {
+      if (!settled) { settled = true; setLocating(false); setLocationDenied(true); }
+    }, 11000);
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallback);
         setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         setLocating(false);
       },
       () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(fallback);
         setLocating(false);
         setLocationDenied(true);
       },
