@@ -151,31 +151,65 @@ export class SearchService {
 
     const linkedProfessionalIds = new Set<string>();
     const profToActiveClinicId = new Map<string, string>();
+    const profToActiveClinicIds = new Map<string, Set<string>>();
     for (const link of allLinks) {
       const profId = (link.professionalId as Types.ObjectId).toString();
       const clinicId = (link.clinicId as Types.ObjectId).toString();
       linkedProfessionalIds.add(profId);
-      if (activeClinicIds.has(clinicId) && !profToActiveClinicId.has(profId)) {
-        profToActiveClinicId.set(profId, clinicId);
+      if (activeClinicIds.has(clinicId)) {
+        if (!profToActiveClinicId.has(profId)) profToActiveClinicId.set(profId, clinicId);
+        const clinicsForProf = profToActiveClinicIds.get(profId) ?? new Set<string>();
+        clinicsForProf.add(clinicId);
+        profToActiveClinicIds.set(profId, clinicsForProf);
       }
     }
 
     const professionalFilter: Record<string, unknown> = { isActive: { $ne: false } };
     if (query.specialty) professionalFilter['specialty'] = query.specialty;
     if (query.name) professionalFilter['name'] = { $regex: query.name, $options: 'i' };
-    if (query.city) {
-      // Cidade pode estar no endereço legado (address.city) ou no novo addressForm.
-      const cityRegex = { $regex: query.city, $options: 'i' };
-      professionalFilter['$or'] = [{ 'address.city': cityRegex }, { 'addressForm.city': cityRegex }];
-    }
+
+    // A cidade do profissional pode estar no documento dele (autônomo) ou vir da
+    // clínica onde atende (vinculado, que não tem endereço próprio). Resolvemos
+    // as clínicas da cidade aqui e aplicamos o casamento na filtragem em memória.
+    const cityClinicIds = query.city
+      ? new Set(
+          (
+            await this.clinicModel
+              .find({
+                $or: [
+                  { city: { $regex: query.city, $options: 'i' } },
+                  { 'addressForm.city': { $regex: query.city, $options: 'i' } },
+                  { 'address.city': { $regex: query.city, $options: 'i' } },
+                ],
+              })
+              .select('_id')
+              .lean()
+              .exec()
+          ).map((c) => (c._id as Types.ObjectId).toString()),
+        )
+      : null;
 
     const docs = await this.professionalModel.find(professionalFilter).lean().exec();
     // Aparece quem está vinculado a uma clínica com assinatura ativa OU quem é
     // autônomo (sem vínculo com nenhuma clínica). Vinculado só a clínica sem
     // assinatura ativa continua oculto.
+    const matchesCity = (p: (typeof docs)[number], profId: string): boolean => {
+      if (!cityClinicIds) return true;
+      const ownCity = ((p as any).addressForm?.city ?? (p.address as any)?.city ?? '') as string;
+      if (ownCity && ownCity.toLowerCase().includes(query.city!.toLowerCase())) return true;
+      const activeClinics = profToActiveClinicIds.get(profId);
+      if (activeClinics) {
+        for (const clinicId of activeClinics) {
+          if (cityClinicIds.has(clinicId)) return true;
+        }
+      }
+      return false;
+    };
+
     const filtered = docs.filter((p) => {
       const profId = (p._id as Types.ObjectId).toString();
-      return profToActiveClinicId.has(profId) || !linkedProfessionalIds.has(profId);
+      const visible = profToActiveClinicId.has(profId) || !linkedProfessionalIds.has(profId);
+      return visible && matchesCity(p, profId);
     });
 
     const neededClinicIds = [...new Set([...profToActiveClinicId.values()])].map(
@@ -183,11 +217,17 @@ export class SearchService {
     );
     const clinicDocs = await this.clinicModel
       .find({ _id: { $in: neededClinicIds } })
-      .select('name lat lng')
+      .select('name lat lng city addressForm.city address.city')
       .lean()
       .exec();
     const clinicNameMap = new Map(
       clinicDocs.map((c) => [(c._id as Types.ObjectId).toString(), c.name]),
+    );
+    const clinicCityMap = new Map(
+      clinicDocs.map((c) => [
+        (c._id as Types.ObjectId).toString(),
+        ((c as any).city ?? (c as any).addressForm?.city ?? (c.address as any)?.city ?? '') as string,
+      ]),
     );
 
     const clinicCoordMap = new Map<string, { lat: number; lng: number }>();
@@ -206,7 +246,7 @@ export class SearchService {
         id: profId,
         name: p.name as string,
         specialty: p.specialty as string,
-        city: (p as any).addressForm?.city ?? (p.address as any)?.city ?? '',
+        city: (p as any).addressForm?.city || (p.address as any)?.city || clinicCityMap.get(clinicId) || '',
         clinicId,
         clinicName: clinicNameMap.get(clinicId) ?? '',
       };

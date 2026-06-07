@@ -341,6 +341,113 @@ describe('SearchService', () => {
 
       expect(mockProfessionalModel.find).toHaveBeenCalled();
     });
+
+    it('RN-CITY-01 — profissional vinculado a clínica da cidade aparece no filtro por cidade', async () => {
+      mockSubscriptionModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
+      });
+
+      // P1 atende em C1 e não tem endereço próprio — a cidade vem da clínica.
+      mockClinicProfessionalModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1, professionalId: P1 }]),
+      });
+
+      mockProfessionalModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: P1, name: 'Dr. One' }]),
+      });
+
+      // type: 'professional' → searchClinics não roda, então as duas chamadas a
+      // clinicModel.find são, em ordem: cidades da cidade e clínicas necessárias.
+      mockClinicModel.find
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([{ _id: C1 }]),
+        })
+        .mockReturnValueOnce({
+          select: jest.fn().mockReturnThis(),
+          lean: jest.fn().mockReturnThis(),
+          exec: jest.fn().mockResolvedValue([{ _id: C1, name: 'Clínica SP', city: 'São Paulo' }]),
+        });
+
+      const result = await service.search({ type: 'professional', city: 'São Paulo' } as any);
+
+      const ids = result.professionals.map((r: any) => r._id ?? r.id);
+      expect(ids).toContain(P1);
+      expect(result.professionals[0].city).toBe('São Paulo');
+    });
+
+    it('RN-CITY-02 — profissional cuja clínica não é da cidade não aparece', async () => {
+      mockSubscriptionModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1 }]),
+      });
+
+      mockClinicProfessionalModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ clinicId: C1, professionalId: P1 }]),
+      });
+
+      mockProfessionalModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([{ _id: P1, name: 'Dr. One' }]),
+      });
+
+      // Nenhuma clínica em Campinas → cityClinicIds vazio.
+      mockClinicModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await service.search({ type: 'professional', city: 'Campinas' } as any);
+
+      expect(result.professionals).toHaveLength(0);
+    });
+
+    it('RN-CITY-03 — profissional autônomo aparece pela cidade do próprio endereço', async () => {
+      mockSubscriptionModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      // P3 sem vínculo (autônomo), com cidade no próprio addressForm.
+      mockClinicProfessionalModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      mockProfessionalModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          { _id: P3, name: 'Dr. Three', addressForm: { city: 'São Paulo' } },
+        ]),
+      });
+
+      // cityClinicIds: nenhuma clínica precisa casar — o autônomo casa pela própria cidade.
+      mockClinicModel.find.mockReturnValueOnce({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await service.search({ type: 'professional', city: 'São Paulo' } as any);
+
+      const ids = result.professionals.map((r: any) => r._id ?? r.id);
+      expect(ids).toContain(P3);
+    });
   });
 
   // -------------------------------------------------------------------------
