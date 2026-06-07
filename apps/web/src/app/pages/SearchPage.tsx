@@ -177,7 +177,9 @@ export function SearchPage() {
       params.userLat = String(userLocation.lat);
       params.userLng = String(userLocation.lng);
       // O raio só faz sentido com localização — sem ela não há distância a medir.
-      if (submittedFilters.radius) params.radius = submittedFilters.radius;
+      // Ao filtrar por cidade não aplicamos corte por distância: a cidade já
+      // delimita a área. A localização segue apenas para ordenar por proximidade.
+      if (submittedFilters.radius && !submittedFilters.city) params.radius = submittedFilters.radius;
     }
 
     api.get('/search', { params })
@@ -236,20 +238,26 @@ export function SearchPage() {
                   ? 'Localização aproximada (por IP) — resultados ordenados por proximidade'
                   : 'Usando sua localização — resultados ordenados por proximidade'}
               </p>
-              <label className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
-                Raio
-                <select
-                  value={radius}
-                  onChange={(e) => setRadius(e.target.value)}
-                  className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-[#0F172A] focus:outline-none focus:border-[#00B4D8]"
-                >
-                  <option value="10">Até 10 km</option>
-                  <option value="25">Até 25 km</option>
-                  <option value="50">Até 50 km</option>
-                  <option value="100">Até 100 km</option>
-                  <option value="">Qualquer distância</option>
-                </select>
-              </label>
+              {city.trim() ? (
+                <p className="text-xs text-[#64748B]">
+                  Filtrando pela cidade — distância não aplicada
+                </p>
+              ) : (
+                <label className="flex items-center gap-2 text-xs font-semibold text-[#64748B]">
+                  Raio
+                  <select
+                    value={radius}
+                    onChange={(e) => setRadius(e.target.value)}
+                    className="h-8 rounded-lg border border-[#E2E8F0] bg-white px-2 text-[#0F172A] focus:outline-none focus:border-[#00B4D8]"
+                  >
+                    <option value="10">Até 10 km</option>
+                    <option value="25">Até 25 km</option>
+                    <option value="50">Até 50 km</option>
+                    <option value="100">Até 100 km</option>
+                    <option value="">Qualquer distância</option>
+                  </select>
+                </label>
+              )}
             </div>
           ) : (
             <div className="mb-3">
