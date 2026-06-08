@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router';
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router';
 import {
   Bot,
   Search,
@@ -22,6 +22,14 @@ import { MedicanoLogo } from '../components/MedicanoLogo';
 
 export function LandingPage() {
   const [audience, setAudience] = useState<'paciente' | 'profissional'>('paciente');
+  const location = useLocation();
+
+  // Rola até a seção do hash ao chegar (inclusive vindo de outra rota, como /search).
+  useEffect(() => {
+    if (!location.hash) return;
+    const target = document.getElementById(location.hash.slice(1));
+    target?.scrollIntoView({ behavior: 'smooth' });
+  }, [location.hash]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-white selection:bg-[#90E0EF] selection:text-[#03045E]">
@@ -32,10 +40,10 @@ export function LandingPage() {
           <MedicanoLogo />
           
           <div className="hidden lg:flex items-center gap-8 text-[15px] font-medium text-[#64748B]">
-            <a href="#como-funciona" className="hover:text-[#0077B6] transition-colors">Como funciona</a>
-            <a href="#especialidades" className="hover:text-[#0077B6] transition-colors">Especialidades</a>
-            <a href="#profissionais" className="hover:text-[#0077B6] transition-colors">Para Profissionais</a>
-            <a href="#planos" className="hover:text-[#0077B6] transition-colors">Planos</a>
+            <Link to="/#como-funciona" className="hover:text-[#0077B6] transition-colors">Como funciona</Link>
+            <Link to="/#especialidades" className="hover:text-[#0077B6] transition-colors">Especialidades</Link>
+            <Link to="/#profissionais" className="hover:text-[#0077B6] transition-colors">Para Profissionais</Link>
+            <Link to="/#planos" className="hover:text-[#0077B6] transition-colors">Planos</Link>
             <Link to="/search" className="hover:text-[#0077B6] transition-colors">Buscar profissionais</Link>
           </div>
 

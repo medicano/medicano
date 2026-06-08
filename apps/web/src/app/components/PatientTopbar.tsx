@@ -52,10 +52,10 @@ export function PatientTopbar() {
             </div>
           ) : (
             <div className="hidden lg:flex items-center gap-8 text-[15px] font-medium text-[#64748B]">
-              <a href="/#como-funciona" className="hover:text-[#0077B6] transition-colors">Como funciona</a>
-              <a href="/#especialidades" className="hover:text-[#0077B6] transition-colors">Especialidades</a>
-              <a href="/#profissionais" className="hover:text-[#0077B6] transition-colors">Para Profissionais</a>
-              <a href="/#planos" className="hover:text-[#0077B6] transition-colors">Planos</a>
+              <Link to="/#como-funciona" className="hover:text-[#0077B6] transition-colors">Como funciona</Link>
+              <Link to="/#especialidades" className="hover:text-[#0077B6] transition-colors">Especialidades</Link>
+              <Link to="/#profissionais" className="hover:text-[#0077B6] transition-colors">Para Profissionais</Link>
+              <Link to="/#planos" className="hover:text-[#0077B6] transition-colors">Planos</Link>
               <NavLink to="/search" className={linkClass}>Buscar profissionais</NavLink>
             </div>
           )}

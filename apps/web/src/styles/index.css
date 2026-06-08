@@ -1,3 +1,8 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* A navbar fixa (sticky) nao deve cobrir o titulo da secao ao navegar por hash. */
+section[id] {
+  scroll-margin-top: 6rem;
+}
