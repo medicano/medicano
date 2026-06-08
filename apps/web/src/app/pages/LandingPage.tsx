@@ -114,10 +114,10 @@ export function LandingPage() {
               <div className="flex flex-col sm:flex-row gap-4 pt-2">
                 {audience === 'paciente' ? (
                   <>
-                    <Link to="/signup">
+                    <Link to="/search">
                       <Button variant="primary" size="lg" className="gap-2 w-full sm:w-auto">
-                        <CalendarCheck2 size={20} />
-                        Criar conta e agendar
+                        <Search size={20} />
+                        Buscar profissionais
                       </Button>
                     </Link>
                     <Link to="/assistant">
@@ -517,7 +517,7 @@ export function LandingPage() {
           <div>
             <h4 className="font-bold text-white mb-4">Para Pacientes</h4>
             <ul className="space-y-3 text-[#ADE8F4] text-sm">
-              <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Buscar Médicos</a></li>
+              <li><Link to="/search" className="hover:text-[#90E0EF] transition-colors">Buscar Médicos</Link></li>
               <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Especialidades</a></li>
               <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Assistente por IA</a></li>
               <li><a href="#" className="hover:text-[#90E0EF] transition-colors">Ajuda</a></li>

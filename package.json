@@ -23,6 +23,8 @@
     "dev:web": "npm run dev --workspace=apps/web",
     "build": "npm run build --workspaces --if-present",
     "types:build": "npm run build --workspace=packages/types",
-    "types:dev": "npm run dev --workspace=packages/types"
+    "types:dev": "npm run dev --workspace=packages/types",
+    "docs:build": "cd documentation && latexmk main.tex",
+    "docs:clean": "cd documentation && latexmk -C main.tex"
   }
 }

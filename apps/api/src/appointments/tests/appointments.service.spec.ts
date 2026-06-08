@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
+import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { AppointmentsService } from '../appointments.service';
 import { Appointment } from '../schemas/appointment.schema';
 import { Professional } from '../../professionals/schemas/professional.schema';
@@ -167,12 +167,20 @@ describe('AppointmentsService', () => {
   });
 
   describe('createAppointment', () => {
+    // Data sempre no futuro: a validação de slot rejeita datas passadas.
+    const futureStartAt = '2099-06-01T10:00:00Z';
+
+    beforeEach(() => {
+      // Sem conflito de horário por padrão (overlap lookup retorna nada).
+      mockAppointmentModel.findOne.mockReturnValue(buildExecChain(null));
+    });
+
     it('RN-APP-01 — creates appointment and calls notifyAppointmentCreated', async () => {
       const createDto = {
         clinicId: 'clinic-1',
         professionalId: 'prof-1',
         patientId: 'patient-1',
-        scheduledAt: new Date('2025-06-01T10:00:00Z'),
+        startAt: futureStartAt,
         notes: 'checkup',
       };
 
@@ -193,7 +201,7 @@ describe('AppointmentsService', () => {
         clinicId: 'clinic-1',
         professionalId: 'prof-1',
         patientId: 'patient-1',
-        startAt: '2025-06-01T10:00:00Z',
+        startAt: futureStartAt,
       };
 
       mockClinicModel.findById.mockReturnValue(buildExecChain({ autoConfirm: true }));
@@ -211,7 +219,7 @@ describe('AppointmentsService', () => {
       const createDto = {
         professionalId: 'prof-1',
         patientId: 'patient-1',
-        startAt: '2025-06-01T10:00:00Z',
+        startAt: futureStartAt,
       };
 
       mockProfessionalModel.findById.mockReturnValue(buildExecChain({ autoConfirm: true }));
@@ -231,7 +239,7 @@ describe('AppointmentsService', () => {
         clinicId: 'clinic-1',
         professionalId: 'prof-1',
         patientId: 'patient-1',
-        startAt: '2025-06-01T10:00:00Z',
+        startAt: futureStartAt,
       };
 
       mockClinicModel.findById.mockReturnValue(buildExecChain({ autoConfirm: false }));
@@ -250,7 +258,7 @@ describe('AppointmentsService', () => {
         clinicId: 'clinic-1',
         professionalId: 'prof-1',
         patientId: 'patient-1',
-        startAt: '2025-06-01T10:00:00Z',
+        startAt: futureStartAt,
       };
 
       mockClinicModel.findById.mockReturnValue(buildExecChain({ autoConfirm: false }));
@@ -270,7 +278,7 @@ describe('AppointmentsService', () => {
         clinicId: 'clinic-1',
         professionalId: 'prof-1',
         patientId: 'patient-1',
-        scheduledAt: new Date('2025-06-01T10:00:00Z'),
+        startAt: futureStartAt,
       };
 
       const created = { ...appointmentFixture };
@@ -285,9 +293,12 @@ describe('AppointmentsService', () => {
   });
 
   describe('updateStatus', () => {
-    it('RN-APP-02 — calls notifyAppointmentConfirmed when status transitions to confirmed', async () => {
+    it('RN-APP-02 — scheduled→confirmed: notifica confirmação', async () => {
       const confirmed = { ...appointmentFixture, status: 'confirmed' };
 
+      mockAppointmentModel.findById.mockReturnValue(
+        buildExecChain({ ...appointmentFixture, status: 'scheduled' }),
+      );
       mockAppointmentModel.findByIdAndUpdate.mockReturnValue(
         buildExecChain(confirmed),
       );
@@ -302,9 +313,12 @@ describe('AppointmentsService', () => {
       expect(mockNotificationsService.notifyAppointmentCancelled).not.toHaveBeenCalled();
     });
 
-    it('RN-APP-03 — calls notifyAppointmentCancelled when status transitions to cancelled', async () => {
+    it('RN-APP-03 — confirmed→cancelled: notifica cancelamento', async () => {
       const cancelled = { ...appointmentFixture, status: 'cancelled' };
 
+      mockAppointmentModel.findById.mockReturnValue(
+        buildExecChain({ ...appointmentFixture, status: 'confirmed' }),
+      );
       mockAppointmentModel.findByIdAndUpdate.mockReturnValue(
         buildExecChain(cancelled),
       );
@@ -319,24 +333,36 @@ describe('AppointmentsService', () => {
       expect(mockNotificationsService.notifyAppointmentConfirmed).not.toHaveBeenCalled();
     });
 
-    it('does not call any notification when status transitions to pending', async () => {
-      const pending = { ...appointmentFixture, status: 'pending' };
+    it('confirmed→completed: transição válida sem notificação', async () => {
+      const completed = { ...appointmentFixture, status: 'completed' };
 
+      mockAppointmentModel.findById.mockReturnValue(
+        buildExecChain({ ...appointmentFixture, status: 'confirmed' }),
+      );
       mockAppointmentModel.findByIdAndUpdate.mockReturnValue(
-        buildExecChain(pending),
+        buildExecChain(completed),
       );
 
-      await service.updateStatus('appt-1', 'pending' as any);
+      await service.updateStatus('appt-1', 'completed' as any);
 
       expect(mockNotificationsService.notifyAppointmentCreated).not.toHaveBeenCalled();
       expect(mockNotificationsService.notifyAppointmentConfirmed).not.toHaveBeenCalled();
       expect(mockNotificationsService.notifyAppointmentCancelled).not.toHaveBeenCalled();
     });
 
-    it('throws NotFoundException when appointment not found', async () => {
-      mockAppointmentModel.findByIdAndUpdate.mockReturnValue(
-        buildExecChain(null),
+    it('rejeita transição inválida (completed→confirmed) com BadRequestException', async () => {
+      mockAppointmentModel.findById.mockReturnValue(
+        buildExecChain({ ...appointmentFixture, status: 'completed' }),
       );
+
+      await expect(service.updateStatus('appt-1', 'confirmed' as any)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(mockAppointmentModel.findByIdAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when appointment not found', async () => {
+      mockAppointmentModel.findById.mockReturnValue(buildExecChain(null));
 
       await expect(service.updateStatus('nonexistent', 'confirmed' as any)).rejects.toThrow(
         NotFoundException,

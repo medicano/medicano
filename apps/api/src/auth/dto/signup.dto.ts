@@ -16,6 +16,7 @@ import { Type } from 'class-transformer';
 import { Gender } from '../../common/enums/gender.enum';
 import { Pronouns } from '../../common/enums/pronouns.enum';
 import { Role } from '../../common/enums/role.enum';
+import { Specialty } from '../../common/enums/specialty.enum';
 import { ProfessionalPlan } from '../../common/enums/professional-plan.enum';
 import { AddressFormDto } from '../../common/dto/address-form.dto';
 
@@ -107,9 +108,9 @@ export class SignupDto {
   @IsOptional()
   readonly cpf?: string;
 
-  @IsString()
+  @IsEnum(Specialty)
   @IsOptional()
-  readonly specialty?: string;
+  readonly specialty?: Specialty;
 
   // Plano escolhido pelo profissional autônomo no cadastro (opcional; default FREE).
   @IsEnum(ProfessionalPlan)

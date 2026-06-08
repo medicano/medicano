@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
 import { ChevronDown, LogOut, User, Bell, Settings, Menu, X } from 'lucide-react';
 import { MedicanoLogo } from './MedicanoLogo';
+import { Button } from './ui/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/api';
 
@@ -11,8 +12,10 @@ export function PatientTopbar() {
   const [unread, setUnread] = useState(0);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const isAuthenticated = !!user;
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     let active = true;
     api.get('/notifications').then(({ data }) => {
       if (!active) return;
@@ -22,7 +25,7 @@ export function PatientTopbar() {
       setUnread(list.filter((n) => !n.read && !n.readAt).length);
     }).catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [isAuthenticated]);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `text-[15px] font-medium transition-colors ${
@@ -41,12 +44,22 @@ export function PatientTopbar() {
           <Link to="/"><MedicanoLogo /></Link>
 
           <div className="hidden md:flex items-center gap-8">
-            <NavLink to="/home" end className={linkClass}>Início</NavLink>
+            {isAuthenticated && <NavLink to="/home" end className={linkClass}>Início</NavLink>}
             <NavLink to="/search" className={linkClass}>Buscar</NavLink>
-            <NavLink to="/assistant" className={linkClass}>Assistente</NavLink>
-            <NavLink to="/appointments" className={linkClass}>Meus agendamentos</NavLink>
+            {isAuthenticated && <NavLink to="/assistant" className={linkClass}>Assistente</NavLink>}
+            {isAuthenticated && <NavLink to="/appointments" className={linkClass}>Meus agendamentos</NavLink>}
           </div>
 
+          {!isAuthenticated ? (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link to="/login">
+                <Button variant="ghost" className="hidden sm:inline-flex">Entrar</Button>
+              </Link>
+              <Link to="/register">
+                <Button variant="primary">Criar conta</Button>
+              </Link>
+            </div>
+          ) : (
           <div className="flex items-center gap-1">
             <NavLink
               to="/notifications"
@@ -107,6 +120,7 @@ export function PatientTopbar() {
               <Menu size={22} />
             </button>
           </div>
+          )}
         </div>
       </nav>
 

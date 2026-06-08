@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -11,6 +13,7 @@ import {
   Appointment,
   AppointmentDocument,
   AppointmentStatus,
+  VALID_STATUS_TRANSITIONS,
 } from './schemas/appointment.schema';
 import { Professional, ProfessionalDocument } from '../professionals/schemas/professional.schema';
 import { Clinic, ClinicDocument } from '../clinics/schemas/clinic.schema';
@@ -45,6 +48,8 @@ export class AppointmentsService {
     const durationMinutes = dto.durationMinutes ?? 30;
     const startAt = new Date(dto.startAt);
     const endAt = new Date(startAt.getTime() + durationMinutes * 60 * 1000);
+
+    await this.assertSlotIsBookable(dto.professionalId, startAt, endAt);
 
     const status = (await this.shouldAutoConfirm(dto))
       ? AppointmentStatus.CONFIRMED
@@ -88,6 +93,41 @@ export class AppointmentsService {
     }
 
     return false;
+  }
+
+  // Garante que o intervalo [startAt, endAt) é agendável: não pode estar no
+  // passado nem sobrepor outro agendamento ativo do mesmo profissional.
+  // excludeId pula o próprio agendamento ao reagendar.
+  private async assertSlotIsBookable(
+    professionalId: string | undefined,
+    startAt: Date,
+    endAt: Date,
+    excludeId?: string,
+  ): Promise<void> {
+    if (startAt.getTime() <= Date.now()) {
+      throw new BadRequestException('Não é possível agendar em uma data passada');
+    }
+
+    if (!professionalId) return;
+
+    // Sobreposição: existente começa antes do fim do novo E termina depois do
+    // início do novo. Só agendamentos ativos (scheduled/confirmed) bloqueiam.
+    const overlapFilter: Record<string, unknown> = {
+      professionalId,
+      status: { $in: [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED] },
+      startAt: { $lt: endAt },
+      endAt: { $gt: startAt },
+    };
+    if (excludeId) {
+      overlapFilter['_id'] = { $ne: excludeId };
+    }
+
+    const conflict = await this.appointmentModel.findOne(overlapFilter).lean().exec();
+    if (conflict) {
+      throw new ConflictException(
+        'Já existe um agendamento neste horário para este profissional',
+      );
+    }
   }
 
   async findAll(query: GetAppointmentsQueryDto | undefined, user: AuthenticatedUser): Promise<any[]> {
@@ -225,8 +265,34 @@ export class AppointmentsService {
   }
 
   async update(id: string, dto: UpdateAppointmentDto): Promise<AppointmentDocument> {
+    const appointment = await this.appointmentModel.findById(id).exec();
+    if (!appointment) {
+      throw new NotFoundException(`Agendamento não encontrado`);
+    }
+
+    // Reagendar (mudar início ou duração) exige recalcular endAt e revalidar o
+    // slot; mudanças que não mexem no horário (ex.: notes) pulam a validação.
+    const reschedules =
+      dto.startAt !== undefined || dto.durationMinutes !== undefined;
+    const patch: Record<string, unknown> = { ...dto };
+
+    if (reschedules) {
+      const startAt = dto.startAt ? new Date(dto.startAt) : appointment.startAt;
+      const durationMinutes = dto.durationMinutes ?? appointment.durationMinutes;
+      const endAt = new Date(startAt.getTime() + durationMinutes * 60 * 1000);
+
+      await this.assertSlotIsBookable(
+        appointment.professionalId?.toString(),
+        startAt,
+        endAt,
+        id,
+      );
+
+      patch.endAt = endAt;
+    }
+
     const updated = await this.appointmentModel
-      .findByIdAndUpdate(id, { $set: dto }, { new: true, runValidators: true })
+      .findByIdAndUpdate(id, { $set: patch }, { new: true, runValidators: true })
       .exec();
     if (!updated) {
       throw new NotFoundException(`Agendamento não encontrado`);
@@ -235,6 +301,20 @@ export class AppointmentsService {
   }
 
   async updateStatus(id: string, status: AppointmentStatus): Promise<AppointmentDocument> {
+    const appointment = await this.appointmentModel.findById(id).exec();
+    if (!appointment) {
+      throw new NotFoundException(`Agendamento não encontrado`);
+    }
+
+    if (appointment.status !== status) {
+      const allowedNextStatuses = VALID_STATUS_TRANSITIONS[appointment.status];
+      if (!allowedNextStatuses.includes(status)) {
+        throw new BadRequestException(
+          `Transição de status inválida: ${appointment.status} → ${status}`,
+        );
+      }
+    }
+
     const updated = await this.appointmentModel
       .findByIdAndUpdate(id, { $set: { status } }, { new: true })
       .exec();

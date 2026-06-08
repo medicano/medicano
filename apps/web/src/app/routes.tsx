@@ -59,7 +59,8 @@ export const router = createBrowserRouter([
 
   // Patient
   { path: '/home', element: patient(<HomePage />) },
-  { path: '/search', element: patient(<SearchPage />) },
+  // Busca é pública — visitantes podem encontrar clínicas e profissionais antes de criar conta.
+  { path: '/search', element: <SearchPage /> },
   { path: '/clinic/:clinicId', element: patient(<ClinicProfilePage />) },
   { path: '/book/success', element: patient(<BookingSuccessPage />) },
   { path: '/book/:professionalId', element: patient(<BookingPage />) },

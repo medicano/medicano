@@ -1,3 +1,10 @@
+% babel 26+ rejects the bare 'brazil'/'brazilian' load-time options that
+% abntex2 passes internally (\RequirePackage[brazil]{babel}). Setting the
+% language via main=brazilian + provide=* makes babel import it from
+% babel-pt-BR.ini, which downgrades the option clash to a non-fatal warning.
+% Must precede \documentclass because abntex2 loads babel during the class.
+\PassOptionsToPackage{provide=*, main=brazilian}{babel}
+
 \documentclass[12pt, a4paper, chapter=TITLE, brazilian]{abntex2}
 
 \input{config/packages}
