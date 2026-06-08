@@ -32,6 +32,7 @@ export function LandingPage() {
           <MedicanoLogo />
           
           <div className="hidden lg:flex items-center gap-8 text-[15px] font-medium text-[#64748B]">
+            <Link to="/search" className="hover:text-[#0077B6] transition-colors">Buscar profissionais</Link>
             <a href="#como-funciona" className="hover:text-[#0077B6] transition-colors">Como funciona</a>
             <a href="#especialidades" className="hover:text-[#0077B6] transition-colors">Especialidades</a>
             <a href="#profissionais" className="hover:text-[#0077B6] transition-colors">Para Profissionais</a>
