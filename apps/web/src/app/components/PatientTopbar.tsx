@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { ChevronDown, LogOut, User, Bell, Settings, Menu, X } from 'lucide-react';
+import { ChevronDown, LogOut, User, Bell, Settings, Menu, X, ArrowRight } from 'lucide-react';
 import { MedicanoLogo } from './MedicanoLogo';
 import { Button } from './ui/Button';
 import { useAuth } from '../contexts/AuthContext';
@@ -43,20 +43,32 @@ export function PatientTopbar() {
         <div className="max-w-[1440px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
           <Link to="/"><MedicanoLogo /></Link>
 
-          <div className="hidden md:flex items-center gap-8">
-            {isAuthenticated && <NavLink to="/home" end className={linkClass}>Início</NavLink>}
-            <NavLink to="/search" className={linkClass}>Buscar</NavLink>
-            {isAuthenticated && <NavLink to="/assistant" className={linkClass}>Assistente</NavLink>}
-            {isAuthenticated && <NavLink to="/appointments" className={linkClass}>Meus agendamentos</NavLink>}
-          </div>
+          {isAuthenticated ? (
+            <div className="hidden md:flex items-center gap-8">
+              <NavLink to="/home" end className={linkClass}>Início</NavLink>
+              <NavLink to="/search" className={linkClass}>Buscar</NavLink>
+              <NavLink to="/assistant" className={linkClass}>Assistente</NavLink>
+              <NavLink to="/appointments" className={linkClass}>Meus agendamentos</NavLink>
+            </div>
+          ) : (
+            <div className="hidden lg:flex items-center gap-8 text-[15px] font-medium text-[#64748B]">
+              <a href="/#como-funciona" className="hover:text-[#0077B6] transition-colors">Como funciona</a>
+              <a href="/#especialidades" className="hover:text-[#0077B6] transition-colors">Especialidades</a>
+              <a href="/#profissionais" className="hover:text-[#0077B6] transition-colors">Para Profissionais</a>
+              <a href="/#planos" className="hover:text-[#0077B6] transition-colors">Planos</a>
+              <NavLink to="/search" className={linkClass}>Buscar profissionais</NavLink>
+            </div>
+          )}
 
           {!isAuthenticated ? (
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-4">
               <Link to="/login">
-                <Button variant="ghost" className="hidden sm:inline-flex">Entrar</Button>
+                <Button variant="ghost" className="hidden md:inline-flex">Entrar</Button>
               </Link>
-              <Link to="/register">
-                <Button variant="primary">Criar conta</Button>
+              <Link to="/signup">
+                <Button variant="primary" className="gap-2">
+                  Agendar consulta <ArrowRight size={18} />
+                </Button>
               </Link>
             </div>
           ) : (
