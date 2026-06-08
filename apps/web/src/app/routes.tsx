@@ -1,5 +1,5 @@
-import React from 'react';
-import { createBrowserRouter, Navigate } from 'react-router';
+import React, { useEffect } from 'react';
+import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -22,6 +22,24 @@ import { ClinicProfilePage } from './pages/ClinicProfilePage';
 import { AvailabilityPage } from './pages/AvailabilityPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
+
+// A cada navegação a nova rota abre no topo; se houver hash, rola até a seção.
+function RootLayout() {
+  const { pathname, hash } = useLocation();
+
+  useEffect(() => {
+    if (hash) {
+      const target = document.getElementById(hash.slice(1));
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+    }
+    window.scrollTo(0, 0);
+  }, [pathname, hash]);
+
+  return <Outlet />;
+}
 
 function RootPage() {
   const { isAuthenticated, user, loading } = useAuth();
@@ -52,6 +70,9 @@ const clinicOrPro = (el: React.ReactNode) => <ProtectedRoute roles={['clinic', '
 const anyAuth = (el: React.ReactNode) => <ProtectedRoute>{el}</ProtectedRoute>;
 
 export const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    children: [
   // Root — shows LandingPage if unauthenticated, redirects based on role otherwise
   { path: '/', element: <RootPage /> },
   { path: '/login', Component: LoginPage },
@@ -91,4 +112,6 @@ export const router = createBrowserRouter([
 
   // 404
   { path: '*', element: <Navigate to="/" replace /> },
+    ],
+  },
 ]);

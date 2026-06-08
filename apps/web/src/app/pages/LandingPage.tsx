@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router';
+import React, { useState } from 'react';
+import { Link } from 'react-router';
 import {
   Bot,
   Search,
@@ -22,14 +22,6 @@ import { MedicanoLogo } from '../components/MedicanoLogo';
 
 export function LandingPage() {
   const [audience, setAudience] = useState<'paciente' | 'profissional'>('paciente');
-  const location = useLocation();
-
-  // Rola até a seção do hash ao chegar (inclusive vindo de outra rota, como /search).
-  useEffect(() => {
-    if (!location.hash) return;
-    const target = document.getElementById(location.hash.slice(1));
-    target?.scrollIntoView({ behavior: 'smooth' });
-  }, [location.hash]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-white selection:bg-[#90E0EF] selection:text-[#03045E]">
