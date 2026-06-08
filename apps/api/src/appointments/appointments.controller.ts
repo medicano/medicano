@@ -69,12 +69,13 @@ export class AppointmentsController {
   }
 
   @Delete(':id')
-  @Roles(Role.CLINIC, Role.ATTENDANT)
+  @Roles(Role.CLINIC, Role.ATTENDANT, Role.PATIENT)
   @HttpCode(HttpStatus.NO_CONTENT)
   cancel(
-    @CurrentUser() userId: string,
+    @Req() req: any,
     @Param('id', ParseMongoIdPipe) id: string,
   ) {
-    return this.appointmentsService.cancelAppointment(id, userId, 'provider');
+    const cancelledBy = req.user.role === Role.PATIENT ? 'patient' : 'provider';
+    return this.appointmentsService.cancelAppointment(id, req.user.userId, cancelledBy);
   }
 }

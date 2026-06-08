@@ -49,6 +49,16 @@ export function AppointmentDetailPage() {
     finally { setSaving(false); }
   }
 
+  async function cancelAsPatient() {
+    if (!apt) return;
+    setSaving(true);
+    try {
+      await api.delete(`/appointments/${apt.id}`);
+      setApt({ ...apt, status: 'cancelled' });
+    } catch { /* mantém o estado atual se o cancelamento falhar */ }
+    finally { setSaving(false); }
+  }
+
   async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
     if (!apt) return;
@@ -171,6 +181,26 @@ export function AppointmentDetailPage() {
             </button>
           </div>
         )}
+
+        {!isStaff && (
+          <div className="bg-white border border-[#E2E8F0] rounded-2xl p-6 h-fit space-y-3">
+            <h3 className="font-bold text-[#03045E] mb-1">Ações</h3>
+            {finalized ? (
+              <div className="flex items-start gap-2 text-sm text-[#64748B] bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-3">
+                <Lock size={14} className="mt-0.5 shrink-0" />
+                {status === 'CANCELLED'
+                  ? 'Este agendamento foi cancelado.'
+                  : 'Este agendamento foi concluído.'}
+              </div>
+            ) : (
+              <button onClick={() => setConfirm({ next: 'CANCELLED', danger: true, title: 'Cancelar agendamento?', desc: 'Esta ação não pode ser desfeita. A clínica será notificada.' })}
+                disabled={saving}
+                className="w-full h-11 rounded-xl border-2 border-[#FCA5A5] text-[#B91C1C] hover:bg-[#FEE2E2] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                Cancelar agendamento
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <ConfirmModal
@@ -181,7 +211,10 @@ export function AppointmentDetailPage() {
         variant={confirm?.danger ? 'danger' : 'primary'}
         onClose={() => setConfirm(null)}
         onConfirm={() => {
-          if (confirm) updateStatus(confirm.next);
+          if (confirm) {
+            if (!isStaff && confirm.next === 'CANCELLED') cancelAsPatient();
+            else updateStatus(confirm.next);
+          }
           setConfirm(null);
         }}
       />
