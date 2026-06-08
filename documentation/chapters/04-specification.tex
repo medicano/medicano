@@ -806,8 +806,19 @@ particularmente adequada para domínios cujos
 objetos possuem estrutura variável entre
 instâncias --- como os diferentes perfis de
 usuário da plataforma \cite{fowler2012nosql}.
-As principais entidades do sistema são descritas
-a seguir.
+A Figura~\ref{fig:der} apresenta a visão geral das
+entidades e seus relacionamentos; as principais
+entidades do sistema são descritas em detalhe a
+seguir.
+
+\begin{figure}[H]
+  \centering
+  \caption{Diagrama entidade-relacionamento da Medicano}
+  \label{fig:der}
+  \includegraphics[width=0.95\textwidth]
+    {assets/diagrams/Medicano_DER}
+  \fonte{Elaborado pelos autores (2026)}
+\end{figure}
 
 \subsection{Entidade User}
 \label{subsec:entity-user}
@@ -830,20 +841,115 @@ são criadas e gerenciadas diretamente pelo estabelecimento de saúde
     \textbf{Tipo} &
     \textbf{Descrição} \\
     \midrule
-    \_id          & ObjectId  & Identificador único \\
-    role          & Enum      & patient, clinic,
-                               professional, attendant \\
-    email         & String    & E-mail único ---
-                               obrigatório para patient,
-                               clinic e professional;
-                               ausente para attendant \\
-    username      & String    & Nome de usuário ---
-                               obrigatório para attendant;
-                               ausente para demais perfis \\
-    passwordHash  & String    & Senha com hash Bcrypt \\
-    name          & String    & Nome completo \\
-    createdAt     & Date      & Data de cadastro \\
-    updatedAt     & Date      & Data de atualização \\
+    \_id           & ObjectId & Identificador único \\
+    role           & Enum     & patient, clinic,
+                                professional, attendant \\
+    email          & String   & E-mail único ---
+                                obrigatório para patient,
+                                clinic e professional;
+                                ausente para attendant \\
+    username       & String   & Nome de usuário ---
+                                obrigatório para attendant;
+                                ausente para demais perfis \\
+    clinicId       & ObjectId & Ref: Clinic --- vínculo do
+                                attendant ao estabelecimento (opcional) \\
+    professionalId & ObjectId & Ref: Professional --- vínculo do
+                                attendant ao profissional (opcional) \\
+    passwordHash   & String   & Senha com hash Bcrypt \\
+    displayName    & String   & Nome de exibição (opcional) \\
+    isActive       & Boolean  & Indica se a conta está ativa \\
+    createdAt      & Date     & Data de cadastro \\
+    updatedAt      & Date     & Data de atualização \\
+    \bottomrule
+  \end{tabular}
+  \fonte{Elaborado pelos autores (2026)}
+\end{table}
+
+\subsection{Entidade Patient}
+\label{subsec:entity-patient}
+
+Armazena os dados cadastrais e de contato do
+paciente, complementando a conta \texttt{User} de
+perfil \texttt{patient}. Cada paciente possui no
+máximo um registro, vinculado de forma única ao
+usuário correspondente.
+
+\begin{table}[H]
+  \centering
+  \caption{Entidade Patient}
+  \label{tab:entity-patient}
+  \begin{tabular}{p{3.8cm}p{2.5cm}p{5.2cm}}
+    \toprule
+    \textbf{Campo} &
+    \textbf{Tipo} &
+    \textbf{Descrição} \\
+    \midrule
+    \_id         & ObjectId & Identificador único \\
+    userId       & ObjectId & Ref: User (único) \\
+    name         & String   & Nome completo \\
+    dateOfBirth  & Date     & Data de nascimento (opcional) \\
+    phone        & String   & Telefone de contato (opcional) \\
+    sex          & Enum     & Sexo biológico (opcional) \\
+    gender       & Enum     & Identidade de gênero (opcional) \\
+    pronouns     & Enum     & Pronomes (opcional) \\
+    cep          & String   & CEP (opcional) \\
+    city         & String   & Cidade (opcional) \\
+    state        & String   & Estado (opcional) \\
+    addressForm  & Object   & Endereço estruturado (opcional) \\
+    createdAt    & Date     & Data de cadastro \\
+    updatedAt    & Date     & Data de atualização \\
+    \bottomrule
+  \end{tabular}
+  \fonte{Elaborado pelos autores (2026)}
+\end{table}
+
+\subsection{Entidade PatientProfile}
+\label{subsec:entity-patient-profile}
+
+Armazena o perfil clínico (anamnese) do paciente,
+utilizado opcionalmente pelo assistente de triagem
+mediante consentimento explícito. É um registro
+distinto da entidade \texttt{Patient}, vinculado de
+forma única ao usuário, e concentra histórico
+clínico, hábitos de vida e dados antropométricos.
+
+\begin{table}[H]
+  \centering
+  \caption{Entidade PatientProfile}
+  \label{tab:entity-patient-profile}
+  \begin{tabular}{p{3.8cm}p{2.5cm}p{5.2cm}}
+    \toprule
+    \textbf{Campo} &
+    \textbf{Tipo} &
+    \textbf{Descrição} \\
+    \midrule
+    \_id                  & ObjectId & Identificador único \\
+    userId                & ObjectId & Ref: User (único) \\
+    useInAssistant        & Boolean  & Consentimento de uso
+                                       pelo assistente de triagem \\
+    fullName              & String   & Nome completo (opcional) \\
+    birthDate             & Date     & Data de nascimento (opcional) \\
+    biologicalSex         & Enum     & Sexo biológico (opcional) \\
+    preferredName         & String   & Nome social (opcional) \\
+    heightCm, weightKg    & Number   & Altura (cm) e peso (kg) \\
+    isPregnant,
+    gestationalWeeks      & Misto    & Gestação e semanas (opcional) \\
+    city, state, country  & String   & Localização (opcional) \\
+    chronicConditions     & String[] & Condições crônicas \\
+    medications           & Object[] & Medicamentos (nome, dose) \\
+    allergies             & Object[] & Alergias (substância, reação) \\
+    previousSurgeries     & String[] & Cirurgias anteriores \\
+    familyHistory         & String[] & Histórico familiar \\
+    smokingStatus,
+    alcoholUse,
+    activityLevel         & Enum     & Hábitos de vida \\
+    immuneStatus          & Enum     & Estado imunológico (opcional) \\
+    recentTravelCountries,
+    animalExposure        & String[] & Exposições recentes \\
+    languageLevel         & Enum     & Preferência de linguagem \\
+    observations          & String   & Observações livres (máx. 2000) \\
+    lastReviewedAt        & Date     & Última revisão (opcional) \\
+    createdAt, updatedAt  & Date     & Cadastro e atualização \\
     \bottomrule
   \end{tabular}
   \fonte{Elaborado pelos autores (2026)}
@@ -852,9 +958,12 @@ são criadas e gerenciadas diretamente pelo estabelecimento de saúde
 \subsection{Entidade Clinic}
 \label{subsec:entity-clinic}
 
-Representa um estabelecimento de saúde pessoa jurídica. Referencia
-o usuário responsável, os profissionais e os
-funcionários vinculados.
+Representa um estabelecimento de saúde pessoa jurídica.
+Referencia o usuário responsável (\texttt{userId}).
+Os vínculos com profissionais são mantidos na entidade
+\texttt{ClinicProfessional}, e os funcionários
+(atendentes) são contas \texttt{User} que referenciam
+o estabelecimento por meio do campo \texttt{clinicId}.
 
 \begin{table}[H]
   \centering
@@ -866,21 +975,66 @@ funcionários vinculados.
     \textbf{Tipo} &
     \textbf{Descrição} \\
     \midrule
-    \_id               & ObjectId   & Identificador único \\
-    userId             & ObjectId   & Ref: User \\
-    displayName        & String     & Nome do estabelecimento de saúde \\
-    cnpj               & String     & CNPJ \\
-    specialties        & String[]   & Especialidades oferecidas \\
-    address            & Object     & Cidade, estado, rua \\
-    professionals      & ObjectId[] & Ref: ClinicProfessional \\
-    attendants         & ObjectId[] & Ref: User (atendentes) \\
-    subscriptionPlan   & Enum       & group \\
-    subscriptionStatus & Enum       & active, inactive, expired \\
-    autoConfirm        & Boolean    & Confirmação automática \\
-    minCancelHours     & Number     & Antecedência mínima (h) \\
-    linkedScheduling   & Boolean    & Conexão de agendamento
-                                      entre funcionários \\
-    slots              & Object[]   & Disponibilidade semanal \\
+    \_id                      & ObjectId & Identificador único \\
+    userId                    & ObjectId & Ref: User (responsável) \\
+    name                      & String   & Nome do estabelecimento \\
+    description               & String   & Descrição (opcional) \\
+    cnpj                      & String   & CNPJ --- único (opcional) \\
+    specialties               & String[] & Especialidades oferecidas \\
+    phone, email              & String   & Contato (opcional) \\
+    website, hours            & String   & Site e horário (opcional) \\
+    city                      & String   & Cidade (opcional) \\
+    address, addressForm      & Object   & Endereço e endereço
+                                           estruturado (opcional) \\
+    addressText,
+    addressReference          & String   & Endereço textual e
+                                           referência (opcional) \\
+    lat, lng                  & Number   & Coordenadas geográficas (opcional) \\
+    customCode                & String   & Código personalizado ---
+                                           único (opcional) \\
+    autoConfirm               & Boolean  & Confirmação automática \\
+    minCancelNoticeHours      & Number   & Antecedência mínima de
+                                           cancelamento (h) \\
+    linkedScheduling          & Boolean  & Agendamento encadeado
+                                           entre funcionários \\
+    allowConsecutiveAttendants & Boolean & Permite atendentes em
+                                           horários consecutivos \\
+    notifyEmail, notifySms    & Boolean  & Preferências de notificação \\
+    weeklySlots               & Object[] & Disponibilidade semanal \\
+    isActive                  & Boolean  & Estabelecimento ativo \\
+    createdAt, updatedAt      & Date     & Cadastro e atualização \\
+    \bottomrule
+  \end{tabular}
+  \fonte{Elaborado pelos autores (2026)}
+\end{table}
+
+\subsection{Entidade Subscription}
+\label{subsec:entity-subscription}
+
+Representa o plano de assinatura de um
+estabelecimento de saúde. Cada estabelecimento
+possui no máximo uma assinatura, vinculada de forma
+única, e o plano determina o limite de profissionais
+que podem ser vinculados (\texttt{free}: 2,
+\texttt{basic}: 10, \texttt{pro}: ilimitado).
+
+\begin{table}[H]
+  \centering
+  \caption{Entidade Subscription}
+  \label{tab:entity-subscription}
+  \begin{tabular}{p{3.8cm}p{2.5cm}p{5.2cm}}
+    \toprule
+    \textbf{Campo} &
+    \textbf{Tipo} &
+    \textbf{Descrição} \\
+    \midrule
+    \_id        & ObjectId & Identificador único \\
+    clinicId    & ObjectId & Ref: Clinic (único) \\
+    plan        & Enum     & free, basic, pro \\
+    status      & Enum     & trial, active, inactive \\
+    expiresAt   & Date     & Data de expiração (opcional) \\
+    createdAt   & Date     & Data de cadastro \\
+    updatedAt   & Date     & Data de atualização \\
     \bottomrule
   \end{tabular}
   \fonte{Elaborado pelos autores (2026)}
@@ -902,19 +1056,25 @@ sem vínculo com estabelecimento de saúde.
     \textbf{Tipo} &
     \textbf{Descrição} \\
     \midrule
-    \_id               & ObjectId  & Identificador único \\
-    userId             & ObjectId  & Ref: User \\
-    displayName        & String    & Nome do profissional \\
-    cpf                & String    & CPF \\
-    specialty          & String    & Especialidade \\
-    registration       & String    & Registro profissional \\
-    address            & Object    & Endereço de atendimento \\
-    subscriptionPlan   & Enum      & individual \\
-    subscriptionStatus & Enum      & active, inactive, expired \\
-    autoConfirm        & Boolean   & Confirmação automática \\
-    minCancelHours     & Number    & Antecedência mínima (h) \\
-    minAdvanceMinutes  & Number    & Antecedência mínima (min) \\
-    slots              & Object[]  & Disponibilidade semanal \\
+    \_id                 & ObjectId & Identificador único \\
+    userId               & ObjectId & Ref: User \\
+    name                 & String   & Nome do profissional \\
+    bio                  & String   & Biografia (opcional) \\
+    cpf                  & String   & CPF (opcional) \\
+    specialty            & Enum     & Especialidade (opcional) \\
+    registration         & String   & Registro profissional (opcional) \\
+    phone, email         & String   & Contato (opcional) \\
+    description          & String   & Descrição (opcional) \\
+    address, addressForm & Object   & Endereço e endereço
+                                      estruturado (opcional) \\
+    lat, lng             & Number   & Coordenadas geográficas (opcional) \\
+    plan                 & Enum     & free, basico, avancado \\
+    autoConfirm          & Boolean  & Confirmação automática \\
+    minCancelNoticeHours & Number   & Antecedência mínima de
+                                      cancelamento (h) \\
+    weeklySlots          & Object[] & Disponibilidade semanal \\
+    isActive             & Boolean  & Profissional ativo \\
+    createdAt, updatedAt & Date     & Cadastro e atualização \\
     \bottomrule
   \end{tabular}
   \fonte{Elaborado pelos autores (2026)}
@@ -923,8 +1083,11 @@ sem vínculo com estabelecimento de saúde.
 \subsection{Entidade ClinicProfessional}
 \label{subsec:entity-clinic-professional}
 
-Representa um profissional de saúde vinculado a
-um estabelecimento de saúde. Não possui plano de assinatura próprio.
+Entidade associativa que vincula um profissional a
+um estabelecimento de saúde. Os dados do profissional
+ficam na entidade \texttt{Professional}; este registro
+apenas materializa o vínculo. O par
+(\texttt{clinicId}, \texttt{professionalId}) é único.
 
 \begin{table}[H]
   \centering
@@ -936,12 +1099,11 @@ um estabelecimento de saúde. Não possui plano de assinatura próprio.
     \textbf{Tipo} &
     \textbf{Descrição} \\
     \midrule
-    \_id          & ObjectId  & Identificador único \\
-    clinicId      & ObjectId  & Ref: Clinic \\
-    name          & String    & Nome do profissional \\
-    specialty     & String    & Especialidade \\
-    registration  & String    & Registro profissional \\
-    slots         & Object[]  & Disponibilidade semanal \\
+    \_id            & ObjectId & Identificador único \\
+    clinicId        & ObjectId & Ref: Clinic \\
+    professionalId  & ObjectId & Ref: Professional \\
+    createdAt       & Date     & Data de cadastro \\
+    updatedAt       & Date     & Data de atualização \\
     \bottomrule
   \end{tabular}
   \fonte{Elaborado pelos autores (2026)}
@@ -963,22 +1125,17 @@ prestador de serviço.
     \textbf{Tipo} &
     \textbf{Descrição} \\
     \midrule
-    \_id           & ObjectId  & Identificador único \\
-    patientId      & ObjectId  & Ref: User \\
-    providerId     & ObjectId  & Ref: Clinic ou Professional \\
-    providerType   & Enum      & clinic, professional \\
-    clinicProfId   & ObjectId  & Ref: ClinicProfessional
-                                 (opcional) \\
-    specialty      & String    & Especialidade agendada \\
-    datetime       & Date      & Data e hora do atendimento \\
-    endsAt         & Date      & Previsão de término \\
-    status         & Enum      & pending, confirmed,
-                                 cancelled \\
-    cancelledBy    & Enum      & patient, provider
-                                 (opcional) \\
-    cancelledAt    & Date      & Data do cancelamento
-                                 (opcional) \\
-    createdAt      & Date      & Data de criação \\
+    \_id             & ObjectId & Identificador único \\
+    patientId        & ObjectId & Ref: User (paciente) \\
+    professionalId   & ObjectId & Ref: Professional \\
+    clinicId         & ObjectId & Ref: Clinic (opcional) \\
+    startAt          & Date     & Início do atendimento \\
+    endAt            & Date     & Término do atendimento \\
+    durationMinutes  & Number   & Duração em minutos \\
+    status           & Enum     & scheduled, confirmed,
+                                  completed, cancelled \\
+    notes            & String   & Observações (opcional) \\
+    createdAt, updatedAt & Date & Cadastro e atualização \\
     \bottomrule
   \end{tabular}
   \fonte{Elaborado pelos autores (2026)}
@@ -988,11 +1145,12 @@ prestador de serviço.
 \label{subsec:entity-chat}
 
 Representa uma sessão de orientação com o chatbot.
-O histórico é armazenado para referência futura
-e rastreabilidade. A persistência do histórico
-de conversas é uma prática recomendada em sistemas
-de orientação baseados em LLMs para fins de auditoria
-e melhoria contínua \cite{huo2025}.
+As mensagens da conversa são armazenadas na entidade
+\texttt{ChatMessage}, referenciando a sessão, para
+referência futura e rastreabilidade. A persistência
+do histórico de conversas é uma prática recomendada
+em sistemas de orientação baseados em LLMs para fins
+de auditoria e melhoria contínua \cite{huo2025}.
 
 \begin{table}[H]
   \centering
@@ -1004,13 +1162,45 @@ e melhoria contínua \cite{huo2025}.
     \textbf{Tipo} &
     \textbf{Descrição} \\
     \midrule
-    \_id             & ObjectId  & Identificador único \\
-    patientId        & ObjectId  & Ref: User \\
-    messages         & Object[]  & Histórico da conversa \\
-    recommendedSpec  & String    & Especialidade recomendada \\
-    status           & Enum      & active, completed \\
-    createdAt        & Date      & Início da sessão \\
-    completedAt      & Date      & Fim da sessão (opcional) \\
+    \_id                 & ObjectId & Identificador único \\
+    patient              & ObjectId & Ref: User \\
+    type                 & Enum     & standard, assistant,
+                                      symptom\_assistant \\
+    clinicId             & ObjectId & Ref: Clinic (opcional) \\
+    recommendedSpecialty & Enum     & Especialidade recomendada
+                                      (opcional) \\
+    disclaimerShown      & Boolean  & Aviso de não-diagnóstico exibido \\
+    createdAt, updatedAt & Date     & Início e atualização \\
+    \bottomrule
+  \end{tabular}
+  \fonte{Elaborado pelos autores (2026)}
+\end{table}
+
+\subsection{Entidade ChatMessage}
+\label{subsec:entity-chat-message}
+
+Representa cada mensagem trocada em uma sessão de
+orientação (\texttt{ChatSession}). As mensagens são
+persistidas individualmente em coleção própria,
+referenciando a sessão à qual pertencem, o que
+permite a paginação do histórico e a rastreabilidade
+das interações com o assistente.
+
+\begin{table}[H]
+  \centering
+  \caption{Entidade ChatMessage}
+  \label{tab:entity-chat-message}
+  \begin{tabular}{p{3.8cm}p{2.5cm}p{5.2cm}}
+    \toprule
+    \textbf{Campo} &
+    \textbf{Tipo} &
+    \textbf{Descrição} \\
+    \midrule
+    \_id       & ObjectId & Identificador único \\
+    session    & ObjectId & Ref: ChatSession \\
+    role       & Enum     & user, assistant \\
+    content    & String   & Conteúdo da mensagem (máx. 4096) \\
+    createdAt  & Date     & Data de envio \\
     \bottomrule
   \end{tabular}
   \fonte{Elaborado pelos autores (2026)}
