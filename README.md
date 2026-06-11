@@ -439,7 +439,7 @@ O script salva um marcador em `output/phase_state/` ao concluir cada prompt. Se 
 
 ---
 
-## Sprint 06 — Schema Enrichment & Public Search 🚧
+## Sprint 06 — Schema Enrichment & Public Search ✅
 
 **Spec:** `medicano_crew/docs/specs/sprint-06-enrichment.md`
 **Prompts:** `medicano_crew/docs/specs/sprint-06-prompts.json`
@@ -505,3 +505,138 @@ Para executar:
 cd medicano_crew
 python run_sprint.py docs/specs/sprint-06-prompts.json
 ```
+
+---
+
+## Sprint 07 — Triage Specialization (LLM Recommendation Flow) ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-07-triage.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-07-prompts.json`
+
+### Escopo
+
+- Transforma o chat genérico em um sistema de **triagem por especialidade**: através da conversa, identifica os sintomas e recomenda uma das especialidades da plataforma (RF03, RF04)
+- Adiciona o aviso de não-diagnóstico exigido pela Resolução CFM 2.336/2023 (RN16)
+- Aplica a regra de no máximo uma especialidade recomendada por sessão (RN17)
+
+### Campos novos
+
+| Entidade      | Campo                  | Regras                                          |
+|---------------|------------------------|-------------------------------------------------|
+| `ChatSession` | `recommendedSpecialty` | opcional — definido uma vez ao concluir a triagem |
+| `ChatSession` | `disclaimerShown`      | default `false` — vira `true` após a 1ª mensagem |
+
+---
+
+## Sprint 08 — Availability Slots ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-08-availability.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-08-prompts.json`
+
+### Escopo
+
+- Sistema de horários (slots) recorrentes semanais para clínicas e profissionais (RF18)
+- Configuração de agendamento: `autoConfirm` e `minCancelNoticeHours` (RF19, RF23)
+- Endpoint `GET /availability/:professionalId` que calcula os horários disponíveis em um intervalo de datas
+
+### Campos novos
+
+| Entidade                | Campo                                   | Regras                          |
+|-------------------------|-----------------------------------------|---------------------------------|
+| `WeeklySlot` (subdoc)   | `dayOfWeek`, `startTime`, `endTime`, `slotDurationMinutes` | dia 0–6, horas "HH:mm", duração 15–240 min |
+| `Clinic` / `Professional` | `weeklySlots`, `autoConfirm`, `minCancelNoticeHours` | default `[]`, `false`, `24h` |
+
+---
+
+## Sprint 09 — Patient Scheduling & Business Rules ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-09-patient-scheduling.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-09-prompts.json`
+
+### Escopo
+
+- Paciente cria os próprios agendamentos (RF07–RF09) e cancela respeitando a antecedência mínima (RF12, RN08)
+- Validação de que o horário corresponde a um slot disponível
+- Status inicial definido pelo `autoConfirm` do prestador (RN06)
+
+### Regras de negócio
+
+- RN01 — paciente não pode ter agendamentos sobrepostos
+- RN04 — intervalo mínimo de 30 min entre agendamentos em clínicas diferentes
+- RN06 — status inicial `CONFIRMED` se `autoConfirm`, senão `SCHEDULED`
+- RN08 — cancelamento pelo paciente respeita `minCancelNoticeHours`
+
+---
+
+## Sprint 10 — Profile Management & Attendant CRUD ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-10-profile-attendants.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-10-prompts.json`
+
+### Escopo
+
+- Endpoints de auto-edição de perfil para `PATIENT`, `CLINIC` e `PROFESSIONAL`
+- Schema `Patient` separado (nome, data de nascimento, telefone, endereço) ligado ao `User`
+- CRUD completo de atendentes pela clínica
+- Flag `linkedScheduling` na `Clinic` e a lógica correspondente em `AppointmentsService.checkConflict` (RN03, RN25)
+
+---
+
+## Sprint 11 — Provider Schedule View & Email Notifications ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-11-schedule-notifications.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-11-prompts.json`
+
+### Escopo
+
+- Endpoint de agenda diária/semanal do prestador combinando agendamentos + slots livres (RF20)
+- Módulo `notifications/` com integração AWS SES, disparado nos eventos de agendamento (criação, confirmação, cancelamento)
+- `Subscription` generalizada para clínicas **e** profissionais autônomos; busca passa a filtrar autônomos sem plano ativo (RN20)
+
+---
+
+## Sprint 12 — TCC Alignment & Final Corrections ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-12-tcc-alignment.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-12-prompts.json`
+
+### Escopo
+
+Sprint corretiva de alinhamento entre código e documentação do TCC (sem novas features):
+
+- Enum `Specialty` com todas as especialidades referenciadas no TCC (RF03)
+- Planos de assinatura renomeados para `FREE` / `BASIC` / `PRO` (limites 2 / 10 / ilimitado)
+- `Clinic` e `Professional` com os campos exigidos pela documentação (CNPJ, CPF, endereço estruturado, registro, config de agendamento, descrição)
+- `linkedScheduling` aplicado em `AppointmentsService.checkConflict`
+- DTO de disponibilidade com intervalo de datas (`fromDate` + `toDate`)
+- `User.displayName` e `User.isActive` declarados; `packages/types` sincronizado
+
+---
+
+## Sprint 13 — Chat Streaming Migration ✅
+
+**Prompts:** `medicano_crew/docs/specs/sprint-13-prompts.json`
+
+### Escopo
+
+- Migração do chat de `@anthropic-ai/sdk` para o Vercel AI SDK (`@ai-sdk/anthropic`)
+- `POST /chat/sessions/:id/messages` passa a responder via `text/event-stream` (SSE) produzido por `streamText`
+- Persistência da mensagem do assistente e extração da recomendação acontecem no callback `onFinish`
+
+---
+
+## Sprint 14 — Correções Pós-Auditoria ✅
+
+**Spec:** `medicano_crew/docs/specs/sprint-14-corrections.md`
+**Prompts:** `medicano_crew/docs/specs/sprint-14-prompts.json`
+
+### Escopo
+
+Sprint corretiva (sem novas features) que resolveu as divergências encontradas na auditoria das sprints 01–12:
+
+- Enum `Specialty` com casing consistente
+- Subscriptions com planos `FREE`/`BASIC`/`PRO`, schema orientado por `clinicId` e limites normalizados
+- `Clinic` e `Professional` com os campos faltantes (CNPJ, CPF, `registration`, `weeklySlots`, `minCancelNoticeHours`)
+- `AttendantsController`/`AttendantsService` registrados no `ClinicsModule`
+- `NotificationsService` efetivamente chamado pelo `AppointmentsService`
+- `SearchService` filtra profissionais sem assinatura ativa (RN20)

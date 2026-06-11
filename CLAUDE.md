@@ -122,13 +122,24 @@ src/
 
 ### Módulos existentes
 
-| Módulo              | Responsabilidade                                    |
-|---------------------|-----------------------------------------------------|
-| `auth`              | Signup, login (padrão e atendente), logout, JWT     |
-| `users`             | CRUD de usuários (admin)                            |
-| `clinics`           | CRUD de clínicas                                    |
-| `professionals`     | CRUD de profissionais                               |
-| `redis`             | Conexão Redis — módulo global, sem lógica de negócio |
+| Módulo              | Responsabilidade                                                        |
+|---------------------|-------------------------------------------------------------------------|
+| `auth`              | Signup, login (padrão e atendente), logout, JWT                         |
+| `users`             | CRUD de usuários (admin)                                                 |
+| `clinics`           | CRUD de clínicas                                                         |
+| `professionals`     | CRUD de profissionais e vínculos clínica↔profissional                   |
+| `patients`          | CRUD de pacientes                                                       |
+| `patient-profile`   | Perfil clínico do paciente (anamnese/triagem)                           |
+| `appointments`      | Agendamentos: criação, cancelamento e consulta                          |
+| `availability`      | Disponibilidade e geração de horários (slots) dos profissionais         |
+| `subscriptions`     | Assinaturas e planos das clínicas/profissionais (limites, status)       |
+| `chat`              | Chat de triagem com IA (Anthropic via `@ai-sdk/anthropic`)              |
+| `search`            | Busca pública de profissionais e clínicas                               |
+| `profile`           | Perfil do usuário autenticado (agrega dados de outros módulos)          |
+| `cities`            | Lista de cidades via API do IBGE (sem persistência própria)             |
+| `notifications`     | Envio de notificações por e-mail (AWS SES)                              |
+| `geocoding`         | Geocodificação de endereços — módulo global (`@Global`), via API externa |
+| `redis`             | Conexão Redis — módulo global, sem lógica de negócio                    |
 
 ### Onde ficam os schemas Mongoose
 
@@ -139,6 +150,29 @@ import { User, UserDocument } from '../auth/schemas/user.schema';
 ```
 
 Enums globais (usados por mais de um módulo) ficam em `common/enums/`. Enums de domínio ficam dentro do próprio módulo.
+
+### Coleções do banco (modelos Mongoose)
+
+São **10 coleções ativas**, cada uma definida por um schema registrado como modelo raiz (`MongooseModule.forFeature`). O módulo dono é onde o schema é declarado; outros módulos importam o model dele.
+
+> O MongoDB cria a coleção física apenas no primeiro `insert`. Num banco recém-criado, `show collections` lista só as coleções que já receberam algum documento — pode ser menos de 10 mesmo com os 10 modelos definidos no código. As 10 abaixo são as coleções que o código mapeia.
+
+| Coleção               | Modelo / Schema       | Módulo dono       | Arquivo do schema                                  |
+|-----------------------|-----------------------|-------------------|----------------------------------------------------|
+| `users`               | `User`                | `auth`            | `auth/schemas/user.schema.ts`                      |
+| `clinics`             | `Clinic`              | `clinics`         | `clinics/schemas/clinic.schema.ts`                 |
+| `professionals`       | `Professional`        | `professionals`   | `professionals/schemas/professional.schema.ts`     |
+| `clinicprofessionals` | `ClinicProfessional`  | `professionals`   | `professionals/schemas/clinic-professional.schema.ts` |
+| `patients`            | `Patient`             | `patients`        | `patients/schemas/patient.schema.ts`               |
+| `patientprofiles`     | `PatientProfile`      | `patient-profile` | `patient-profile/schemas/patient-profile.schema.ts`|
+| `appointments`        | `Appointment`         | `appointments`    | `appointments/schemas/appointment.schema.ts`       |
+| `subscriptions`       | `Subscription`        | `subscriptions`   | `subscriptions/schemas/subscription.schema.ts`     |
+| `chatsessions`        | `ChatSession`         | `chat`            | `chat/schemas/chat-session.schema.ts`              |
+| `chatmessages`        | `ChatMessage`         | `chat`            | `chat/schemas/chat-message.schema.ts`              |
+
+> A coleção `users` usa `collection: 'users'` explícito no `@Schema`; as demais seguem a pluralização padrão do Mongoose sobre o nome do modelo.
+
+Os schemas em `common/schemas/` (`Address`, `AddressForm`, `WeeklySlot`) e os subdocumentos do `patient-profile` são **subdocumentos embutidos** (`@Schema({ _id: false })`) — não geram coleção própria, vivem embutidos nos documentos que os referenciam. Os módulos `availability`, `search`, `profile`, `notifications` e `cities` não possuem coleção própria: apenas leem/agregam modelos de outros módulos (ou dados externos, no caso de `cities`).
 
 ---
 

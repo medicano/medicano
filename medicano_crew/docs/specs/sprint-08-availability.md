@@ -39,17 +39,6 @@ Add a slot-based availability system for clinics and professionals (RF18). This 
 
 Same three fields as Clinic. Each professional can override the clinic's slots if they belong to one — but for autonomous professionals, these are their own slots.
 
-### `ProfessionalAvailability` — NEW collection (overrides for specific dates)
-
-| Field | Type | Rules |
-|---|---|---|
-| `professionalId` | `ObjectId` → Professional | required |
-| `date` | `Date` | required (date only, no time) |
-| `isUnavailable` | `boolean` | default `false` — true = day off |
-| `customSlots` | `WeeklySlot[]` | optional — replaces weekly slots for that day |
-
-This handles vacations and one-off schedule changes without touching the recurring weekly config.
-
 ## Module Structure
 
 ```
@@ -58,8 +47,6 @@ availability/
 │   ├── update-weekly-slots.dto.ts
 │   ├── update-scheduling-config.dto.ts
 │   └── get-availability-query.dto.ts
-├── schemas/
-│   └── professional-availability.schema.ts
 ├── tests/
 │   ├── availability.service.spec.ts
 │   └── slot-computation.spec.ts
@@ -112,7 +99,6 @@ constructor(
   professionalModel: Model<ProfessionalDocument>,
   clinicModel: Model<ClinicDocument>,
   appointmentModel: Model<AppointmentDocument>,
-  availabilityModel: Model<ProfessionalAvailabilityDocument>,
 )
 
 // Configuration management
@@ -125,18 +111,13 @@ updateClinicConfig(clinicId: string, dto: UpdateSchedulingConfigDto): Promise<Cl
 getAvailableSlots(professionalId: string, query: GetAvailabilityQueryDto): Promise<AvailableSlot[]>
   // 1. Validate fromDate <= toDate, range <= 30 days
   // 2. Fetch professional with weeklySlots
-  // 3. Fetch availability overrides for [fromDate, toDate]
-  // 4. Fetch existing appointments (status != CANCELLED) for [fromDate, toDate]
-  // 5. For each date in range:
+  // 3. Fetch existing appointments (status != CANCELLED) for [fromDate, toDate]
+  // 4. For each date in range:
   //    a. Get day of week
-  //    b. Get slots for that day (override > weekly)
-  //    c. If isUnavailable, skip the day
-  //    d. Generate concrete time slots based on startTime, endTime, slotDurationMinutes
-  //    e. Filter out slots that overlap with existing appointments
-  // 6. Return flat array of { date: Date, startAt: Date, endAt: Date }
-
-setUnavailableDay(professionalId: string, date: string): Promise<ProfessionalAvailabilityDocument>
-removeAvailabilityOverride(professionalId: string, date: string): Promise<{ success: boolean }>
+  //    b. Get the weekly slots for that day
+  //    c. Generate concrete time slots based on startTime, endTime, slotDurationMinutes
+  //    d. Filter out slots that overlap with existing appointments
+  // 5. Return flat array of { date: Date, startAt: Date, endAt: Date }
 ```
 
 ### `AvailableSlot` interface
@@ -231,14 +212,6 @@ updateProfessionalConfig()
 @Put('clinics/:clinicId/config')
 @Roles(Role.CLINIC)
 updateClinicConfig()
-
-@Post('professionals/:professionalId/unavailable')
-@Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)
-setUnavailableDay(@Param professionalId, @Body { date: string })
-
-@Delete('professionals/:professionalId/unavailable/:date')
-@Roles(Role.PROFESSIONAL, Role.CLINIC, Role.ATTENDANT)
-removeAvailabilityOverride()
 ```
 
 **Note on the public availability endpoint:** the endpoint should NOT require authentication. Either:
@@ -267,11 +240,7 @@ For consistency with the search module (which is public), prefer the first optio
 | getAvailableSlots — fromDate > toDate | Throws BadRequestException |
 | getAvailableSlots — range > 30 days | Throws BadRequestException |
 | getAvailableSlots — professional not found | Throws NotFoundException |
-| getAvailableSlots — applies override to specific date | Override replaces weekly config for that day |
-| getAvailableSlots — unavailable day skipped | Day with isUnavailable=true returns no slots |
 | updateProfessionalSlots — saves correctly | Slots persisted on professional doc |
-| setUnavailableDay — creates override doc | Saves ProfessionalAvailability with isUnavailable=true |
-| removeAvailabilityOverride — deletes doc | Override doc removed |
 
 ## Files to Create
 
@@ -282,7 +251,6 @@ For consistency with the search module (which is public), prefer the first optio
 | `availability/dto/update-weekly-slots.dto.ts` | Create |
 | `availability/dto/update-scheduling-config.dto.ts` | Create |
 | `availability/dto/get-availability-query.dto.ts` | Create |
-| `availability/schemas/professional-availability.schema.ts` | Create |
 | `availability/utils/compute-slots.ts` | Create — pure function |
 | `availability/availability.service.ts` | Create |
 | `availability/availability.controller.ts` | Create |
