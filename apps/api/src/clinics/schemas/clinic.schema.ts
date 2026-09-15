@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { WeeklySlot, WeeklySlotSchema } from '../../common/schemas/weekly-slot.schema';
 import { AddressForm, AddressFormSchema } from '../../common/schemas/address-form.schema';
+import { ClinicUnit, ClinicUnitSchema } from './clinic-unit.schema';
 
 export type ClinicDocument = Clinic & Document;
 
@@ -85,6 +86,22 @@ export class Clinic {
 
   @Prop({ type: [WeeklySlotSchema], default: [] })
   weeklySlots: WeeklySlot[];
+
+  // RF47 — caminhos relativos (ex.: /uploads/clinics/<id>/<arquivo>.jpg),
+  // geridos via ClinicPhotosController. Nunca setados diretamente pelo DTO de
+  // create/update — só a rota de upload escreve aqui.
+  @Prop({ type: [String], default: [] })
+  photos: string[];
+
+  // RF49 — convênios aceitos, texto livre (ex.: "Unimed", "Bradesco Saúde").
+  @Prop({ type: [String], default: [] })
+  healthInsurances: string[];
+
+  // RF62 — unidades de atendimento para clínicas com múltiplos endereços.
+  // Vazio para clínicas de endereço único (o campo `address`/`addressForm`
+  // acima continua sendo o endereço "principal" nesse caso).
+  @Prop({ type: [ClinicUnitSchema], default: [] })
+  units: ClinicUnit[];
 }
 
 export const ClinicSchema = SchemaFactory.createForClass(Clinic);

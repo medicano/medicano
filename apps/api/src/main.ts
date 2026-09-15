@@ -1,5 +1,7 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
@@ -10,7 +12,12 @@ async function bootstrap(): Promise<void> {
   const secrets = await loadAwsSecrets();
   Object.assign(process.env, secrets);
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Armazenamento local de arquivos enviados (fotos de clínica — RF47). Servido
+  // como estático em /uploads; caminho relativo a process.cwd() (apps/api),
+  // não a dist/, para sobreviver a rebuilds.
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads' });
 
   app.useGlobalPipes(
     new ValidationPipe({

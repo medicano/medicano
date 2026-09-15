@@ -20,6 +20,9 @@ apps/web/scripts/screenshots/*.png
 # Config PM2 local (específico de cada máquina — ver ecosystem.local.example.js)
 ecosystem.local.js
 
+# Uploads locais da API (fotos de clínica — RF47). Nunca versionar conteúdo enviado.
+apps/api/uploads/
+
 # LaTeX build artifacts
 documentation/*.aux
 documentation/*.bbl

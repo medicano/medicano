@@ -68,4 +68,9 @@ export class CreateClinicDto {
   @ValidateNested({ each: true })
   @Type(() => WeeklySlotDto)
   weeklySlots?: WeeklySlotDto[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  healthInsurances?: string[];
 }

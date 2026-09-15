@@ -11,9 +11,15 @@ import { ActivityLogModule } from '../activity-log/activity-log.module';
 import { ClinicsController } from './clinics.controller';
 import { AttendantsController } from './controllers/attendants.controller';
 import { ProfessionalAttendantsController } from './controllers/professional-attendants.controller';
+import { ClinicUnitsController } from './controllers/clinic-units.controller';
+import { ClinicPhotosController } from './controllers/clinic-photos.controller';
+import { ClinicHealthInsurancesController } from './controllers/clinic-health-insurances.controller';
 
 import { ClinicsService } from './clinics.service';
 import { AttendantsService } from './services/attendants.service';
+import { ClinicUnitsService } from './services/clinic-units.service';
+import { ClinicPhotosService } from './services/clinic-photos.service';
+import { ClinicHealthInsurancesService } from './services/clinic-health-insurances.service';
 
 @Module({
   imports: [
@@ -26,8 +32,21 @@ import { AttendantsService } from './services/attendants.service';
     SubscriptionsModule,
     ActivityLogModule,
   ],
-  controllers: [ClinicsController, AttendantsController, ProfessionalAttendantsController],
-  providers: [ClinicsService, AttendantsService],
+  controllers: [
+    ClinicsController,
+    AttendantsController,
+    ProfessionalAttendantsController,
+    ClinicUnitsController,
+    ClinicPhotosController,
+    ClinicHealthInsurancesController,
+  ],
+  providers: [
+    ClinicsService,
+    AttendantsService,
+    ClinicUnitsService,
+    ClinicPhotosService,
+    ClinicHealthInsurancesService,
+  ],
   exports: [ClinicsService],
 })
 export class ClinicsModule {}
