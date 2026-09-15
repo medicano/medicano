@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { Role } from '../../common/enums/role.enum';
+import { AttendantPermission } from '../../common/enums/attendant-permission.enum';
 
 export interface UserMethods {
   comparePassword(password: string): Promise<boolean>;
@@ -36,6 +37,12 @@ export class User {
 
   @Prop({ type: Boolean, default: true })
   isActive: boolean;
+
+  // Só tem sentido quando role === ATTENDANT (RF65). Ausente/vazio para os
+  // demais perfis. O default é aplicado em AttendantsService.createForOwner,
+  // não aqui, para manter o schema livre de acoplamento com regra de negócio.
+  @Prop({ type: [String], enum: AttendantPermission })
+  permissions?: AttendantPermission[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

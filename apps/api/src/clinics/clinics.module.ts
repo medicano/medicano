@@ -6,6 +6,7 @@ import { User, UserSchema } from '../auth/schemas/user.schema';
 import { ClinicProfessional, ClinicProfessionalSchema } from '../professionals/schemas/clinic-professional.schema';
 import { Professional, ProfessionalSchema } from '../professionals/schemas/professional.schema';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { ActivityLogModule } from '../activity-log/activity-log.module';
 
 import { ClinicsController } from './clinics.controller';
 import { AttendantsController } from './controllers/attendants.controller';
@@ -23,6 +24,7 @@ import { AttendantsService } from './services/attendants.service';
       { name: Professional.name, schema: ProfessionalSchema },
     ]),
     SubscriptionsModule,
+    ActivityLogModule,
   ],
   controllers: [ClinicsController, AttendantsController, ProfessionalAttendantsController],
   providers: [ClinicsService, AttendantsService],

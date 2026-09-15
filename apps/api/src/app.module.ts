@@ -18,6 +18,7 @@ import { RedisModule } from './redis/redis.module';
 import { PatientProfileModule } from './patient-profile/patient-profile.module';
 import { GeocodingModule } from './common/geocoding/geocoding.module';
 import { CitiesModule } from './cities/cities.module';
+import { ActivityLogModule } from './activity-log/activity-log.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { CitiesModule } from './cities/cities.module';
     PatientProfileModule,
     GeocodingModule,
     CitiesModule,
+    ActivityLogModule,
   ],
 })
 export class AppModule {}

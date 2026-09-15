@@ -1,4 +1,5 @@
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { AttendantPermission } from '../../common/enums/attendant-permission.enum';
 
 export class CreateAttendantDto {
   @IsString()
@@ -18,4 +19,10 @@ export class CreateAttendantDto {
   @MinLength(2)
   @MaxLength(80)
   displayName!: string;
+
+  // RF65 — se omitido, AttendantsService aplica o default (view_agenda + manage_appointments).
+  @IsOptional()
+  @IsArray()
+  @IsEnum(AttendantPermission, { each: true })
+  permissions?: AttendantPermission[];
 }

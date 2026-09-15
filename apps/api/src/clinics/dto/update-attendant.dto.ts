@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { AttendantPermission } from '../../common/enums/attendant-permission.enum';
 
 export class UpdateAttendantDto {
   @IsOptional()
@@ -13,4 +14,10 @@ export class UpdateAttendantDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  // RF65
+  @IsOptional()
+  @IsArray()
+  @IsEnum(AttendantPermission, { each: true })
+  permissions?: AttendantPermission[];
 }

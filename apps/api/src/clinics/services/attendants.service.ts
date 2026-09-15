@@ -10,6 +10,7 @@ import { Model, Types } from 'mongoose';
 
 import { UserDocument } from '../../auth/schemas/user.schema';
 import { Role } from '../../common/enums/role.enum';
+import { DEFAULT_ATTENDANT_PERMISSIONS } from '../../common/enums/attendant-permission.enum';
 import {
   ProfessionalPlan,
   PROFESSIONAL_PLAN_ATTENDANT_LIMITS,
@@ -20,6 +21,8 @@ import {
 } from '../../professionals/schemas/professional.schema';
 import { PLAN_ATTENDANT_LIMITS } from '../../subscriptions/constants/subscription.constants';
 import { SubscriptionsService } from '../../subscriptions/subscriptions.service';
+import { ActivityLogService } from '../../activity-log/activity-log.service';
+import { ActivityAction } from '../../activity-log/enums/activity-action.enum';
 import { ClinicsService } from '../clinics.service';
 import { CreateAttendantDto } from '../dto/create-attendant.dto';
 import { UpdateAttendantDto } from '../dto/update-attendant.dto';
@@ -40,6 +43,7 @@ export class AttendantsService {
     private readonly professionalModel: Model<ProfessionalDocument>,
     private readonly clinicsService: ClinicsService,
     private readonly subscriptionsService: SubscriptionsService,
+    private readonly activityLogService: ActivityLogService,
   ) {}
 
   // Bloqueia a criação quando o dono já atingiu o limite de atendentes do plano.
@@ -95,6 +99,15 @@ export class AttendantsService {
     }
   }
 
+  private async getActorDisplayName(currentUserId: string): Promise<string> {
+    const actor = await this.userModel
+      .findById(currentUserId)
+      .select('displayName username')
+      .lean()
+      .exec();
+    return actor?.displayName || actor?.username || 'Usuário';
+  }
+
   // ─── núcleo genérico (independe do tipo de dono) ───────────────────────────
 
   private async createForOwner(
@@ -110,6 +123,7 @@ export class AttendantsService {
         passwordHash,
         displayName: dto.displayName,
         isActive: true,
+        permissions: dto.permissions ?? DEFAULT_ATTENDANT_PERMISSIONS,
       });
       const sanitized = created.toObject();
       delete (sanitized as any).passwordHash;
@@ -141,6 +155,7 @@ export class AttendantsService {
     const update: Record<string, unknown> = {};
     if (dto.displayName !== undefined) update.displayName = dto.displayName;
     if (dto.isActive !== undefined) update.isActive = dto.isActive;
+    if (dto.permissions !== undefined) update.permissions = dto.permissions;
     if (dto.password) update.passwordHash = await bcrypt.hash(dto.password, BCRYPT_COST);
 
     const updated = await this.userModel
@@ -186,7 +201,16 @@ export class AttendantsService {
       { clinicId },
       PLAN_ATTENDANT_LIMITS[subscription.plan],
     );
-    return this.createForOwner({ clinicId }, dto);
+    const attendant = await this.createForOwner({ clinicId }, dto);
+    const actorDisplayName = await this.getActorDisplayName(currentUserId);
+    await this.activityLogService.record({
+      clinicId,
+      actorUserId: currentUserId,
+      actorDisplayName,
+      action: ActivityAction.ATTENDANT_CREATED,
+      description: `${actorDisplayName} criou o atendente "${dto.displayName}"`,
+    });
+    return attendant;
   }
 
   async listAttendants(
@@ -204,7 +228,16 @@ export class AttendantsService {
     dto: UpdateAttendantDto,
   ): Promise<UserDocument> {
     await this.assertClinicOwnership(clinicId, currentUserId);
-    return this.updateForOwner({ clinicId }, attendantId, dto);
+    const updated = await this.updateForOwner({ clinicId }, attendantId, dto);
+    const actorDisplayName = await this.getActorDisplayName(currentUserId);
+    await this.activityLogService.record({
+      clinicId,
+      actorUserId: currentUserId,
+      actorDisplayName,
+      action: ActivityAction.ATTENDANT_UPDATED,
+      description: `${actorDisplayName} atualizou o atendente "${updated.displayName}"`,
+    });
+    return updated;
   }
 
   async removeAttendant(
@@ -213,7 +246,16 @@ export class AttendantsService {
     currentUserId: string,
   ): Promise<{ success: true }> {
     await this.assertClinicOwnership(clinicId, currentUserId);
-    return this.removeForOwner({ clinicId }, attendantId);
+    const result = await this.removeForOwner({ clinicId }, attendantId);
+    const actorDisplayName = await this.getActorDisplayName(currentUserId);
+    await this.activityLogService.record({
+      clinicId,
+      actorUserId: currentUserId,
+      actorDisplayName,
+      action: ActivityAction.ATTENDANT_REMOVED,
+      description: `${actorDisplayName} removeu um atendente`,
+    });
+    return result;
   }
 
   // ─── atendentes de profissional autônomo ───────────────────────────────────
@@ -234,7 +276,16 @@ export class AttendantsService {
       { professionalId },
       PROFESSIONAL_PLAN_ATTENDANT_LIMITS[plan],
     );
-    return this.createForOwner({ professionalId }, dto);
+    const attendant = await this.createForOwner({ professionalId }, dto);
+    const actorDisplayName = await this.getActorDisplayName(currentUserId);
+    await this.activityLogService.record({
+      professionalId,
+      actorUserId: currentUserId,
+      actorDisplayName,
+      action: ActivityAction.ATTENDANT_CREATED,
+      description: `${actorDisplayName} criou o atendente "${dto.displayName}"`,
+    });
+    return attendant;
   }
 
   async listForProfessional(
@@ -252,7 +303,16 @@ export class AttendantsService {
     dto: UpdateAttendantDto,
   ): Promise<UserDocument> {
     await this.assertProfessionalOwnership(professionalId, currentUserId);
-    return this.updateForOwner({ professionalId }, attendantId, dto);
+    const updated = await this.updateForOwner({ professionalId }, attendantId, dto);
+    const actorDisplayName = await this.getActorDisplayName(currentUserId);
+    await this.activityLogService.record({
+      professionalId,
+      actorUserId: currentUserId,
+      actorDisplayName,
+      action: ActivityAction.ATTENDANT_UPDATED,
+      description: `${actorDisplayName} atualizou o atendente "${updated.displayName}"`,
+    });
+    return updated;
   }
 
   async removeForProfessional(
@@ -261,6 +321,15 @@ export class AttendantsService {
     currentUserId: string,
   ): Promise<{ success: true }> {
     await this.assertProfessionalOwnership(professionalId, currentUserId);
-    return this.removeForOwner({ professionalId }, attendantId);
+    const result = await this.removeForOwner({ professionalId }, attendantId);
+    const actorDisplayName = await this.getActorDisplayName(currentUserId);
+    await this.activityLogService.record({
+      professionalId,
+      actorUserId: currentUserId,
+      actorDisplayName,
+      action: ActivityAction.ATTENDANT_REMOVED,
+      description: `${actorDisplayName} removeu um atendente`,
+    });
+    return result;
   }
 }
