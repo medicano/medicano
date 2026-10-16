@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "load-secrets": "node scripts/load-secrets.mjs",
-    "start": "npm run load-secrets && vite",
+    "start": "vite",
     "dev": "vite",
-    "build": "npm run load-secrets && tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

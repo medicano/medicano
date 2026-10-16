@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { createTransport, Transporter } from 'nodemailer';
 
 import { AppointmentDocument } from '../appointments/schemas/appointment.schema';
 import { User, UserDocument } from '../auth/schemas/user.schema';
@@ -21,42 +21,39 @@ interface ResolvedParties {
   professionalName: string;
 }
 
-interface SesConfig {
-  region: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  fromEmail: string;
-}
-
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
-  private readonly sesClient: SESClient;
+  private readonly transporter: Transporter | null;
   private readonly fromEmail: string;
 
+  // SMTP genérico: serve para qualquer provedor (Brevo, Resend, Zoho, Mailgun,
+  // Postmark, o próprio SES pela interface SMTP...). Sem SMTP_HOST, os e-mails
+  // são só registrados no log, para dev e homologação não mandarem nada real.
   constructor(
     private readonly configService: ConfigService,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly professionalsService: ProfessionalsService,
   ) {
-    const sesConfig = this.configService.get<SesConfig>('ses');
+    this.fromEmail = this.configService.get<string>('EMAIL_FROM') ?? 'Medicano <no-reply@medicano.app>';
 
-    if (!sesConfig?.fromEmail) {
-      this.logger.warn('SES fromEmail is not configured — notification emails will not be sent');
+    const host = this.configService.get<string>('SMTP_HOST');
+    if (!host) {
+      this.logger.warn('SMTP_HOST is not configured — notification emails will only be logged');
+      this.transporter = null;
+      return;
     }
 
-    this.fromEmail = sesConfig?.fromEmail ?? '';
+    const port = parseInt(this.configService.get<string>('SMTP_PORT') ?? '587', 10);
+    const user = this.configService.get<string>('SMTP_USER');
 
-    this.sesClient = new SESClient({
-      region: sesConfig?.region ?? 'us-east-1',
-      ...(sesConfig?.accessKeyId
-        ? {
-            credentials: {
-              accessKeyId: sesConfig.accessKeyId,
-              secretAccessKey: sesConfig.secretAccessKey ?? '',
-            },
-          }
-        : {}),
+    this.transporter = createTransport({
+      host,
+      port,
+      // 465 = TLS implícito; 587 = STARTTLS (exigido abaixo).
+      secure: port === 465,
+      requireTLS: port !== 465,
+      ...(user ? { auth: { user, pass: this.configService.get<string>('SMTP_PASS') ?? '' } } : {}),
     });
   }
 
@@ -178,38 +175,21 @@ export class NotificationsService {
     htmlBody: string,
     textBody: string,
   ): Promise<void> {
-    if (!this.fromEmail) {
-      this.logger.warn('sendEmail: fromEmail is not configured — skipping send');
+    if (!this.transporter) {
+      this.logger.log(`sendEmail (dry-run): "${subject}" → ${to}`);
       return;
     }
 
     try {
-      const command = new SendEmailCommand({
-        Source: this.fromEmail,
-        Destination: {
-          ToAddresses: [to],
-        },
-        Message: {
-          Subject: {
-            Data: subject,
-            Charset: 'UTF-8',
-          },
-          Body: {
-            Html: {
-              Data: htmlBody,
-              Charset: 'UTF-8',
-            },
-            Text: {
-              Data: textBody,
-              Charset: 'UTF-8',
-            },
-          },
-        },
+      await this.transporter.sendMail({
+        from: this.fromEmail,
+        to,
+        subject,
+        html: htmlBody,
+        text: textBody,
       });
-
-      await this.sesClient.send(command);
     } catch (err) {
-      this.logger.warn(`sendEmail: failed to send email via SES — ${(err as Error).message}`);
+      this.logger.warn(`sendEmail: failed to send email via SMTP — ${(err as Error).message}`);
     }
   }
 

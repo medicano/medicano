@@ -1,0 +1,82 @@
+name: Deploy
+
+# Publica as imagens no GHCR e atualiza o servidor por SSH.
+# Funciona com qualquer host Linux com Docker: VM no homelab (via Tailscale)
+# ou VPS com SSH público. Configuração em deploy/README.md, seção "CI/CD".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    name: Imagens (GHCR)
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        target: [api, web]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: |
+            VITE_API_URL=${{ vars.VITE_API_URL || 'https://api.medicano.app' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/medicano-${{ matrix.target }}:latest
+            ghcr.io/${{ github.repository_owner }}/medicano-${{ matrix.target }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+  deploy:
+    name: Atualizar servidor
+    needs: images
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      # Só quando o servidor está atrás do Tailscale (homelab). Numa VPS com
+      # SSH público, deixe a variável TS_OAUTH_CLIENT_ID vazia: o passo é pulado.
+      - name: Entrar no tailnet
+        if: ${{ vars.TS_OAUTH_CLIENT_ID != '' }}
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ vars.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: docker compose pull && up
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_USER }}
+          DIR: ${{ vars.DEPLOY_DIR || '/opt/medicano/deploy' }}
+          TAG: ${{ github.sha }}
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy "$SSH_USER@$HOST" \
+            "cd '$DIR' && git -C .. pull --ff-only && IMAGE_TAG='$TAG' docker compose pull api web && IMAGE_TAG='$TAG' docker compose up -d --remove-orphans && docker image prune -f"

@@ -1,0 +1,31 @@
+# Serve o build do Vite. TLS fica com quem está na frente
+# (Cloudflare Tunnel ou o Caddy de borda), por isso só HTTP na 80.
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	root * /srv
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options DENY
+		-Server
+	}
+
+	# Arquivos com hash no nome: cache longo (como no S3).
+	@hashed path /assets/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+	# O resto (index.html de qualquer rota da SPA, robots, sitemap) revalida
+	# sempre, para o deploy aparecer na hora.
+	@notHashed not path /assets/*
+	header @notHashed Cache-Control "no-cache"
+
+	# SPA: rota desconhecida cai no index.html.
+	try_files {path} /index.html
+	file_server
+}

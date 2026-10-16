@@ -1,0 +1,119 @@
+# Medicano em qualquer máquina Linux com Docker (VM Debian, VPS, EC2...).
+# Guia completo: deploy/README.md
+#
+#   cp .env.example .env    # preencher
+#   docker compose up -d --build
+#
+# Entrada (escolha uma em COMPOSE_PROFILES no .env):
+#   tunnel → Cloudflare Tunnel, nenhuma porta aberta (homelab)
+#   caddy  → Caddy na 80/443 com Let's Encrypt (VPS com IP público)
+# Banco: profile "db" sobe o MongoDB local. Sem ele, use um MONGODB_URI externo (ex.: Atlas).
+
+name: ${COMPOSE_PROJECT_NAME:-medicano}
+
+x-logging: &logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/medicano/medicano-api}:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      target: api
+    env_file: .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    volumes:
+      - uploads:/app/apps/api/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+        required: false
+    restart: unless-stopped
+    logging: *logging
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/medicano/medicano-web}:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      target: web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.medicano.app}
+    restart: unless-stopped
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    # AOF: sessões (tokens revogáveis) sobrevivem a um restart sem deslogar todo mundo.
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    logging: *logging
+
+  mongo:
+    profiles: [db]
+    # MongoDB 5+ exige AVX: em VM do Proxmox, CPU type "host" (ver README).
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-medicano}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-}
+    volumes:
+      - mongo_data:/data/db
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    logging: *logging
+
+  cloudflared:
+    profiles: [tunnel]
+    image: cloudflare/cloudflared:2026.10.0
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on: [api, web]
+    restart: unless-stopped
+    logging: *logging
+
+  caddy:
+    profiles: [caddy]
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:-medicano.app}
+      API_DOMAIN: ${API_DOMAIN:-api.medicano.app}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./edge.Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api, web]
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  uploads:
+  redis_data:
+  mongo_data:
+  caddy_data:
+  caddy_config:

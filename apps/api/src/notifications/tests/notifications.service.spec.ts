@@ -1,8 +1,7 @@
 const mockSend = jest.fn();
 
-jest.mock('@aws-sdk/client-ses', () => ({
-  SESClient: jest.fn().mockImplementation(() => ({ send: mockSend })),
-  SendEmailCommand: jest.fn().mockImplementation((input) => ({ input })),
+jest.mock('nodemailer', () => ({
+  createTransport: jest.fn().mockImplementation(() => ({ sendMail: mockSend })),
 }));
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -30,9 +29,8 @@ describe('NotificationsService', () => {
   };
   const configService = {
     get: jest.fn().mockImplementation((key: string) => {
-      if (key === 'ses') {
-        return { region: 'us-east-1', fromEmail: 'no-reply@medicano.app' };
-      }
+      if (key === 'SMTP_HOST') return 'smtp.test.local';
+      if (key === 'EMAIL_FROM') return 'no-reply@medicano.app';
       return undefined;
     }),
   };
@@ -115,21 +113,20 @@ describe('NotificationsService', () => {
   afterEach(() => {
     jest.clearAllMocks();
     mockSend.mockReset();
-    mockSend.mockResolvedValue({ MessageId: 'fake' });
+    mockSend.mockResolvedValue({ messageId: 'fake' });
   });
 
   describe('notifyAppointmentCreated', () => {
     it('sends email to both patient and professional', async () => {
       setupHappyLookups();
-      mockSend.mockResolvedValue({ MessageId: 'fake' });
+      mockSend.mockResolvedValue({ messageId: 'fake' });
 
       await service.notifyAppointmentCreated(appointment as any);
 
       expect(mockSend).toHaveBeenCalledTimes(2);
 
       const sentDestinations = mockSend.mock.calls
-        .map(([cmd]: [any]) => cmd?.input?.Destination?.ToAddresses ?? [])
-        .flat();
+        .map(([mail]: [any]) => mail?.to);
 
       expect(sentDestinations).toEqual(
         expect.arrayContaining([patientUser.email, professionalUser.email]),
@@ -140,23 +137,20 @@ describe('NotificationsService', () => {
   describe('notifyAppointmentConfirmed', () => {
     it('sends email only to patient', async () => {
       setupHappyLookups();
-      mockSend.mockResolvedValue({ MessageId: 'fake' });
+      mockSend.mockResolvedValue({ messageId: 'fake' });
 
       await service.notifyAppointmentConfirmed(appointment as any);
 
       expect(mockSend).toHaveBeenCalledTimes(1);
-      const [cmd] = mockSend.mock.calls[0];
-      expect(cmd.input.Destination.ToAddresses).toContain(patientUser.email);
-      expect(cmd.input.Destination.ToAddresses).not.toContain(
-        professionalUser.email,
-      );
+      const [mail] = mockSend.mock.calls[0];
+      expect(mail.to).toBe(patientUser.email);
     });
   });
 
   describe('notifyAppointmentCancelled', () => {
     it('when cancelledBy=patient, sends to professional only', async () => {
       setupHappyLookups();
-      mockSend.mockResolvedValue({ MessageId: 'fake' });
+      mockSend.mockResolvedValue({ messageId: 'fake' });
 
       await service.notifyAppointmentCancelled(
         appointment as any,
@@ -164,18 +158,13 @@ describe('NotificationsService', () => {
       );
 
       expect(mockSend).toHaveBeenCalledTimes(1);
-      const [cmd] = mockSend.mock.calls[0];
-      expect(cmd.input.Destination.ToAddresses).toContain(
-        professionalUser.email,
-      );
-      expect(cmd.input.Destination.ToAddresses).not.toContain(
-        patientUser.email,
-      );
+      const [mail] = mockSend.mock.calls[0];
+      expect(mail.to).toBe(professionalUser.email);
     });
 
     it('when cancelledBy=provider, sends to patient only', async () => {
       setupHappyLookups();
-      mockSend.mockResolvedValue({ MessageId: 'fake' });
+      mockSend.mockResolvedValue({ messageId: 'fake' });
 
       await service.notifyAppointmentCancelled(
         appointment as any,
@@ -183,18 +172,15 @@ describe('NotificationsService', () => {
       );
 
       expect(mockSend).toHaveBeenCalledTimes(1);
-      const [cmd] = mockSend.mock.calls[0];
-      expect(cmd.input.Destination.ToAddresses).toContain(patientUser.email);
-      expect(cmd.input.Destination.ToAddresses).not.toContain(
-        professionalUser.email,
-      );
+      const [mail] = mockSend.mock.calls[0];
+      expect(mail.to).toBe(patientUser.email);
     });
   });
 
   describe('sendEmail resilience', () => {
-    it('SES error is caught and logged, does not throw', async () => {
+    it('SMTP error is caught and logged, does not throw', async () => {
       setupHappyLookups();
-      mockSend.mockRejectedValue(new Error('SES down'));
+      mockSend.mockRejectedValue(new Error('SMTP down'));
 
       const loggerField = (service as any).logger ?? console;
       const loggerSpy = jest

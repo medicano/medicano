@@ -3,37 +3,13 @@ import {
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
 
-type Environment = 'development' | 'staging' | 'production' | 'test';
-
-const AWS_ENVIRONMENTS: Environment[] = [
-  'development',
-  'staging',
-  'production',
-];
-const VALID_ENVIRONMENTS: Environment[] = [...AWS_ENVIRONMENTS, 'test'];
-
-function resolveSecretName(): string {
-  const env = process.env.NODE_ENV as Environment;
-  if (!VALID_ENVIRONMENTS.includes(env)) {
-    throw new Error(
-      `NODE_ENV must be one of: ${VALID_ENVIRONMENTS.join(', ')}. Got: "${env ?? 'undefined'}"`,
-    );
-  }
-  return `medicano/api/${env}`;
-}
-
-export async function loadAwsSecrets(): Promise<Record<string, string>> {
-  if (process.env.NODE_ENV === 'test') {
-    return {
-      MONGODB_URI: 'mongodb://localhost:27017/medicano-test',
-      REDIS_HOST: 'localhost',
-      REDIS_PORT: '6379',
-      JWT_SECRET: 'test-secret',
-      ANTHROPIC_API_KEY: 'test-anthropic-key',
-    };
-  }
-
-  const secretName = resolveSecretName();
+// Legado: só é carregado quando SECRETS_SOURCE=aws (ver secrets.loader.ts).
+// Pode ser apagado, junto com @aws-sdk/client-secrets-manager, depois que
+// nenhum ambiente depender mais do Secrets Manager.
+export async function loadAwsSecrets(
+  env: 'development' | 'staging' | 'production',
+): Promise<Record<string, string>> {
+  const secretName = `medicano/api/${env}`;
 
   const client = new SecretsManagerClient({
     region: process.env.AWS_REGION ?? 'sa-east-1',

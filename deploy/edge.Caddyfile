@@ -1,0 +1,16 @@
+# Borda para VPS com IP público (profile "caddy"). Certificados automáticos
+# do Let's Encrypt: as portas 80 e 443 precisam estar abertas e os registros
+# DNS apontando para a VPS (na Cloudflare, nuvem cinza ou SSL "Full (strict)").
+{
+	email {$ACME_EMAIL}
+}
+
+{$WEB_DOMAIN}, www.{$WEB_DOMAIN} {
+	@www host www.{$WEB_DOMAIN}
+	redir @www https://{$WEB_DOMAIN}{uri} permanent
+	reverse_proxy web:80
+}
+
+{$API_DOMAIN} {
+	reverse_proxy api:3000
+}

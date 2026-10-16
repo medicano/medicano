@@ -15,6 +15,7 @@ medicano/
 │   └── web/                  # Frontend React (Vite)
 ├── packages/
 │   └── types/                # Tipos TypeScript compartilhados entre apps
+├── deploy/                   # Docker Compose de produção (VM, VPS, homelab)
 ├── medicano_crew/            # Automação de desenvolvimento com CrewAI
 │   ├── src/medicano_crew/
 │   │   ├── crews/            # Crews do flow (architect, developer, reviewer...)
@@ -33,7 +34,6 @@ medicano/
 
 - Node.js 20+
 - Docker (MongoDB + Redis)
-- AWS CLI configurado (`aws configure` ou AWS SSO) com acesso ao Secrets Manager
 
 ### Infraestrutura local
 
@@ -43,27 +43,28 @@ sudo docker compose up -d   # sobe MongoDB (27017) e Redis (6379)
 
 ### API (`apps/api`)
 
-A API busca toda a configuração do AWS Secrets Manager — não há `.env`. O secret é selecionado pelo `NODE_ENV`:
+A configuração vem de variáveis de ambiente, sem depender de provedor de nuvem. Ordem de precedência (`apps/api/src/common/config/secrets.loader.ts`):
 
-| Ambiente | Secret buscado | Comando |
+1. Variáveis do processo (em produção, o `deploy/.env` via Docker Compose)
+2. `apps/api/.env` (desenvolvimento local; modelo em `apps/api/.env.example`)
+3. AWS Secrets Manager (`medicano/api/<NODE_ENV>`), **só** com `SECRETS_SOURCE=aws` — legado
+
+| Variável | Obrigatória | Observação |
 |---|---|---|
-| Development | `medicano/api/development` | `npm run start:dev` |
-| Staging | `medicano/api/staging` | `npm run start:staging` |
-| Production | `medicano/api/production` | `npm run start:prod` |
+| `MONGODB_URI` | sim | |
+| `REDIS_HOST` / `REDIS_PORT` | sim / não | |
+| `JWT_SECRET` | sim | mínimo 32 caracteres em produção |
+| `ANTHROPIC_API_KEY` | sim | |
+| `CORS_ORIGIN`, `COOKIE_DOMAIN` | não | |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | não | sem `SMTP_HOST` os e-mails só vão para o log |
 
-Cada secret é um JSON no formato:
+A API valida as obrigatórias no boot. Deploy (VM Debian, VPS, homelab): ver `deploy/README.md`.
 
-```json
-{
-  "MONGODB_URI": "mongodb://...",
-  "REDIS_HOST": "...",
-  "REDIS_PORT": "6379",
-  "JWT_SECRET": "...",
-  "ANTHROPIC_API_KEY": "sk-ant-..."
-}
-```
-
-A região AWS é lida de `AWS_REGION` (default: `sa-east-1`).
+| Ambiente | Comando |
+|---|---|
+| Development | `npm run start:dev` |
+| Staging | `npm run start:staging` |
+| Production | `npm run start:prod` (ou o container de `deploy/`) |
 
 ### Testes
 
@@ -72,7 +73,7 @@ cd apps/api
 npm test          # unitários + E2E (requer MongoDB e Redis rodando)
 ```
 
-Os testes rodam com `NODE_ENV=test`. Nesse ambiente, `loadAwsSecrets` não chama a AWS — retorna config local hardcoded apontando para o Docker local (`mongodb://localhost:27017/medicano-test`, Redis em `localhost`).
+Os testes rodam com `NODE_ENV=test`. Nesse ambiente, `loadSecrets` preenche uma config local hardcoded apontando para o Docker local (`mongodb://localhost:27017/medicano-test`, Redis em `localhost`).
 
 ---
 
@@ -137,7 +138,7 @@ src/
 | `search`            | Busca pública de profissionais e clínicas                               |
 | `profile`           | Perfil do usuário autenticado (agrega dados de outros módulos)          |
 | `cities`            | Lista de cidades via API do IBGE (sem persistência própria)             |
-| `notifications`     | Envio de notificações por e-mail (AWS SES)                              |
+| `notifications`     | Envio de notificações por e-mail (SMTP via nodemailer)                  |
 | `geocoding`         | Geocodificação de endereços — módulo global (`@Global`), via API externa |
 | `redis`             | Conexão Redis — módulo global, sem lógica de negócio                    |
 

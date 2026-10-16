@@ -4,7 +4,7 @@ import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import { AppModule } from '../../app.module';
 import { Role } from '../../common/enums/role.enum';
-import { loadAwsSecrets } from '../../common/config/aws-secrets.loader';
+import { loadSecrets } from '../../common/config/secrets.loader';
 import { GeocodingService } from '../../common/geocoding/geocoding.service';
 
 const uniqueEmail = (): string =>
@@ -34,8 +34,7 @@ describe('Auth (e2e)', () => {
   jest.setTimeout(60_000);
 
   beforeAll(async () => {
-    const secrets = await loadAwsSecrets();
-    Object.assign(process.env, secrets);
+    await loadSecrets();
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
