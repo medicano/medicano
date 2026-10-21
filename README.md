@@ -32,7 +32,6 @@ medicano/
 
 - Node.js 20+
 - Docker
-- AWS CLI configurado com acesso ao Secrets Manager (`aws configure` ou AWS SSO)
 
 ### Infraestrutura local (Docker)
 
@@ -43,7 +42,7 @@ O `docker-compose.yml` tem dois serviços:
 | `redis`   | —        | Sempre, com `docker compose up -d`  |
 | `mongodb` | `test`   | Só para testes, com `--profile test`|
 
-Em **dev, staging e production** o MongoDB é remoto (configurado no AWS Secrets Manager). Só o Redis roda localmente:
+Em dev, o MongoDB pode ser o do Docker (`--profile test`) ou remoto (`MONGODB_URI` no `apps/api/.env`). Só o Redis sobe por padrão:
 
 ```bash
 # Sobe apenas o Redis (dev / stg / prod)
@@ -63,31 +62,26 @@ Para derrubar tudo:
 docker compose --profile test down
 ```
 
-### Configuração (AWS Secrets Manager)
+### Configuração
 
-A API não usa `.env`. Toda a configuração vem do AWS Secrets Manager. O secret é selecionado pelo `NODE_ENV`:
+A configuração vem de variáveis de ambiente, sem depender de provedor de nuvem. Ordem de precedência (`apps/api/src/common/config/secrets.loader.ts`):
 
-| Ambiente    | Secret buscado              |
-|-------------|-----------------------------|
-| development | `medicano/api/development`  |
-| staging     | `medicano/api/staging`      |
-| production  | `medicano/api/production`   |
+1. Variáveis do processo (em produção, o `deploy/.env` via Docker Compose)
+2. `apps/api/.env` (desenvolvimento local; modelo em `apps/api/.env.example`)
+3. AWS Secrets Manager (`medicano/api/<NODE_ENV>`), **só** com `SECRETS_SOURCE=aws` — legado
 
-Cada secret é um JSON com os campos:
+| Variável | Obrigatória | Observação |
+|---|---|---|
+| `MONGODB_URI` | sim | |
+| `REDIS_HOST` / `REDIS_PORT` | sim / não | |
+| `JWT_SECRET` | sim | mínimo 32 caracteres em produção |
+| `ANTHROPIC_API_KEY` | sim | |
+| `CORS_ORIGIN`, `COOKIE_DOMAIN` | não | |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | não | sem `SMTP_HOST` os e-mails só vão para o log |
 
-```json
-{
-  "MONGODB_URI": "mongodb+srv://...",
-  "REDIS_HOST": "...",
-  "REDIS_PORT": "6379",
-  "JWT_SECRET": "...",
-  "ANTHROPIC_API_KEY": "sk-ant-..."
-}
-```
+A API valida as obrigatórias no boot. Deploy (VM Debian, VPS, homelab): ver `deploy/README.md`.
 
-A região AWS é lida de `AWS_REGION` (padrão: `sa-east-1`).
-
-> Em `NODE_ENV=test` a API **não** chama a AWS — usa config local hardcoded apontando para os containers Docker (`mongodb://localhost:27017/medicano-test`, Redis em `localhost`).
+> Em `NODE_ENV=test` a API usa config local hardcoded apontando para os containers Docker (`mongodb://localhost:27017/medicano-test`, Redis em `localhost`).
 
 ### Instalar dependências
 
@@ -114,7 +108,7 @@ A API sobe em `http://localhost:3000` com hot-reload.
 docker compose up -d
 
 cd apps/api
-npm run start:stg
+npm run stg
 ```
 
 ### Rodar em production

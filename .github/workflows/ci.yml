@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+
+jobs:
+  api:
+    name: API — build e testes
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:7
+        ports: ['27017:27017']
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run types:build
+      - run: npm run build --workspace=apps/api
+      - name: Testes
+        working-directory: apps/api
+        env:
+          NODE_ENV: test
+        run: npm test
+
+  web:
+    name: Web — lint e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run types:build
+      - run: npm run lint --workspace=apps/web
+      - run: npm run build --workspace=apps/web
+        env:
+          VITE_API_URL: https://api.medicano.app

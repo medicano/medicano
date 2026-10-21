@@ -1,3 +1,6 @@
+// Legado: busca as variáveis do front no AWS Secrets Manager e grava .env.local.
+// Não roda mais no build. Para usar: npm run load-secrets (com credenciais AWS).
+// O caminho padrão é um .env.local escrito à mão (ver .env.example).
 import {
   SecretsManagerClient,
   GetSecretValueCommand,

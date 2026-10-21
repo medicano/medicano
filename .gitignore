@@ -31,3 +31,8 @@ documentation/*.lot
 documentation/*.pdf
 documentation/*.synctex.gz
 documentation/*.toc
+# Deploy: segredos e dumps locais
+deploy/.env
+deploy/backups/*
+!deploy/backups/.gitkeep
+apps/api/uploads/

@@ -4,11 +4,10 @@ import cookieParser from 'cookie-parser';
 
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { loadAwsSecrets } from './common/config/aws-secrets.loader';
+import { loadSecrets } from './common/config/secrets.loader';
 
 async function bootstrap(): Promise<void> {
-  const secrets = await loadAwsSecrets();
-  Object.assign(process.env, secrets);
+  await loadSecrets();
 
   const app = await NestFactory.create(AppModule);
 
@@ -23,6 +22,9 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   app.use(cookieParser());
+
+  // Docker manda SIGTERM no `docker compose down/up`: fecha Mongo e Redis limpo.
+  app.enableShutdownHooks();
 
   // credentials: true é obrigatório para o browser enviar/receber o cookie de
   // sessão. Com credenciais o Allow-Origin não pode ser '*': refletimos a origem

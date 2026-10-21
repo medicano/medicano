@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.claude
+medicano_crew
+documentation
+deploy/.env
+apps/api/uploads
+apps/web/scripts/screenshots
+*.pem
+*.log
