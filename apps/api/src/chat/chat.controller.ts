@@ -11,11 +11,13 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response as ExpressResponse } from 'express';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ParseMongoIdPipe } from '../common/pipes/parse-mongo-id.pipe';
+import { CHAT_MESSAGE_THROTTLE, CHAT_SESSION_THROTTLE } from '../common/throttle/throttle-limits';
 import { ChatService } from './chat.service';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { CreateChatSessionDto } from './dto/create-chat-session.dto';
@@ -27,6 +29,7 @@ export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
   @Post('sessions')
+  @Throttle(CHAT_SESSION_THROTTLE)
   async createSession(
     @CurrentUser() userId: string,
     @Body() dto: CreateChatSessionDto,
@@ -66,6 +69,7 @@ export class ChatController {
   }
 
   @Post('sessions/:sessionId/messages')
+  @Throttle(CHAT_MESSAGE_THROTTLE)
   async sendMessage(
     @CurrentUser() userId: string,
     @Param('sessionId', ParseMongoIdPipe) sessionId: string,

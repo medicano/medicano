@@ -373,6 +373,8 @@ Documentadas aqui para que agentes não as violem ao gerar código:
 | Login atendente | `clinicId` + `username` + `password` (role: attendant) |
 | Signup | Cria o usuário e já retorna o token (auto-login) |
 | `role` é imutável | Definido no cadastro, nunca alterado depois |
+| `passwordHash` fora das consultas | `select: false` no schema; só o login pede com `.select('+passwordHash')` |
+| Limite de requisições | Por IP (`CF-Connecting-IP` atrás do Cloudflare), em `common/throttle/`: 120/min geral, login 10/min, cadastro 5 a cada 10 min, chat 20 mensagens/min. Desligado em `NODE_ENV=test` |
 
 ---
 
