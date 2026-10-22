@@ -28,7 +28,8 @@ export class User {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Professional' })
   professionalId?: Types.ObjectId;
 
-  @Prop({ type: String, required: true })
+  // Fora de toda consulta por padrão: só o login pede com .select('+passwordHash').
+  @Prop({ type: String, required: true, select: false })
   passwordHash: string;
 
   @Prop({ type: String })

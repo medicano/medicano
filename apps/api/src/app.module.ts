@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './auth/auth.module';
@@ -20,12 +22,21 @@ import { GeocodingModule } from './common/geocoding/geocoding.module';
 import { CitiesModule } from './cities/cities.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ClientIpRequest, getClientIp } from './common/throttle/client-ip';
+import { DEFAULT_THROTTLE, THROTTLE_ERROR_MESSAGE } from './common/throttle/throttle-limits';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+    }),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ...DEFAULT_THROTTLE }],
+      getTracker: (req) => getClientIp(req as ClientIpRequest),
+      errorMessage: THROTTLE_ERROR_MESSAGE,
+      // Os testes E2E fazem dezenas de logins seguidos do mesmo IP.
+      skipIf: () => process.env.NODE_ENV === 'test',
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -53,6 +64,6 @@ import { AppService } from './app.service';
     CitiesModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

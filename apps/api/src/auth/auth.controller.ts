@@ -1,6 +1,8 @@
 import { Body, Controller, HttpCode, Post, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { LOGIN_THROTTLE, SIGNUP_THROTTLE } from '../common/throttle/throttle-limits';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AuthService, AuthResponse, AuthUser } from './auth.service';
 import { LoginAttendantDto } from './dto/login-attendant.dto';
@@ -24,6 +26,7 @@ export class AuthController {
   }
 
   @Post('signup')
+  @Throttle(SIGNUP_THROTTLE)
   @HttpCode(201)
   async signup(
     @Body() dto: SignupDto,
@@ -33,6 +36,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle(LOGIN_THROTTLE)
   @HttpCode(200)
   async loginStandard(
     @Body() dto: LoginStandardDto,
@@ -42,6 +46,7 @@ export class AuthController {
   }
 
   @Post('login/attendant')
+  @Throttle(LOGIN_THROTTLE)
   @HttpCode(200)
   async loginAttendant(
     @Body() dto: LoginAttendantDto,
