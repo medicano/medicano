@@ -20,7 +20,7 @@ internet ─► entrada ─► web  (Caddy, build estático do Vite)   │
 | Front | S3 + CloudFront | container `web` (Caddy) |
 | E-mail | SES (SDK) | SMTP de qualquer provedor |
 | Banco | Atlas | Mongo no compose (profile `db`) ou Atlas |
-| Deploy | `git pull` + build na EC2 | imagens no GHCR + `docker compose pull` |
+| Deploy | `git pull` + build na EC2 | por pull na VM: staging segue a `main`, produção por tag (seção 6) |
 
 ## 1. Preparar a máquina
 
@@ -119,34 +119,65 @@ real.**
   (`docker run --rm -v medicano_uploads:/u -v $PWD:/b alpine tar czf /b/uploads.tgz -C /u .`).
 - Testar a restauração (seção 4, com o arquivo do backup).
 
-## 6. CI/CD (GitHub Actions)
+## 6. CI e deploy (por pull)
 
-`ci.yml` testa PRs. `deploy.yml`, a cada push na `main`: testes → imagens
-`ghcr.io/medicano/medicano-{api,web}` (amd64 e arm64) → SSH no servidor →
-`docker compose pull && up -d`.
+O GitHub não entra na VM. O CI (`.github/workflows/ci.yml`) testa PRs e todo push
+de branch, inclusive na `main`. Quem publica é a própria VM, com
+`deploy/medicano-deploy.sh`, consultando o resultado do CI pela API pública do
+GitHub (repositório público: sem token).
 
-No GitHub, ambiente **production**:
-
-| Tipo | Nome | Valor |
+| Ambiente | Quando publica | Como |
 |---|---|---|
-| secret | `DEPLOY_SSH_KEY` | chave privada só para deploy (`ssh-keygen -t ed25519 -f medicano_deploy`) |
-| secret | `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan <host>` |
-| var | `DEPLOY_HOST` / `DEPLOY_USER` | IP de tailnet ou público / usuário no grupo `docker` |
-| var | `DEPLOY_DIR` | opcional, padrão `/opt/medicano/deploy` |
-| var | `VITE_API_URL` | opcional, padrão `https://api.medicano.app` |
-| var + secret | `TS_OAUTH_CLIENT_ID` + `TS_OAUTH_SECRET` | só no homelab |
+| Staging | Sozinho, a cada ~5 min, quando a `main` tem commit novo **com CI verde** | timer do systemd |
+| Produção | **Só quando você manda**, a partir de uma tag `vX.Y.Z` da `main` com CI verde | `medicano-deploy production vX.Y.Z` |
 
-**Homelab (Tailscale):** criar um OAuth client com escopo `auth_keys` e a tag
-`tag:ci`, instalar o Tailscale na VM com uma tag própria (ex.: `tag:medicano`) e
-liberar na política só `tag:ci → tag:medicano:22`. O runner entra no tailnet
-como nó efêmero e some no fim do job.
+Na produção, o script faz backup do Mongo, constrói as imagens com a tag da versão
+(`medicano-api:vX.Y.Z`) enquanto a versão atual continua no ar, sobe, confere API
+e front e, se falhar, **volta sozinho para a versão anterior**. As imagens das
+últimas 5 versões ficam guardadas: voltar para uma delas é
+`medicano-deploy production <versão>`, sem build (segundos). A versão no ar fica
+gravada como `IMAGE_TAG` no `.env`, então um `docker compose up -d` manual sobe a
+mesma versão.
 
-**Pacotes do GHCR:** o repositório é público, então deixe os dois pacotes
-públicos (Package settings → Change visibility). Se ficarem privados, faça
-`docker login ghcr.io` na VM com um token só de `read:packages`.
+### Instalação (uma vez, na VM)
 
-Sem CI, o deploy manual é o mesmo do Framar-BI:
-`git pull && docker compose up -d --build`.
+Pré-requisitos: produção em `/opt/medicano` e staging em `/opt/medicano-staging`
+(seção 7), usuário no grupo `docker` e dono dos dois diretórios.
+
+```bash
+sudo apt install -y jq curl
+sudo install -m 755 /opt/medicano-staging/deploy/medicano-deploy.sh /usr/local/bin/medicano-deploy
+sudo cp /opt/medicano-staging/deploy/systemd/medicano-staging-deploy.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now medicano-staging-deploy.timer
+```
+
+Se o usuário não for `marcos`, ajuste `User=` no `.service`. Quando o
+`medicano-deploy.sh` mudar no repositório, reinstale com o `install` acima (o
+script avisa no log).
+
+### Publicar na produção
+
+```bash
+# no PC, na main atualizada
+git tag -a v1.2.0 -m "v1.2.0: o que mudou" && git push origin v1.2.0
+# na VM, depois que o CI do commit terminar
+medicano-deploy production v1.2.0
+```
+
+Rollback: `medicano-deploy production v1.1.0`. Emergência sem CI: `--skip-ci`.
+
+### Acompanhar
+
+```bash
+medicano-deploy status                                  # versões no ar
+journalctl -u medicano-staging-deploy -n 50 --no-pager  # deploys do staging
+systemctl list-timers medicano-staging-deploy.timer     # próxima checagem
+medicano-deploy staging --force                         # refaz o staging agora
+```
+
+Os nomes das imagens (`ghcr.io/medicano/medicano-*`) são só nomes locais: nada é
+publicado no GHCR. O front embute a URL da API no build, então cada ambiente
+constrói o seu.
 
 ## 7. Staging na mesma máquina
 

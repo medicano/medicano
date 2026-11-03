@@ -1,10 +1,13 @@
 name: CI
 
+# Roda em PRs e em todo push de branch, inclusive na main. O deploy é por pull
+# na VM (deploy/medicano-deploy.sh): o staging só publica commits da main com
+# este CI verde, e a produção só publica tags cujo commit passou aqui.
+# Tags não disparam o CI (só "branches" está filtrado).
 on:
   pull_request:
   push:
-    branches-ignore: [main]
-  workflow_call:
+    branches: ['**']
 
 jobs:
   api:
