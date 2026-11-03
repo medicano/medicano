@@ -150,10 +150,31 @@ Sem CI, o deploy manual é o mesmo do Framar-BI:
 
 ## 7. Staging na mesma máquina
 
-Outra pasta com outro `.env` (`COMPOSE_PROJECT_NAME=medicano-staging`,
-`NODE_ENV=staging`, outro banco ou `MONGODB_URI` com `/medicano-staging`, outro
-túnel ou hostname `staging-api.medicano.app`). Volumes e redes ficam separados
-pelo nome do projeto.
+Um segundo projeto compose, num clone próprio (ex.: `/opt/medicano-staging`),
+publicado em `https://medicano-staging.miotto.dev` e fechado com Cloudflare
+Access (só os programadores).
+
+- **Domínio separado de `medicano.app` de propósito.** O cookie de sessão da
+  produção tem `Domain=.medicano.app` e iria junto para qualquer subdomínio,
+  colidindo com o do staging. Em outro domínio os cookies nunca se misturam. Use
+  um nível só de subdomínio: o certificado grátis da Cloudflare cobre
+  `*.miotto.dev`, não `*.algo.miotto.dev`.
+- **Front e API no mesmo endereço** (API em `/api`, via `web.staging.Caddyfile`).
+  O cookie do Access vale por hostname; com a API em outro nome, as chamadas do
+  front seriam bloqueadas. Com um endereço só não há CORS nem segundo login.
+- **`deploy/.env.staging.example`** é o modelo do `.env`. Ele liga o
+  `compose.staging.yml` (`COMPOSE_FILE`), separa volumes e redes
+  (`COMPOSE_PROJECT_NAME`), usa `IMAGE_TAG=staging` para não sobrescrever as
+  imagens `:latest` da produção e deixa `COOKIE_DOMAIN=` vazio (cookie só do
+  host). Com isso, `docker compose ...` funciona sem `-f` no diretório do staging.
+- **Túnel próprio** (`medicano-staging`): o `cloudflared` da produção não alcança
+  os containers de outro projeto compose, e um ambiente não derruba o outro.
+  Rota: `medicano-staging.miotto.dev` → `http://web:80`.
+- **Cloudflare Access antes da rota:** crie a aplicação (Self-hosted, hostname
+  do staging, política com os e-mails autorizados) antes de publicar a rota no
+  túnel, para o staging nunca ficar aberto.
+- **Dados fictícios.** Nunca copie o banco da produção para o staging (dados de
+  saúde, LGPD). SMTP vazio: e-mails só no log.
 
 ## 8. Operação
 
