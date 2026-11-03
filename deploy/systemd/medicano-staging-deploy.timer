@@ -1,0 +1,10 @@
+[Unit]
+Description=Medicano: confere a main a cada 5 minutos
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target
