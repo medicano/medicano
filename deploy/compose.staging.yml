@@ -1,0 +1,13 @@
+# Ajustes do staging por cima do compose.yml. Não use na produção.
+# Ativado pelo .env do staging: COMPOSE_FILE=compose.yml:compose.staging.yml
+# Guia: deploy/README.md, seção 7.
+
+services:
+  web:
+    volumes:
+      # Front + API no mesmo endereço (API em /api), para o Cloudflare Access.
+      - ./web.staging.Caddyfile:/etc/caddy/Caddyfile:ro
+
+  mongo:
+    # Cache pequeno: o staging divide a VM com a produção.
+    command: ["--wiredTigerCacheSizeGB", "0.25"]
