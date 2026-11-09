@@ -1,5 +1,4 @@
 *.pem
-.aider*
 .claude
 node_modules/
 dist/

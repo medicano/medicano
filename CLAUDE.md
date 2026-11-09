@@ -2,7 +2,7 @@
 
 Plataforma de gestão de clínicas e agendamentos médicos.
 
-Este documento é a fonte de verdade para qualquer agente de IA (Claude Code, CrewAI) ou desenvolvedor que trabalhe neste projeto. Leia-o completamente antes de escrever qualquer linha de código.
+Este documento é a fonte de verdade para qualquer agente de IA (Claude Code) ou desenvolvedor que trabalhe neste projeto. Leia-o completamente antes de escrever qualquer linha de código.
 
 ---
 
@@ -14,17 +14,16 @@ medicano/
 │   ├── api/                  # Backend NestJS
 │   └── web/                  # Frontend React (Vite)
 ├── packages/
-│   └── types/                # Tipos TypeScript compartilhados entre apps
-├── deploy/                   # Docker Compose de produção (VM, VPS, homelab)
-├── medicano_crew/            # Automação de desenvolvimento com CrewAI
-│   ├── src/medicano_crew/
-│   │   ├── crews/            # Crews do flow (architect, developer, reviewer...)
-│   │   ├── main.py           # Orquestração do flow
-│   │   └── run_sprint.py     # Executor de sprints em lote
-│   └── docs/specs/           # Especificações e prompts de cada sprint
+│   └── types/                # @medicano/types — tipos compartilhados entre apps
+├── deploy/                   # Docker Compose de produção e staging (VM, VPS, homelab)
+├── .github/workflows/ci.yml  # CI: build + testes da API, lint + build do web
+├── Dockerfile                # Imagens da API e do web (targets `api` e `web`)
+├── docker-compose.yml        # Infra local (MongoDB + Redis)
 ├── CLAUDE.md                 # Este arquivo
-└── README.md
+└── README.md                 # Como rodar + histórico de sprints
 ```
+
+O repositório usa **npm workspaces** (`apps/*` e `packages/*`): instale as dependências uma vez, na raiz.
 
 ---
 
@@ -32,13 +31,22 @@ medicano/
 
 ### Pré-requisitos
 
-- Node.js 20+
+- Node.js 22 (versão fixada no `.nvmrc`)
 - Docker (MongoDB + Redis)
+
+```bash
+npm install            # na raiz — instala todos os workspaces
+npm run types:build    # compila packages/types (necessário antes de buildar api/web)
+```
 
 ### Infraestrutura local
 
+No `docker-compose.yml` o MongoDB está no profile `test`, então o `up` simples sobe **só o Redis**:
+
 ```bash
-sudo docker compose up -d   # sobe MongoDB (27017) e Redis (6379)
+docker compose up -d                  # só Redis (6379) — Mongo vem do MONGODB_URI
+docker compose --profile test up -d   # MongoDB (27017) + Redis — necessário para os testes
+docker compose --profile test down
 ```
 
 ### API (`apps/api`)
@@ -58,13 +66,21 @@ A configuração vem de variáveis de ambiente, sem depender de provedor de nuve
 | `CORS_ORIGIN`, `COOKIE_DOMAIN` | não | |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | não | sem `SMTP_HOST` os e-mails só vão para o log |
 
-A API valida as obrigatórias no boot. Deploy (VM Debian, VPS, homelab): ver `deploy/README.md`.
+A API valida as obrigatórias no boot.
 
-| Ambiente | Comando |
+| Ambiente | Comando (dentro de `apps/api`) |
 |---|---|
-| Development | `npm run start:dev` |
+| Development | `npm run start:dev` (ou `npm run dev:api` na raiz) |
 | Staging | `npm run start:staging` |
 | Production | `npm run start:prod` (ou o container de `deploy/`) |
+
+### Web (`apps/web`)
+
+Copie `apps/web/.env.example` para `apps/web/.env.local`. A única variável é `VITE_API_URL` (padrão `http://localhost:3000`); variáveis `VITE_*` entram no bundle e são públicas.
+
+```bash
+npm run dev:web   # na raiz
+```
 
 ### Testes
 
@@ -75,20 +91,28 @@ npm test          # unitários + E2E (requer MongoDB e Redis rodando)
 
 Os testes rodam com `NODE_ENV=test`. Nesse ambiente, `loadSecrets` preenche uma config local hardcoded apontando para o Docker local (`mongodb://localhost:27017/medicano-test`, Redis em `localhost`).
 
+### CI e deploy
+
+- O CI (`.github/workflows/ci.yml`) roda em todo push e PR: build + testes da API (com Mongo e Redis como serviços) e lint + build do web.
+- Deploy é **por pull na VM** (`deploy/medicano-deploy.sh`): o staging publica os commits da `main` com CI verde; a produção publica **tags** cujo commit passou no CI.
+- Detalhes (VM Debian, VPS, homelab, Caddy, Cloudflare): ver `deploy/README.md`.
+
 ---
 
 ## Stack Completa
 
 | Camada       | Tecnologia                                          |
 |--------------|-----------------------------------------------------|
-| Backend      | NestJS 11 · TypeScript 5 · class-validator          |
-| Banco        | MongoDB (Mongoose 9)                                |
-| Cache/Sessão | Redis (ioredis 5) — tokens JWT revogáveis           |
-| Auth         | Passport.js · passport-jwt · bcrypt (cost 12)      |
-| Frontend     | React · Vite · TypeScript                           |
-| Automação    | CrewAI · Aider                                      |
+| Backend      | NestJS 10 · TypeScript 5 · class-validator          |
+| Banco        | MongoDB 7 (Mongoose 8)                              |
+| Cache/Sessão | Redis 7 (ioredis 5) — tokens JWT revogáveis         |
+| Auth         | Passport.js · passport-jwt · bcrypt (cost 12)       |
+| IA           | Vercel AI SDK (`ai` 4 + `@ai-sdk/anthropic`) — streaming via SSE |
+| E-mail       | nodemailer (SMTP)                                   |
+| Frontend     | React 19 · Vite 6 · TypeScript · Tailwind CSS 4 · React Router 7 |
 | Testes       | Jest · ts-jest · @nestjs/testing                    |
-| Package mgr  | npm (Node) · uv (Python)                            |
+| Infra        | Docker · Caddy · GitHub Actions                     |
+| Package mgr  | npm (workspaces)                                    |
 
 ---
 
@@ -96,7 +120,7 @@ Os testes rodam com `NODE_ENV=test`. Nesse ambiente, `loadSecrets` preenche uma 
 
 ### Estrutura de pastas
 
-Cada domínio de negócio é um módulo NestJS independente. A estrutura interna de cada módulo é sempre a mesma:
+Cada domínio de negócio é um módulo NestJS independente. A base de cada módulo é sempre a mesma:
 
 ```
 src/
@@ -112,24 +136,43 @@ src/
 │   ├── <dominio>.module.ts
 │   └── <dominio>.service.ts
 ├── common/
-│   ├── decorators/           # Decorators reutilizáveis (@CurrentUser, etc.)
-│   ├── enums/                # Enums globais (role.enum.ts)
-│   └── filters/              # Filtros de exceção globais
+│   ├── config/               # secrets.loader (env) + aws-secrets.loader (legado)
+│   ├── decorators/           # Decorators reutilizáveis (@CurrentUser, @CurrentUserRole)
+│   ├── dto/                  # DTOs compartilhados (Address, AddressForm, WeeklySlot)
+│   ├── enums/                # Enums globais (role, specialty, gender, sex, pronouns...)
+│   ├── filters/              # Filtros de exceção globais
+│   ├── geocoding/            # GeocodingModule (@Global)
+│   ├── pipes/                # ParseMongoIdPipe
+│   ├── schemas/              # Subdocumentos embutidos (Address, AddressForm, WeeklySlot)
+│   ├── throttle/             # Rate limit por IP
+│   └── utils/                # Funções puras compartilhadas
 ├── redis/
 │   ├── redis.module.ts       # Global, exporta RedisService
 │   └── redis.service.ts
-└── app.module.ts
+├── app.module.ts
+└── main.ts
 ```
+
+Quando um módulo cresce, ele pode ter estas subpastas opcionais — use só os nomes abaixo, que já existem no código:
+
+| Subpasta | Para quê | Exemplo |
+|---|---|---|
+| `controllers/` · `services/` | Controllers/services secundários do mesmo domínio | `clinics/services/attendants.service.ts` |
+| `utils/` | Funções puras (fáceis de testar isoladas) | `availability/utils/compute-slots.ts` |
+| `constants/` | Constantes e prompts | `chat/constants/assistant-prompt.ts` |
+| `enums/` · `interfaces/` | Enums e interfaces do próprio domínio | `chat/enums/chat-session-type.enum.ts` |
+| `guards/` · `decorators/` | Específicos do domínio | `auth/guards/roles.guard.ts` |
+| `templates/` | Templates de e-mail | `notifications/templates/` |
 
 ### Módulos existentes
 
 | Módulo              | Responsabilidade                                                        |
 |---------------------|-------------------------------------------------------------------------|
-| `auth`              | Signup, login (padrão e atendente), logout, JWT                         |
-| `users`             | CRUD de usuários (admin)                                                 |
-| `clinics`           | CRUD de clínicas                                                         |
-| `professionals`     | CRUD de profissionais e vínculos clínica↔profissional                   |
-| `patients`          | CRUD de pacientes                                                       |
+| `auth`              | Signup, login (padrão e atendente), logout, JWT, `RolesGuard`, cookie de auth |
+| `users`             | `UsersService` + `UsersRepository` usados pelo `auth` — **sem controller** |
+| `clinics`           | CRUD de clínicas + atendentes (`controllers/` e `services/` de atendentes) |
+| `professionals`     | Dois módulos: `ProfessionalsModule` (CRUD) e `ClinicProfessionalsModule` (vínculos clínica↔profissional) |
+| `patients`          | Só o schema `Patient` — **sem service/controller**; `auth`, `chat` e `profile` injetam o model |
 | `patient-profile`   | Perfil clínico do paciente (anamnese/triagem)                           |
 | `appointments`      | Agendamentos: criação, cancelamento e consulta                          |
 | `availability`      | Disponibilidade e geração de horários (slots) dos profissionais         |
@@ -139,7 +182,7 @@ src/
 | `profile`           | Perfil do usuário autenticado (agrega dados de outros módulos)          |
 | `cities`            | Lista de cidades via API do IBGE (sem persistência própria)             |
 | `notifications`     | Envio de notificações por e-mail (SMTP via nodemailer)                  |
-| `geocoding`         | Geocodificação de endereços — módulo global (`@Global`), via API externa |
+| `geocoding`         | Geocodificação de endereços — módulo global (`@Global`) em `common/geocoding/`, via API externa |
 | `redis`             | Conexão Redis — módulo global, sem lógica de negócio                    |
 
 ### Onde ficam os schemas Mongoose
@@ -174,6 +217,29 @@ São **10 coleções ativas**, cada uma definida por um schema registrado como m
 > A coleção `users` usa `collection: 'users'` explícito no `@Schema`; as demais seguem a pluralização padrão do Mongoose sobre o nome do modelo.
 
 Os schemas em `common/schemas/` (`Address`, `AddressForm`, `WeeklySlot`) e os subdocumentos do `patient-profile` são **subdocumentos embutidos** (`@Schema({ _id: false })`) — não geram coleção própria, vivem embutidos nos documentos que os referenciam. Os módulos `availability`, `search`, `profile`, `notifications` e `cities` não possuem coleção própria: apenas leem/agregam modelos de outros módulos (ou dados externos, no caso de `cities`).
+
+---
+
+## Arquitetura do Frontend (`apps/web`)
+
+```
+src/
+├── main.tsx
+├── styles/                   # Tailwind + tema (theme.css, fonts.css)
+└── app/
+    ├── App.tsx
+    ├── routes.tsx            # Todas as rotas + guards por role
+    ├── pages/                # Uma página por rota (<Nome>Page.tsx)
+    ├── components/           # Layout, modais, topbar, ProtectedRoute
+    │   └── ui/               # Primitivos de UI (Radix/shadcn + componentes próprios)
+    ├── contexts/AuthContext.tsx
+    ├── lib/                  # api.ts (axios + baseURL), hooks, types, format, errors
+    └── utils/
+```
+
+- Chamadas HTTP passam por `lib/api.ts`; o chat usa `fetch` direto para ler o stream SSE
+- Rotas protegidas usam `ProtectedRoute` com `roles`: `patient` (área do paciente), `staff` (`clinic`, `professional`, `attendant`), `clinicOrPro` (`clinic`, `professional`) e `anyAuth`
+- Estilo com Tailwind; antes de criar um componente novo, procure um equivalente em `components/ui/`
 
 ---
 
@@ -262,7 +328,7 @@ export type ClinicDocument = Clinic & Document;
 export const ClinicSchema = SchemaFactory.createForClass(Clinic);
 ```
 
-- Sempre incluir `{ timestamps: true }` no decorator `@Schema`
+- Sempre incluir `{ timestamps: true }` no decorator `@Schema` dos schemas raiz (coleções). Exceções: subdocumentos embutidos usam `{ _id: false }` sem timestamps; `ChatMessage` só tem `createdAt` (mensagem não é editada)
 - O type document segue o padrão `<Entidade>Document = <Entidade> & Document`
 - Schemas de enums que pertencem a uma única entidade ficam no mesmo arquivo do schema
 
@@ -387,6 +453,8 @@ Documentadas aqui para que agentes não as violem ao gerar código:
 | Unitário | Lógica de service isolada | `auth.service.spec.ts` |
 | E2E | Fluxo HTTP completo | `auth.e2e.spec.ts` |
 
+Todos os testes (unitários e E2E) ficam em `<modulo>/tests/` e terminam em `.spec.ts` — o Jest roda tudo a partir de `src/`. Nos testes, `@medicano/types` aponta direto para `packages/types/src` (não precisa buildar o pacote).
+
 ### Padrão de teste unitário
 
 ```typescript
@@ -436,13 +504,17 @@ describe('ClinicsService', () => {
 
 ### Verificação antes de commitar
 
-O hook de pre-commit roda `tsc --noEmit` automaticamente. Para rodar manualmente:
+Não há hook de pre-commit: quem barra erro de tipo ou teste quebrado é o CI. Rode antes de commitar:
 
 ```bash
 # Dentro de apps/api
 npx tsc -p tsconfig.build.json --noEmit   # Apenas código de produção
 npx tsc --noEmit                           # Código de produção + testes
 npm test                                   # Roda os testes
+
+# Dentro de apps/web
+npm run lint
+npm run build
 ```
 
 ---
@@ -453,16 +525,14 @@ npm test                                   # Roda os testes
 - **Nunca** duplicar um schema ou service em pastas diferentes
 - **Nunca** importar um schema de um caminho relativo diferente do canonical (`auth/schemas/user.schema`)
 - **Nunca** usar `password` como nome de campo no banco — sempre `passwordHash`
-- **Nunca** commitar com erros de TypeScript — o hook bloqueia, mas corrija antes de tentar
+- **Nunca** commitar com erros de TypeScript — o CI reprova e o staging não é publicado
 - **Nunca** adicionar lógica de negócio no controller
 - **Nunca** criar um módulo sem definir o que ele exporta no `@Module`
 - **Nunca** usar `any` explicitamente no código de produção
 
 ---
 
-## Instruções para Agentes CrewAI
-
-> Esta seção é lida pelos agentes `Architect`, `Developer`, `Documenter` e `Reviewer` do flow em `medicano_crew/`.
+## Instruções para Agentes de IA
 
 ### Antes de implementar qualquer coisa
 
@@ -470,21 +540,15 @@ npm test                                   # Roda os testes
 2. Liste os arquivos do módulo relacionado com `find apps/api/src/<modulo> -type f`
 3. Confirme os imports canônicos (especialmente para `User`, `Role`, `RedisService`)
 4. Verifique se o módulo já existe antes de criar um novo
+5. Identifique se a feature precisa de novo módulo ou se encaixa em um existente
 
-### Architect
-
-- Defina a estrutura completa de arquivos antes de qualquer código
-- Especifique os imports entre módulos explicitamente
-- Identifique se a feature precisa de novo módulo ou se encaixa em um existente
-- Documente as regras de negócio novas no plano técnico, não apenas no código
-
-### Developer
+### Ao implementar
 
 - Implemente cada arquivo completo — sem `// TODO`, sem `// ...`
 - Siga rigorosamente a estrutura de pastas definida neste documento
 - Ao criar um service, implemente também o module e o controller correspondentes
 - Ao criar um schema, atualize o `app.module.ts` se necessário
-- Nomeie variáveis conforme as convenções desta seção — nunca use `data`, `obj`, `res`, `val` como nomes de variável
+- Nomeie variáveis conforme as convenções deste documento — nunca use `data`, `obj`, `res`, `val` como nomes de variável
 - Ao usar o modelo Mongoose em testes, use constructor function mock (não object literal):
 
 ```typescript
@@ -494,7 +558,7 @@ function MockUserModel(this: any, dto: any) {
 MockUserModel.findOne = jest.fn();
 ```
 
-### Reviewer
+### Antes de entregar
 
 Verifique obrigatoriamente:
 
@@ -502,18 +566,5 @@ Verifique obrigatoriamente:
 - [ ] Nenhum campo de senha está sendo salvo como `password` (deve ser `passwordHash`)
 - [ ] `app.module.ts` foi atualizado com módulos novos
 - [ ] Sem imports quebrados (caminho canônico do `User` é `auth/schemas/user.schema`)
-- [ ] `tsc --noEmit` passaria sem erros
+- [ ] `tsc --noEmit` passaria sem erros (e `npm run lint` + `npm run build` no web, se mexeu nele)
 - [ ] Regras de negócio da seção de autenticação não foram violadas
-
-### Formato de output do Developer para o Aider
-
-O Developer gera blocos no formato que o Aider entende:
-
-```
-apps/api/src/clinics/clinics.service.ts
-\`\`\`typescript
-<conteúdo completo do arquivo>
-\`\`\`
-```
-
-Nunca gerar arquivos parciais. Sempre o conteúdo completo do arquivo.
