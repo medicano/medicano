@@ -7,7 +7,6 @@
 .git
 .github
 .claude
-medicano_crew
 documentation
 deploy/.env
 apps/api/uploads

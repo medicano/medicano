@@ -1,6 +1,0 @@
-.env
-__pycache__/
-.venv/
-lib/
-output/
-.DS_Store
